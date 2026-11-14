@@ -1,0 +1,66 @@
+# Standalone project for building and testing the Workspaces plugin from plugins/Workspaces.
+# WorkspaceKit is linked statically into the bundle: Dash.app provides DashKit, not WorkspaceKit.
+name: WorkspacesPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+  WorkspaceKit: { path: ../../../perso/dash/Packages/WorkspaceKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  WorkspacesPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false
+      - package: WorkspaceKit
+        product: WorkspaceKit
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        NSPrincipalClass: WorkspacesDashPlugin
+        DashPluginID: workspaces
+        DashPluginVersion: "2.1.0"
+        DashKitMinimumVersion: "1.3.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.workspaces
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+  WorkspacesPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Sources, Tests]
+    dependencies:
+      - package: DashKit
+        product: DashKit
+      - package: WorkspaceKit
+        product: WorkspaceKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.workspaces.tests
+schemes:
+  WorkspacesPlugin:
+    build:
+      targets:
+        WorkspacesPlugin: all
+  WorkspacesPluginTests:
+    build:
+      targets:
+        WorkspacesPluginTests: [test]
+    test:
+      targets: [WorkspacesPluginTests]

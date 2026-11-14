@@ -1,0 +1,16 @@
+{
+  "name": "Agents",
+  "kind": "feature",
+  "icon": "hammer",
+  "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
+  "requires": [
+    "atlassian"
+  ],
+  "provides": [
+    "agents"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

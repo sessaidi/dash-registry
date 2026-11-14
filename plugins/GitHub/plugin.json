@@ -1,0 +1,13 @@
+{
+  "name": "GitHub",
+  "kind": "integration",
+  "icon": "chevron.left.forwardslash.chevron.right",
+  "description": "GitHub account, API URL and the repositories you watch.",
+  "provides": [
+    "github"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

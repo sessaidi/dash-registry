@@ -1,0 +1,13 @@
+{
+  "name": "Atlassian",
+  "kind": "integration",
+  "icon": "square.stack.3d.up",
+  "description": "Jira and Confluence Cloud with one site, email and API token.",
+  "provides": [
+    "atlassian"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

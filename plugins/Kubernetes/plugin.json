@@ -1,0 +1,14 @@
+{
+  "name": "Kubernetes",
+  "kind": "integration",
+  "icon": "circle.hexagongrid",
+  "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
+  "provides": [
+    "kubernetes",
+    "kubernetes-pods"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

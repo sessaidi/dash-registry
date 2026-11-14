@@ -1,0 +1,16 @@
+{
+  "name": "Jira Board",
+  "kind": "feature",
+  "icon": "checklist",
+  "description": "Your Jira board's columns and the issues you follow, with Claude tools to search, comment and move tickets.",
+  "requires": [
+    "atlassian"
+  ],
+  "provides": [
+    "jira-board"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Workspaces",
+  "kind": "feature",
+  "icon": "shippingbox",
+  "description": "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis.",
+  "requires": [
+    "gcp",
+    "kubernetes",
+    "docker",
+    "github",
+    "agents"
+  ],
+  "provides": [
+    "workspaces"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

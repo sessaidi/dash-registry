@@ -1,0 +1,13 @@
+{
+  "name": "GitLab",
+  "kind": "integration",
+  "icon": "point.3.connected.trianglepath.dotted",
+  "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
+  "provides": [
+    "gitlab"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Daily Standup",
+  "kind": "feature",
+  "icon": "person.3.sequence",
+  "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
+  "provides": [
+    "daily-standup"
+  ],
+  "author": {
+    "name": "Dash"
+  },
+  "requires": [
+    "zoom"
+  ],
+  "optional": [
+    "pull-requests",
+    "jira-board",
+    "agents",
+    "workspaces"
+  ]
+}

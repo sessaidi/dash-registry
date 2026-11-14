@@ -1,0 +1,13 @@
+{
+  "name": "AWS",
+  "kind": "integration",
+  "icon": "server.rack",
+  "description": "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.",
+  "provides": [
+    "aws"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}
