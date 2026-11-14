@@ -16,7 +16,7 @@ final class PodsFeature: DashExtension {
     let requires = ["kubernetes"]
     let metadata = ExtensionMetadata(
         version: "1.3.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
-        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.3.0")
+        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.4.0")
 
     static let refreshInterval: Duration = .seconds(30)
 
@@ -365,6 +365,8 @@ private struct PodsWidgetView: View {
     let host: any ExtensionContext
     let config: PodsWidget.Config
     @State private var selected: PodSummary?
+    /// The widget's size family, from the dashboard: each gets its own layout.
+    @Environment(\.widgetLayout) private var layout
 
     var body: some View {
         if let feature {
@@ -401,9 +403,14 @@ private struct PodsWidgetView: View {
                     StateView(.empty(
                         title: pods.isEmpty ? "No pods" : config.activeFilters == ["Problems"] ? "All pods healthy" : "No pods match",
                         systemImage: "checkmark.circle", message: "Namespace \(namespaceLabel(feature))"))
+                } else if layout.family == .narrow {
+                    PodCounts(pods: visible, warnings: browse?.warnings ?? [:], showProblems: layout.size.height > 230) { selected = $0 }
+                } else if layout.family == .wide || layout.family == .large {
+                    PodTable(pods: visible, warnings: browse?.warnings ?? [:], showNamespace: config.namespace == "*",
+                             showNode: layout.size.width >= 820) { selected = $0 }
                 } else {
                     List(visible) { pod in
-                        PodRow(pod: pod, subtitle: subtitle(pod), warnings: browse?.warnings[pod.id] ?? [])
+                        PodRow(pod: pod, subtitle: subtitle(pod), warnings: browse?.warnings[pod.id] ?? [], compact: layout.family == .narrow)
                         .contentShape(.rect)
                         .onTapGesture { selected = pod }
                         .contextMenu {
@@ -420,10 +427,12 @@ private struct PodsWidgetView: View {
         }
     }
 
-    /// What's shown, as set in the widget's settings: badges when there's room, one line of text otherwise.
+    /// What's shown, as set in the widget's settings: badges when there's room, one line of text when narrow.
+    @ViewBuilder
     private func header(_ feature: PodsFeature, shown: Int, total: Int, lastSync: Date?, error: String?) -> some View {
-        ViewThatFits(in: .horizontal) {
+        if layout.family != .narrow {
             wideHeader(feature, shown: shown, total: total, lastSync: lastSync, error: error)
+        } else {
             HStack(spacing: 4) {
                 Text(namespaceLabel(feature)).foregroundStyle(.tint).lineLimit(1)
                 Text("· " + (shown == total ? "\(total) pods" : "\(shown)/\(total)")).foregroundStyle(.secondary).lineLimit(1).fixedSize()
@@ -452,7 +461,6 @@ private struct PodsWidgetView: View {
             if let error { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tone.warning.color).help(error) }
             if let lastSync { RelativeTime(lastSync).font(.caption).foregroundStyle(.secondary).fixedSize() }
         }
-        .frame(minWidth: 380)
     }
 
     private func contextName(_ feature: PodsFeature) -> String? { config.context ?? feature.cluster?.activeContext }
@@ -477,20 +485,14 @@ private struct PodsWidgetView: View {
 }
 
 /// One pod: the name on one line (cut in the middle, where hashes are), details below, and the
-/// status as a badge when there's room or folded into the details when the widget is narrow.
+/// status as a badge; narrow widgets fold the status into the details line.
 private struct PodRow: View {
     let pod: PodSummary
     let subtitle: String
     let warnings: [String]
+    let compact: Bool
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(compact: false).frame(minWidth: 330)
-            row(compact: true)
-        }
-    }
-
-    private func row(compact: Bool) -> some View {
         HStack(spacing: 8) {
             StatusDot(pod.tone, help: pod.status)
             VStack(alignment: .leading, spacing: 1) {
@@ -513,5 +515,125 @@ private struct PodRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// Narrow widgets: how many pods are running, failing, starting and done, and (when there's
+/// height) the pods with problems.
+private struct PodCounts: View {
+    let pods: [PodSummary]
+    let warnings: [String: [String]]
+    let showProblems: Bool
+    let open: (PodSummary) -> Void
+
+    var body: some View {
+        let failing = pods.filter { $0.tone == .danger }
+        let starting = pods.filter { $0.tone == .warning }
+        let running = pods.filter { $0.tone == .success }
+        let done = pods.filter { $0.phase == "Succeeded" }
+        VStack(alignment: .leading, spacing: 10) {
+            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    count(running.count, "running", .success)
+                    count(failing.count, "failing", .danger)
+                }
+                GridRow {
+                    count(starting.count, "not ready", .warning)
+                    count(done.count, "completed", .neutral)
+                }
+            }
+            let restarts = pods.reduce(0) { $0 + $1.restarts }
+            if restarts > 0 {
+                Label("\(restarts) restarts", systemImage: "arrow.clockwise").font(.caption).foregroundStyle(.secondary)
+            }
+            if showProblems, !(failing + starting).isEmpty {
+                List(failing + starting) { pod in
+                    HStack(spacing: 6) {
+                        StatusDot(pod.tone, help: pod.status)
+                        Text(pod.name).font(.caption.monospaced()).lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 2)
+                        Text(warnings[pod.id]?.first ?? pod.status).font(.caption2).foregroundStyle(pod.tone.color).lineLimit(1)
+                    }
+                    .contentShape(.rect)
+                    .onTapGesture { open(pod) }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        }
+    }
+
+    private func count(_ value: Int, _ label: String, _ tone: Tone) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(value)").font(.title2.bold()).monospacedDigit().foregroundStyle(value > 0 && tone != .neutral ? tone.color : .primary)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 8))
+    }
+}
+
+/// Wide widgets: kubectl get pods as a table. The header and the rows share one set of
+/// column widths and margins. Click a row for the pod's details.
+private struct PodTable: View {
+    let pods: [PodSummary]
+    let warnings: [String: [String]]
+    let showNamespace: Bool
+    let showNode: Bool
+    let open: (PodSummary) -> Void
+    @State private var hovered: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            columns(dot: AnyView(Color.clear), name: Text("Name"), namespace: Text("Namespace"), ready: Text("Ready"),
+                    status: AnyView(Text("Status")), restarts: Text("Restarts"), age: Text("Age"), node: Text("Node"))
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                .padding(.vertical, 5)
+            Divider()
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(pods) { pod in
+                        columns(dot: AnyView(StatusDot(pod.tone, help: pod.status)),
+                                name: Text(pod.name).font(.callout.monospaced()),
+                                namespace: Text(pod.namespace),
+                                ready: Text("\(pod.ready)/\(pod.total)").monospacedDigit(),
+                                status: AnyView(HStack(spacing: 4) {
+                                    Text(pod.status).foregroundStyle(pod.tone == .success ? Color.primary : pod.tone.color)
+                                    if let warning = warnings[pod.id]?.first {
+                                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tone.warning.color).help(warning)
+                                    }
+                                }),
+                                restarts: Text("\(pod.restarts)").monospacedDigit().foregroundStyle(pod.restarts > 0 ? Tone.warning.color : .primary),
+                                age: Text(PodSummary.age(since: pod.created)).monospacedDigit(),
+                                node: Text(pod.node ?? "—").foregroundStyle(.secondary))
+                            .font(.callout)
+                            .padding(.vertical, 6)
+                            .background(hovered == pod.id ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 6))
+                            .contentShape(.rect)
+                            .onHover { hovered = $0 ? pod.id : (hovered == pod.id ? nil : hovered) }
+                            .onTapGesture { open(pod) }
+                            .help(pod.name)
+                        Divider().opacity(0.5)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    /// One line of the table, header or pod: fixed widths except the name, which takes the rest.
+    private func columns(dot: AnyView, name: Text, namespace: Text, ready: Text, status: AnyView, restarts: Text, age: Text, node: Text) -> some View {
+        HStack(spacing: 12) {
+            dot.frame(width: 10)
+            name.lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+            if showNamespace { namespace.lineLimit(1).truncationMode(.tail).frame(width: 130, alignment: .leading) }
+            ready.frame(width: 44, alignment: .leading)
+            status.lineLimit(1).frame(width: 150, alignment: .leading)
+            restarts.frame(width: 60, alignment: .trailing)
+            age.frame(width: 40, alignment: .trailing)
+            if showNode { node.lineLimit(1).truncationMode(.middle).frame(width: 220, alignment: .leading) }
+        }
+        .padding(.horizontal, 8)
     }
 }
