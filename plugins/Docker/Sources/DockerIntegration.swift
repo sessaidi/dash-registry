@@ -13,7 +13,7 @@ final class DockerIntegration: Integration {
     let name = "Docker"
     let systemImage = "shippingbox"
     let metadata = ExtensionMetadata(
-        version: "1.1.0", author: .dash,
+        version: "1.2.0", author: .dash,
         summary: "Lists, inspects and controls local Docker containers through the Engine API socket.",
         category: .cloud, tags: ["docker", "containers", "local"])
 
@@ -26,7 +26,7 @@ final class DockerIntegration: Integration {
     private(set) var revision = 0
     /// Containers acted on recently (reference → when), so their exits aren't reported as crashes.
     private(set) var recentActions: [String: Date] = [:]
-    @ObservationIgnored private var host: (any ExtensionContext)?
+    @ObservationIgnored private(set) var host: (any ExtensionContext)?
 
     var socketPreference: String {
         get { _ = revision; return preferences.string("socket") ?? "" }
@@ -102,7 +102,7 @@ final class DockerIntegration: Integration {
 
     // MARK: - Tools
 
-    private func requireConnection() throws -> IntegrationConnection {
+    func requireConnection() throws -> IntegrationConnection {
         guard let connection else { throw ToolError("No Docker socket found. Start Docker or set the socket in Settings → Docker.") }
         return connection
     }
@@ -173,7 +173,7 @@ final class DockerIntegration: Integration {
                 return ["ok": true, "id": .string(id), "action": .string(action),
                         "note": response.statusCode == 304 ? "Container was already in that state." : nil]
             },
-        ]
+        ] + granularTools
     }
 
     /// The parts of GET /containers/{id}/json worth showing; environment variables are left out (secrets).
