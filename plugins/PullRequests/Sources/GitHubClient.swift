@@ -69,14 +69,8 @@ struct GitHubClient: Sendable {
         try await get("/repos/\(repo)/issues/\(number)/comments?per_page=50").json.array ?? []
     }
 
-    func comment(_ repo: String, _ number: Int, body: String) async throws {
-        _ = try await send("/repos/\(repo)/issues/\(number)/comments", method: "POST", body: ["body": .string(body)])
-    }
 
     /// `event` is APPROVE, REQUEST_CHANGES or COMMENT.
-    func submitReview(_ repo: String, _ number: Int, event: String, body: String) async throws {
-        _ = try await send("/repos/\(repo)/pulls/\(number)/reviews", method: "POST", body: ["event": .string(event), "body": .string(body)])
-    }
 
     func merge(_ repo: String, _ number: Int, method: String) async throws {
         _ = try await send("/repos/\(repo)/pulls/\(number)/merge", method: "PUT", body: ["merge_method": .string(method)])

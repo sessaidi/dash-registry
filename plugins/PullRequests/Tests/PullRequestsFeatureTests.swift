@@ -17,9 +17,9 @@ struct PullRequestsFeatureTests {
         #expect(feature.models.map { String(describing: $0) } == ["PullRequest", "PRReview"])
         #expect(feature.widgets.map(\.kind) == ["github.pulls"])
         #expect(feature.tools.map(\.name) == [
-            "github_list_prs", "github_get_pr", "github_get_diff", "github_rerun_review", "github_comment", "github_submit_review", "github_create_pr",
+            "github_list_prs", "github_get_pr", "github_get_diff", "github_rerun_review", "github_create_pr",
         ])
-        #expect(feature.tools.filter(\.requiresApproval).map(\.name) == ["github_comment", "github_submit_review", "github_create_pr"])
+        #expect(feature.tools.filter(\.requiresApproval).map(\.name) == ["github_create_pr"])
     }
 
     @Test func pluginEntryPoint() {
@@ -267,20 +267,17 @@ struct PullRequestsFeatureTests {
         #expect(harness.claude.calls.count == 1)
     }
 
-    @Test func postsClaudesReviewToGitHub() async throws {
+    @Test func reviewsNeverTouchGitHub() async throws {
         let harness = Harness()
         harness.claude.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "abc1234567"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
-            "POST /repos/acme/api/pulls/1/reviews": .json(#"{"id":1}"#),
         ])
         await harness.feature.sync()
         await harness.feature.reviewsFinished()
-        let review = try #require(harness.feature.latestReview("acme/api#1"))
-        try await harness.feature.postReview(review, event: "COMMENT")
-        #expect(review.postedToGitHub)
-        let body = try #require(harness.requests.last?.bodyJSON)
-        #expect(body["event"] == "COMMENT" && body["body"]?.string == review.markdown)
+        #expect(harness.feature.latestReview("acme/api#1")?.status == "done")
+        // Only reads went to GitHub.
+        #expect(harness.requests.allSatisfy { ($0.httpMethod ?? "GET") == "GET" })
     }
 }

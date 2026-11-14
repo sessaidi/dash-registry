@@ -76,17 +76,11 @@ struct ToolTests {
         #expect(harness.feature.latestReview("acme/api#3")?.status == "done")
     }
 
-    @Test func commentAndSubmitReviewPostAsTheUser() async throws {
+    @Test func reviewsAreNeverPostedToGitHub() throws {
         let harness = Harness(autoReview: false)
-        harness.serve([
-            "POST /repos/acme/api/issues/4/comments": .json(#"{"id":1}"#, status: 201),
-            "POST /repos/acme/api/pulls/4/reviews": .json(#"{"id":2}"#),
-        ])
-        #expect(try await harness.tool("github_comment").run(["repo": "acme/api", "number": 4, "body": "Looks good"]) == "commented")
-        #expect(harness.requests.last?.bodyJSON == ["body": "Looks good"])
-        #expect(try await harness.tool("github_submit_review").run(["repo": "acme/api", "number": 4, "event": "APPROVE", "body": "Ship it"]) == "submitted")
-        #expect(harness.requests.last?.bodyJSON == ["event": "APPROVE", "body": "Ship it"])
-        await #expect(throws: ToolError.self) { _ = try await harness.tool("github_comment").run(["repo": "acme/api", "number": 4]) }
+        let names = harness.feature.tools.map(\.name)
+        #expect(!names.contains("github_comment") && !names.contains("github_submit_review"))
+        #expect(!names.contains { $0.contains("comment") || $0.contains("submit") })
     }
 
     @Test func createPRDefaultsToTheDefaultBranchAndDraft() async throws {
@@ -113,7 +107,7 @@ struct ToolTests {
         }
         harness.host.extensions.removeAll { $0.id == "github" }
         await #expect(throws: ToolError("The GitHub integration is not installed.")) {
-            _ = try await harness.tool("github_comment").run(["repo": "acme/api", "number": 1, "body": "x"])
+            _ = try await harness.tool("github_get_diff").run(["repo": "acme/api", "number": 1])
         }
     }
 

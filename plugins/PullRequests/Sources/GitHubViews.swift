@@ -1,3 +1,4 @@
+import AppKit
 import DashKit
 import DashKitUI
 import SwiftData
@@ -171,7 +172,6 @@ struct PullRequestSheet: View {
     let host: any ExtensionContext
     @Environment(\.dismiss) private var dismiss
     @Query private var reviews: [PRReview]
-    @State private var reply = ""
     @State private var error: String?
     @State private var busy = false
     @State private var confirmMerge = false
@@ -207,20 +207,17 @@ struct PullRequestSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             if let error { Text(error).foregroundStyle(.red).font(.callout) }
-            TextField("Comment or review message", text: $reply, axis: .vertical).lineLimit(1...5)
+            // Claude's reviews are for you only: Dash never comments on or reviews the pull request.
+            Label("Reviews stay in Dash. Nothing is posted to the pull request.", systemImage: "lock")
+                .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Comment") { run { try await github?.client.comment(pr.repo, pr.number, body: reply); reply = "" } }
-                    .disabled(reply.isEmpty || busy)
-                Menu("Review") {
-                    Button("Approve") { submit("APPROVE") }
-                    Button("Request Changes") { submit("REQUEST_CHANGES") }.disabled(reply.isEmpty)
-                    if let review = reviews.first, review.status == "done" {
-                        Divider()
-                        Button("Post Claude's Review as Comment") { run { try await github?.postReview(review, event: "COMMENT") } }
+                if let review = reviews.first, review.status == "done" {
+                    Button("Copy Review", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(review.markdown, forType: .string)
                     }
+                    .help("Copy Claude's review as Markdown, to use however you like")
                 }
-                .fixedSize()
-                .disabled(busy)
                 Button("Re-review", systemImage: "arrow.clockwise") { github?.requestReview(pr) }
                 Button("Ask Claude", systemImage: "sparkles") {
                     host.askClaude("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Claude review first.")
@@ -236,13 +233,6 @@ struct PullRequestSheet: View {
             Button("Squash and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "squash"); await github?.sync() } }
             Button("Merge Commit") { run { try await github?.client.merge(pr.repo, pr.number, method: "merge"); await github?.sync() } }
             Button("Rebase and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "rebase"); await github?.sync() } }
-        }
-    }
-
-    private func submit(_ event: String) {
-        run {
-            try await github?.client.submitReview(pr.repo, pr.number, event: event, body: reply)
-            reply = ""
         }
     }
 

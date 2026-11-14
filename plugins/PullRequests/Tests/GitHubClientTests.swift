@@ -60,23 +60,17 @@ struct GitHubClientTests {
 
     @Test func writesSendTheRightMethodsAndBodies() async throws {
         StubProtocol.serve(host, routes: [
-            "POST /repos/acme/api/issues/7/comments": .json(#"{"id":1}"#, status: 201),
-            "POST /repos/acme/api/pulls/7/reviews": .json(#"{"id":2}"#),
             "PUT /repos/acme/api/pulls/7/merge": .json(#"{"merged":true}"#),
             "POST /repos/acme/api/pulls": .json(#"{"number":8,"html_url":"https://github.com/acme/api/pull/8"}"#, status: 201),
         ])
-        try await client.comment("acme/api", 7, body: "hi")
-        try await client.submitReview("acme/api", 7, event: "APPROVE", body: "ok")
         try await client.merge("acme/api", 7, method: "squash")
         let created = try await client.createPull("acme/api", title: "T", head: "h", base: "main", body: "B", draft: true)
         #expect(created["number"]?.int == 8)
 
         let sent = StubProtocol.requests(host)
-        #expect(sent.map { $0.httpMethod ?? "" } == ["POST", "POST", "PUT", "POST"])
-        #expect(sent[0].bodyJSON == ["body": "hi"])
-        #expect(sent[1].bodyJSON == ["event": "APPROVE", "body": "ok"])
-        #expect(sent[2].bodyJSON == ["merge_method": "squash"])
-        #expect(sent[3].bodyJSON == ["title": "T", "head": "h", "base": "main", "body": "B", "draft": true])
+        #expect(sent.map { $0.httpMethod ?? "" } == ["PUT", "POST"])
+        #expect(sent[0].bodyJSON == ["merge_method": "squash"])
+        #expect(sent[1].bodyJSON == ["title": "T", "head": "h", "base": "main", "body": "B", "draft": true])
     }
 
     @Test func repositoryLookups() async throws {

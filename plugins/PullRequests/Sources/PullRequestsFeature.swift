@@ -375,13 +375,6 @@ final class PullRequestsFeature: DashExtension {
         try? host.context.save()
     }
 
-    func postReview(_ review: PRReview, event: String) async throws {
-        guard let pr = pull(review.prUID) else { throw ToolError("PR \(review.prUID) is no longer open.") }
-        try await client.submitReview(pr.repo, pr.number, event: event, body: review.markdown)
-        review.postedToGitHub = true
-        try? host?.context.save()
-    }
-
     // MARK: Claude tools
 
     private struct PRInput: Decodable { let repo: String; let number: Int }
@@ -467,31 +460,6 @@ final class PullRequestsFeature: DashExtension {
                 return "queued"
             },
             ClaudeTool(
-                name: "github_comment",
-                description: "Post a comment on a pull request's conversation.",
-                properties: prProperties.merging(["body": JSONSchema.string("Markdown comment.")]) { $1 },
-                required: ["repo", "number", "body"], requiresApproval: true
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(CommentInput.self)
-                try await client.comment(request.repo, request.number, body: request.body)
-                return "commented"
-            },
-            ClaudeTool(
-                name: "github_submit_review",
-                description: "Submit a review on a pull request as the user: approve, request changes, or comment.",
-                properties: prProperties.merging([
-                    "event": JSONSchema.string("Review type.", enum: ["APPROVE", "REQUEST_CHANGES", "COMMENT"]),
-                    "body": JSONSchema.string("Markdown review body."),
-                ]) { $1 },
-                required: ["repo", "number", "event", "body"], requiresApproval: true
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(ReviewInput.self)
-                try await client.submitReview(request.repo, request.number, event: request.event, body: request.body)
-                return "submitted"
-            },
-            ClaudeTool(
                 name: "github_create_pr",
                 description: "Open a pull request from a branch that is already pushed.",
                 properties: [
@@ -556,7 +524,7 @@ private struct PullRequestsSettingsView: View {
                 Toggle("Feedback on my PRs (approvals, change requests, comments)", isOn: $pulls.followFeedback)
                     .disabled(!pulls.trackMine)
             }
-            Section("Claude reviews") {
+            Section {
                 Toggle("Review automatically on new PRs and new pushes", isOn: $pulls.autoReview)
                 Group {
                     Toggle("PRs waiting for my review", isOn: $pulls.reviewRequestedPRs)
@@ -570,6 +538,10 @@ private struct PullRequestsSettingsView: View {
                 TextField("Review instructions", text: $pulls.reviewInstructions,
                           prompt: Text("e.g. We use Go; flag missing context propagation and unchecked errors."), axis: .vertical)
                     .lineLimit(3...8)
+            } header: {
+                Text("Claude reviews")
+            } footer: {
+                Text("Reviews are for you only: they stay in Dash and are never posted to GitHub as comments or reviews.")
             }
             Section {
                 HStack {
