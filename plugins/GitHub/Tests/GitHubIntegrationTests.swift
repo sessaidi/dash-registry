@@ -194,3 +194,25 @@ struct GitHubIntegrationTests {
         #expect(try GitHubAPI.validatedPath("/x?u=https://example.com") == "/x?u=https://example.com")
     }
 }
+
+@Suite("GitHub read tools")
+struct GitHubReadToolTests {
+    @MainActor @Test func toolsAreAllReadOnly() {
+        let names = GitHubIntegration(defaults: UserDefaults(suiteName: "gh-\(UUID())")!).tools.map(\.name)
+        #expect(names.count >= 18)
+        #expect(names.contains("github_workflow_runs") && names.contains("github_job_log") && names.contains("github_pull_reviews"))
+        #expect(GitHubIntegration(defaults: UserDefaults(suiteName: "gh-\(UUID())")!).tools.allSatisfy { !$0.requiresApproval })
+    }
+
+    @Test func compactShapes() throws {
+        let pr: JSONValue = ["number": 7, "title": "Retries", "user": ["login": "ada"], "state": "open", "draft": false, "merged_at": .null,
+                             "head": ["ref": "feature/x"], "base": ["ref": "main"], "labels": [["name": "backend"]], "requested_reviewers": [["login": "bob"]]]
+        let summary = GitHubIntegration.pullSummary(pr)
+        #expect(summary["author"] == "ada" && summary["head"] == "feature/x" && summary["labels"] == ["backend"] && summary["requested_reviewers"] == ["bob"])
+        let job: JSONValue = ["id": 1, "name": "test", "conclusion": "failure", "steps": [["name": "Build", "conclusion": "success"], ["name": "Unit tests", "conclusion": "failure"]]]
+        #expect(GitHubIntegration.jobSummary(job)["failed_steps"] == ["Unit tests"])
+        #expect(try GitHubIntegration.repoPath(["repo": "fubotv/services-user"]) == "/repos/fubotv/services-user")
+        #expect(throws: ToolError.self) { try GitHubIntegration.repoPath(["repo": "../etc"]) }
+        #expect(GitHubIntegration.query([("state", "open"), ("base", nil), ("q", "is:pr is:open")]) == "?state=open&q=is%3Apr%20is%3Aopen")
+    }
+}

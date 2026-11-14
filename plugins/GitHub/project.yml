@@ -30,7 +30,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         NSPrincipalClass: GitHubDashPlugin
         DashPluginID: github
-        DashPluginVersion: "1.1.0"
+        DashPluginVersion: "1.3.0"
         DashKitMinimumVersion: "1.0.0"
     settings:
       base:

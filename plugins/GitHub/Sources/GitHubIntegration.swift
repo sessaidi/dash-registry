@@ -259,6 +259,9 @@ final class GitHubIntegration: Integration {
                 return text.count > Self.maxToolCharacters
                     ? ["truncated": true, "json": .string(String(text.prefix(Self.maxToolCharacters)))] : json
             },
-        ]
+        ] + readTools
     }
+
+    /// The API for the granular tools (throws when GitHub isn't connected).
+    var toolAPI: GitHubAPI { get throws { try api } }
 }
