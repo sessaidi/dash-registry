@@ -83,6 +83,10 @@ final class GitHubIntegration: Integration {
     private(set) var availableRepos: [AvailableRepo] = []
     private(set) var loadingRepos = false
     private(set) var reposError: String?
+    /// The classic token's scopes, from GitHub's X-OAuth-Scopes header (nil for fine-grained tokens).
+    private(set) var tokenScopes: [String]?
+    /// Repositories GitHub's search found for the typed text, beyond the loaded list.
+    private(set) var searchResults: [AvailableRepo] = []
 
     struct AvailableRepo: Identifiable, Hashable, Sendable {
         let fullName: String
@@ -92,15 +96,39 @@ final class GitHubIntegration: Integration {
         var id: String { fullName }
     }
 
+    /// What's likely wrong when the list comes back short: missing scopes or organization SSO.
+    var reposHint: String? {
+        if let scopes = tokenScopes {
+            let missing = ["repo", "read:org"].filter { !scopes.contains($0) && !(($0 == "read:org") && scopes.contains("admin:org")) }
+            if !missing.isEmpty {
+                return "This classic token is missing \(missing.joined(separator: " and ")) (it has: \(scopes.isEmpty ? "none" : scopes.joined(separator: ", "))). "
+                    + "Without repo only public repositories show; without read:org your organizations' repositories don't."
+            }
+        }
+        if !loadingRepos, reposError == nil, availableRepos.allSatisfy({ !$0.isPrivate }) {
+            return "No private repositories visible. If your organization uses SAML single sign-on, open the token on GitHub and choose Configure SSO → Authorize for it."
+        }
+        return nil
+    }
+
     func loadAvailableRepos() async {
-        guard let connection, !loadingRepos else { return }
+        guard let connection else {
+            reposError = hasToken ? "The GitHub API URL is not valid." : "Add a token first."
+            return
+        }
+        guard !loadingRepos else { return }
         loadingRepos = true
         defer { loadingRepos = false }
         var found: [AvailableRepo] = []
         do {
-            for page in 1...10 {
+            for page in 1...30 {
                 guard let url = connection.url("/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member&page=\(page)") else { break }
-                let (data, _) = try await connection.send(URLRequest(url: url), service: "GitHub")
+                let (data, response) = try await connection.send(URLRequest(url: url), service: "GitHub")
+                if page == 1 {
+                    tokenScopes = (response.value(forHTTPHeaderField: "X-OAuth-Scopes")).map {
+                        $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                    }
+                }
                 let items = try JSONValue.parse(data).array ?? []
                 found += items.compactMap { item in
                     guard let name = item["full_name"]?.string else { return nil }
@@ -113,6 +141,28 @@ final class GitHubIntegration: Integration {
             reposError = nil
         } catch {
             reposError = error.localizedDescription
+        }
+    }
+
+    /// Searches GitHub for repositories by name (finds ones the list missed, e.g. a big organization's).
+    func searchRepos(_ text: String) async {
+        let query = text.trimmingCharacters(in: .whitespaces)
+        guard query.count >= 3, let connection else { searchResults = []; return }
+        // "owner/name" searches inside that owner; otherwise by name anywhere the token can see.
+        let parts = query.split(separator: "/", maxSplits: 1).map(String.init)
+        let q = parts.count == 2 ? "\(parts[1]) in:name user:\(parts[0])" : "\(query) in:name"
+        guard let encoded = q.addingPercentEncoding(withAllowedCharacters: .alphanumerics),
+              let url = connection.url("/search/repositories?per_page=30&q=\(encoded)") else { return }
+        do {
+            let (data, _) = try await connection.send(URLRequest(url: url), service: "GitHub")
+            let known = Set(availableRepos.map(\.fullName))
+            searchResults = (try JSONValue.parse(data)["items"]?.array ?? []).compactMap { item in
+                guard let name = item["full_name"]?.string, !known.contains(name) else { return nil }
+                return AvailableRepo(fullName: name, isPrivate: item["private"]?.bool ?? false,
+                                     description: item["description"]?.string ?? "", pushedAt: item["pushed_at"]?.string ?? "")
+            }
+        } catch {
+            searchResults = []
         }
     }
 

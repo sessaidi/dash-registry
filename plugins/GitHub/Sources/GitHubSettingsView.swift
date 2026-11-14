@@ -32,21 +32,10 @@ struct GitHubSettingsView: View {
             } header: {
                 Text("Account")
             } footer: {
-                Text("The links open GitHub with Dash's name and permissions filled in: Contents, Actions, Issues and Metadata read; Pull requests read & write (reviews, PRs). For a fine-grained token, pick the repositories or organization on that page (an organization may need to approve it). For GitHub Enterprise Server use https://<host>/api/v3.")
+                Text("The links open GitHub with Dash's name and permissions filled in: Contents, Actions, Issues and Metadata read; Pull requests read & write (only to open PRs you ask for; reviews stay in Dash). For a fine-grained token, pick the repositories or organization on that page (an organization may need to approve it). For GitHub Enterprise Server use https://<host>/api/v3.")
             }
-            Section {
-                if !github.repos.isEmpty {
-                    ForEach(github.repos, id: \.self) { repo in
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                            Text(repo).font(.callout.monospaced())
-                            Spacer()
-                            Button("Stop Watching", systemImage: "minus.circle") { github.setWatched(repo, false) }
-                                .labelStyle(.iconOnly).buttonStyle(.borderless)
-                        }
-                    }
-                }
-                if github.hasToken {
+            if github.hasToken {
+                Section {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                         TextField("Search your repositories", text: $search).textFieldStyle(.plain)
@@ -55,25 +44,53 @@ struct GitHubSettingsView: View {
                             .labelStyle(.iconOnly).buttonStyle(.borderless)
                     }
                     if let error = github.reposError { Text(error).font(.caption).foregroundStyle(.red) }
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(filtered) { repo in
-                                Toggle(isOn: Binding(get: { github.repos.contains(repo.fullName) }, set: { github.setWatched(repo.fullName, $0) })) {
-                                    HStack(spacing: 6) {
-                                        Text(repo.fullName).font(.callout.monospaced())
-                                        if repo.isPrivate { Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary) }
-                                        if !repo.description.isEmpty { Text(repo.description).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-                                    }
-                                }
-                                .toggleStyle(.checkbox)
-                            }
-                            if filtered.isEmpty && !github.loadingRepos {
-                                Text(github.availableRepos.isEmpty ? "No repositories loaded yet." : "No repository matches “\(search)”.").foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let hint = github.reposHint {
+                        Label(hint, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
                     }
-                    .frame(height: 240)
+                    let results = filtered + github.searchResults
+                    if results.isEmpty {
+                        if !github.loadingRepos {
+                            Text(github.availableRepos.isEmpty ? "No repositories loaded yet. Press ↻ to load them." : "No repository matches “\(search)”.")
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        // Up to ten rows show; more scroll.
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(results) { repo in
+                                    Toggle(isOn: Binding(get: { github.repos.contains(repo.fullName) }, set: { github.setWatched(repo.fullName, $0) })) {
+                                        HStack(spacing: 6) {
+                                            Text(repo.fullName).font(.callout.monospaced())
+                                            if repo.isPrivate { Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary) }
+                                            if !repo.description.isEmpty { Text(repo.description).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                                        }
+                                    }
+                                    .toggleStyle(.checkbox)
+                                    .frame(height: Self.rowHeight, alignment: .leading)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(height: CGFloat(min(results.count, 10)) * Self.rowHeight)
+                    }
+                } header: {
+                    Text("Find repositories")
+                } footer: {
+                    Text(github.availableRepos.isEmpty ? "Tick a repository to watch it." : "\(github.availableRepos.count) repositories visible to this token. Tick one to watch it.")
+                }
+            }
+            Section {
+                if github.repos.isEmpty {
+                    Text("No repositories watched yet.").foregroundStyle(.secondary)
+                }
+                ForEach(github.repos, id: \.self) { repo in
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text(repo).font(.callout.monospaced())
+                        Spacer()
+                        Button("Stop Watching", systemImage: "minus.circle") { github.setWatched(repo, false) }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                    }
                 }
                 HStack {
                     TextField("Add by name", text: $manual, prompt: Text("owner/name"))
@@ -93,7 +110,15 @@ struct GitHubSettingsView: View {
         }
         .formStyle(.grouped)
         .task { if github.hasToken && github.availableRepos.isEmpty { await github.loadAvailableRepos() } }
+        // Also ask GitHub's search, so repositories the list missed can still be found.
+        .task(id: search) {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await github.searchRepos(search)
+        }
     }
+
+    static let rowHeight: CGFloat = 26
 
     private var filtered: [GitHubIntegration.AvailableRepo] {
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()
