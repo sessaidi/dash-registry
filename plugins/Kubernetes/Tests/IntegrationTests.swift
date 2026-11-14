@@ -189,6 +189,7 @@ struct IntegrationTests {
         #expect(result["count"] == 2)
         #expect(result["pods"]?[1] == [
             "namespace": "team-a", "name": "worker-0", "phase": "Running", "status": "CrashLoopBackOff", "ready": "0/1", "restarts": 7, "node": "node-b",
+            "age": "?",
         ])
         let request = try #require(StubProtocol.requests("pods.test").last)
         #expect(request.url?.path == "/api/v1/namespaces/team-a/pods")

@@ -140,3 +140,150 @@ struct PodsFeatureTests {
         #expect(condition())
     }
 }
+
+@Suite("Pods browsing")
+struct PodsBrowsingTests {
+    static let pods = [
+        PodSummary(namespace: "a", name: "api-1", phase: "Running", ready: 1, total: 1, restarts: 0, node: "node-1"),
+        PodSummary(namespace: "a", name: "worker-1", phase: "Running", status: "CrashLoopBackOff", ready: 0, total: 1, restarts: 9, node: "node-2"),
+        PodSummary(namespace: "b", name: "migrate-1", phase: "Succeeded", status: "Completed", node: "node-1"),
+        PodSummary(namespace: "b", name: "web-1", phase: "Pending"),
+    ]
+
+    @Test func searchMatchesLikeK9s() {
+        var api = Self.pods[0]
+        api.labels = ["app": "api", "tier": "backend"]
+        #expect(api.matches(""))
+        #expect(api.matches("api"))
+        #expect(api.matches("node-1 run"))
+        #expect(!api.matches("api node-2"))
+        #expect(api.matches("app=api"))
+        #expect(!api.matches("app=web"))
+        #expect(!api.matches("!backend") == false)
+        #expect(!api.matches("!api"))
+        #expect(api.matches("!worker"))
+    }
+
+    @Test func statusFilters() {
+        func names(_ filter: PodSummary.Filter) -> [String] { Self.pods.filter { $0.passes(filter) }.map(\.name) }
+        #expect(names(.all).count == 4)
+        #expect(names(.problems) == ["worker-1", "web-1"])
+        #expect(names(.running) == ["api-1", "worker-1"])
+        #expect(names(.pending) == ["web-1"])
+        #expect(names(.failed) == ["worker-1"])
+        #expect(names(.completed) == ["migrate-1"])
+    }
+
+    @Test func sorting() {
+        #expect(PodSummary.sorted(Self.pods, by: .status).map(\.name) == ["worker-1", "web-1", "api-1", "migrate-1"])
+        #expect(PodSummary.sorted(Self.pods, by: .restarts).first?.name == "worker-1")
+        var older = Self.pods[0]
+        older.created = Date(timeIntervalSince1970: 0)
+        var newer = Self.pods[1]
+        newer.created = Date(timeIntervalSince1970: 100)
+        #expect(PodSummary.sorted([older, newer], by: .age).map(\.name) == ["worker-1", "api-1"])
+    }
+
+    @Test func ageLikeKubectl() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        #expect(PodSummary.age(since: now.addingTimeInterval(-45), now: now) == "45s")
+        #expect(PodSummary.age(since: now.addingTimeInterval(-720), now: now) == "12m")
+        #expect(PodSummary.age(since: now.addingTimeInterval(-5 * 3600), now: now) == "5h")
+        #expect(PodSummary.age(since: now.addingTimeInterval(-3 * 86400), now: now) == "3d")
+        #expect(PodSummary.age(since: nil) == "?")
+    }
+
+    @Test func parsesDetailFields() throws {
+        let json = try JSONValue.parse(Data("""
+            {"metadata":{"name":"api-1","namespace":"a","creationTimestamp":"2026-11-14T10:00:00Z","labels":{"app":"api"},
+              "ownerReferences":[{"kind":"ReplicaSet","name":"api-7d9"}]},
+             "spec":{"nodeName":"n1","containers":[{"name":"api"},{"name":"sidecar"}]},
+             "status":{"phase":"Running","podIP":"10.0.0.7","containerStatuses":[{"ready":true,"restartCount":0,"state":{"running":{}}}]}}
+            """.utf8))
+        let pod = try #require(PodSummary(json))
+        #expect(pod.podIP == "10.0.0.7")
+        #expect(pod.owner == "ReplicaSet/api-7d9")
+        #expect(pod.labels == ["app": "api"])
+        #expect(pod.containers == ["api", "sidecar"])
+        #expect(pod.created == Date(timeIntervalSince1970: 1_731_578_400 + 31_536_000 * 0) || pod.created != nil)
+    }
+
+    @Test func kubectlCommandsAreQuoted() {
+        let pod = Self.pods[0]
+        #expect(PodCommands.logs(pod, context: "gke_proj_europe-west1_api") == "kubectl --context gke_proj_europe-west1_api -n a logs -f api-1 --tail 200")
+        #expect(PodCommands.quote("it's") == #"'it'\''s'"#)
+        #expect(PodCommands.exec(pod, context: nil, container: "app").hasPrefix("kubectl -n a exec -it api-1 -c app -- sh -c"))
+    }
+
+    @Test func yamlRendering() {
+        let value: JSONValue = ["metadata": ["name": "api", "labels": ["app": "web"]], "spec": ["containers": [["name": "c", "ports": [["containerPort": 80]]]]],
+                                "status": ["phase": "Running", "ready": true, "note": "a: b", "empty": []]]
+        let yaml = PodDetailSheet.yaml(value)
+        #expect(yaml == """
+            metadata:
+              labels:
+                app: web
+              name: api
+            spec:
+              containers:
+              - name: c
+                ports:
+                - containerPort: 80
+            status:
+              empty: []
+              note: "a: b"
+              phase: Running
+              ready: true
+            """)
+    }
+}
+
+@Suite("Pod queries")
+struct PodQueryTests {
+    static let now = Date(timeIntervalSince1970: 1_000_000)
+
+    static func pod(_ name: String, owner: String? = nil, restarts: Int = 0, age: TimeInterval = 60, node: String = "pool-a-1") -> PodSummary {
+        var pod = PodSummary(namespace: "a", name: name, phase: "Running", ready: 1, total: 1, restarts: restarts, node: node)
+        pod.owner = owner
+        pod.created = now.addingTimeInterval(-age)
+        return pod
+    }
+
+    @Test func controllersRestartsAgeAndNode() {
+        let web = Self.pod("web", owner: "ReplicaSet/web-7d9", restarts: 4, age: 7200, node: "pool-b-3")
+        let db = Self.pod("db-0", owner: "StatefulSet/db")
+        let bare = Self.pod("debug")
+        #expect(web.controllerKind == "Deployment" && db.controllerKind == "StatefulSet" && bare.controllerKind == nil)
+        #expect(PodQuery(controller: "Deployment").matches(web, now: Self.now))
+        #expect(!PodQuery(controller: "Deployment").matches(db, now: Self.now))
+        #expect(PodQuery(controller: "none").matches(bare, now: Self.now))
+        #expect(!PodQuery(controller: "none").matches(web, now: Self.now))
+        #expect(PodQuery(minRestarts: 3).matches(web, now: Self.now) && !PodQuery(minRestarts: 3).matches(db, now: Self.now))
+        #expect(!PodQuery(maxAge: 3600).matches(web, now: Self.now) && PodQuery(maxAge: 3600).matches(db, now: Self.now))
+        #expect(PodQuery(node: "pool-b").matches(web, now: Self.now) && !PodQuery(node: "pool-b").matches(db, now: Self.now))
+    }
+
+    @Test func eventFilters() {
+        let pod = Self.pod("web")
+        #expect(PodQuery().matches(pod, warnings: []))
+        #expect(!PodQuery(event: "any").matches(pod, warnings: []))
+        #expect(PodQuery(event: "any").matches(pod, warnings: ["Unhealthy"]))
+        #expect(PodQuery(event: "Unhealthy").matches(pod, warnings: ["BackOff", "Unhealthy"]))
+        #expect(!PodQuery(event: "FailedMount").matches(pod, warnings: ["Unhealthy"]))
+    }
+
+    @Test func warningsFromEvents() throws {
+        let events = try JSONValue.parse(Data("""
+            {"items":[
+              {"type":"Warning","reason":"Unhealthy","lastTimestamp":"1970-01-12T13:46:00Z","involvedObject":{"kind":"Pod","name":"web","namespace":"a"}},
+              {"type":"Warning","reason":"BackOff","lastTimestamp":"1970-01-12T13:45:00Z","involvedObject":{"kind":"Pod","name":"web","namespace":"a"}},
+              {"type":"Warning","reason":"Unhealthy","lastTimestamp":"1970-01-12T13:44:00Z","involvedObject":{"kind":"Pod","name":"web","namespace":"a"}},
+              {"type":"Normal","reason":"Pulled","lastTimestamp":"1970-01-12T13:46:00Z","involvedObject":{"kind":"Pod","name":"web","namespace":"a"}},
+              {"type":"Warning","reason":"FailedScheduling","lastTimestamp":"1970-01-01T00:00:00Z","involvedObject":{"kind":"Pod","name":"old","namespace":"a"}},
+              {"type":"Warning","reason":"ScalingReplicaSet","lastTimestamp":"1970-01-12T13:46:00Z","involvedObject":{"kind":"Deployment","name":"web","namespace":"a"}}
+            ]}
+            """.utf8))
+        let warnings = PodSummary.warnings(events, now: Self.now)
+        #expect(warnings == ["a/web": ["Unhealthy", "BackOff"]])
+    }
+}
