@@ -96,6 +96,25 @@ final class KubernetesIntegration: Integration {
 
     var connection: IntegrationConnection? {
         guard blockingProblem == nil, let resolved, let session else { return nil }
+        return makeConnection(resolved, session: session)
+    }
+
+    /// Sessions for contexts other than the active one, built on demand (widgets browsing another cluster).
+    @ObservationIgnored private var otherSessions: [String: (context: ResolvedContext, session: URLSession)] = [:]
+
+    /// A connection to any kubeconfig context; nil (or a blank name) is the active one.
+    /// Doesn't change the context Dash and Claude use.
+    func connection(context name: String?) -> IntegrationConnection? {
+        guard let name, !name.isEmpty, name != activeContext else { return connection }
+        if let cached = otherSessions[name] { return makeConnection(cached.context, session: cached.session) }
+        guard let config, let context = try? config.resolve(name), context.auth.isSupported,
+              context.auth != .gcp || googleAvailable,
+              let session = try? KubeTrust.session(for: context, configuration: sessionConfiguration) else { return nil }
+        otherSessions[name] = (context, session)
+        return makeConnection(context, session: session)
+    }
+
+    private func makeConnection(_ resolved: ResolvedContext, session: URLSession) -> IntegrationConnection {
         var headers = ["Accept": "application/json"]
         var sign: (@Sendable (URLRequest) async throws -> URLRequest)?
         switch resolved.auth {
@@ -158,6 +177,8 @@ final class KubernetesIntegration: Integration {
     func rebuild() {
         session?.finishTasksAndInvalidate()
         session = nil
+        for other in otherSessions.values { other.session.finishTasksAndInvalidate() }
+        otherSessions = [:]
         resolved = nil
         resolveError = nil
         lastError = nil
