@@ -167,86 +167,7 @@ struct ReviewBadge: View {
     }
 }
 
-struct PullRequestSheet: View {
-    let pr: PullRequest
-    let host: any ExtensionContext
-    @Environment(\.dismiss) private var dismiss
-    @Query private var reviews: [PRReview]
-    @State private var error: String?
-    @State private var busy = false
-    @State private var confirmMerge = false
-
-    init(pr: PullRequest, host: any ExtensionContext) {
-        self.pr = pr
-        self.host = host
-        let uid = pr.uid
-        _reviews = Query(filter: #Predicate<PRReview> { $0.prUID == uid }, sort: \.createdAt, order: .reverse)
-    }
-
-    private var github: PullRequestsFeature? { host.ext(PullRequestsFeature.self) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("\(pr.repo)#\(pr.number)").font(.headline.monospaced())
-                if pr.isDraft { Text("Draft").foregroundStyle(.secondary) }
-                Spacer()
-                Link("Open on GitHub", destination: URL(string: pr.url) ?? URL(string: "https://github.com")!)
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
-            }
-            Text(pr.title).font(.title3.bold())
-            Text("\(pr.author) wants to merge \(pr.headRef) into \(pr.baseRef)").font(.caption).foregroundStyle(.secondary)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let review = reviews.first { ReviewView(review: review) } else { Text("No Claude review yet.").foregroundStyle(.secondary) }
-                    if !pr.body.isEmpty {
-                        Divider()
-                        InlineMarkdown(pr.body)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if let error { Text(error).foregroundStyle(.red).font(.callout) }
-            // Claude's reviews are for you only: Dash never comments on or reviews the pull request.
-            Label("Reviews stay in Dash. Nothing is posted to the pull request.", systemImage: "lock")
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                if let review = reviews.first, review.status == "done" {
-                    Button("Copy Review", systemImage: "doc.on.doc") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(review.markdown, forType: .string)
-                    }
-                    .help("Copy Claude's review as Markdown, to use however you like")
-                }
-                Button("Re-review", systemImage: "arrow.clockwise") { github?.requestReview(pr) }
-                Button("Ask Claude", systemImage: "sparkles") {
-                    host.askClaude("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Claude review first.")
-                    dismiss()
-                }
-                Spacer()
-                Button("Merge…") { confirmMerge = true }.disabled(busy || pr.isDraft)
-            }
-        }
-        .padding(20)
-        .frame(width: 700, height: 640)
-        .confirmationDialog("Merge \(pr.repo)#\(pr.number)?", isPresented: $confirmMerge) {
-            Button("Squash and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "squash"); await github?.sync() } }
-            Button("Merge Commit") { run { try await github?.client.merge(pr.repo, pr.number, method: "merge"); await github?.sync() } }
-            Button("Rebase and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "rebase"); await github?.sync() } }
-        }
-    }
-
-    private func run(_ action: @escaping @MainActor () async throws -> Void) {
-        busy = true
-        error = nil
-        Task {
-            do { try await action() } catch { self.error = error.localizedDescription }
-            busy = false
-        }
-    }
-}
-
-private struct ReviewView: View {
+struct ReviewView: View {
     let review: PRReview
 
     var body: some View {
@@ -288,7 +209,7 @@ private struct ReviewView: View {
 }
 
 /// The PR description with inline Markdown (bold, code, links); Dash's block renderer is app-internal.
-private struct InlineMarkdown: View {
+struct InlineMarkdown: View {
     let text: String
 
     init(_ text: String) {

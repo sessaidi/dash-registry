@@ -23,7 +23,7 @@
 	<key>DashPluginID</key>
 	<string>pull-requests</string>
 	<key>DashPluginVersion</key>
-	<string>1.3.0</string>
+	<string>1.5.0</string>
 	<key>NSPrincipalClass</key>
 	<string>PullRequestsDashPlugin</string>
 </dict>

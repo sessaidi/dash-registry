@@ -67,7 +67,7 @@ final class PullRequestsFeature: DashExtension {
         reviewOtherPRs = flag("reviewOthers", true)
     }
 
-    var models: [any PersistentModel.Type] { [PullRequest.self, PRReview.self] }
+    var models: [any PersistentModel.Type] { [PullRequest.self, PRReview.self, PRDiscussion.self] }
     var widgets: [WidgetType] { [WidgetType(PullRequestsWidget.self)] }
     func prepare(host: any ExtensionContext) async throws {
         await sync()
