@@ -13,7 +13,7 @@ final class AgentsExtension: DashExtension {
     let id = "agents"
     let name = "Agents"
     let systemImage = "hammer"
-    let metadata = ExtensionMetadata(version: "1.5.0", summary: "Claude Code agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.6.0", summary: "Claude Code agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
     /// Tickets come from Jira; GitHub is only needed for Create PR.
     let requires = ["atlassian"]
     let optional = ["github"]
@@ -44,7 +44,9 @@ final class AgentsExtension: DashExtension {
     static let appClaudePathKey = "claudePath"
 
     static let tddPrompt = """
-        Dash runs you on a Jira ticket in a dedicated git worktree. Follow extreme TDD strictly:
+        Dash runs you on a Jira ticket in a dedicated git worktree. The user is the sole author of every commit: \
+        never add Co-Authored-By or other attribution trailers, nor "Generated with" lines, and don't change the author.
+        Follow extreme TDD strictly:
         1. Red: write one small failing test for the next behaviour. Run it and confirm it fails for the expected reason before writing any production code.
         2. Green: write the minimum production code that makes that test pass. Run the tests.
         3. Refactor with every test green, then run the tests again.
@@ -314,6 +316,8 @@ final class AgentsExtension: DashExtension {
         options.allowedTools = Self.toolRules(allowedToolsText)
         // Pushing and PRs go through Dash so you review the branch first.
         options.disallowedTools = ["Bash(git push:*)", "Bash(gh pr:*)"]
+        // The user is the sole author of the agent's commits: Claude Code adds no co-author trailer.
+        options.settings = #"{"includeCoAuthoredBy": false}"#
         options.systemPrompt = .append(Self.tddPrompt)
         options.resume = session.claudeSessionID
         // The older free-text model setting wins when set; otherwise the AI tab's choice.
