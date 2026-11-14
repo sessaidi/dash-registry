@@ -46,6 +46,8 @@ final class WorkspacesFeature: DashExtension {
 
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
     @ObservationIgnored private var connected: WorkspaceClient?
+    /// Clients for the other environment, for lookups across dev and qa (the setting stays as it is).
+    @ObservationIgnored private var others: [WorkspaceEnvironment: WorkspaceClient] = [:]
     @ObservationIgnored private var poller: Task<Void, Never>?
     @ObservationIgnored private let defaults: UserDefaults
     var defaultsStore: UserDefaults { defaults }
@@ -109,6 +111,27 @@ final class WorkspacesFeature: DashExtension {
         let client = try await connect(env, region, ConnectionTokenSource(connection: connection))
         connected = client
         return client
+    }
+
+    /// A client for `env` in the configured region, without changing the selected environment.
+    func client(for env: WorkspaceEnvironment) async throws -> WorkspaceClient {
+        if env == self.env { return try await client() }
+        if let cached = others[env], cached.region == region { return cached }
+        guard let connection = host?.integration("gcp")?.connection else { throw ToolError("Connect Google Cloud in Settings › Integrations.") }
+        let client = try await connect(env, region, ConnectionTokenSource(connection: connection))
+        others[env] = client
+        return client
+    }
+
+    /// Workspaces in dev and qa deployed from `branch` (names compared without refs/heads/ and origin/).
+    static func matches(_ workspace: Workspace, branch: String) -> Bool { sameBranch(workspace.gitBranch, branch) }
+
+    nonisolated static func sameBranch(_ deployed: String?, _ branch: String) -> Bool {
+        func clean(_ text: String) -> String {
+            text.replacingOccurrences(of: "refs/heads/", with: "").replacingOccurrences(of: "origin/", with: "").lowercased()
+        }
+        guard let deployed, !deployed.isEmpty else { return false }
+        return clean(deployed) == clean(branch)
     }
 
     func refresh() async {
@@ -191,6 +214,25 @@ final class WorkspacesFeature: DashExtension {
                 let mine = try input.toolInput(ListInput.self).mine ?? false
                 let list = try await client().list()
                 return .array(list.filter { !mine || $0.deployedBy == username }.map(Self.json))
+            },
+            ClaudeTool(
+                name: "workspaces_for_branch",
+                description: "Workspaces deployed from a git branch, looked up in both dev and qa (name, environment, owner, last deploy, URL). Read-only.",
+                properties: ["branch": JSONSchema.string("Branch name, e.g. feature/LAF-123-retries.")], required: ["branch"]
+            ) { [weak self] input in
+                guard let self else { return nil }
+                guard let branch = input["branch"]?.string, !branch.isEmpty else { throw ToolError("Missing branch") }
+                var found: [JSONValue] = []
+                var errors: [String: JSONValue] = [:]
+                for env in WorkspaceEnvironment.allCases {
+                    do {
+                        let list = try await client(for: env).list()
+                        found += list.filter { Self.matches($0, branch: branch) }.map { Self.json($0).merging(["environment": .string(env.rawValue)]) }
+                    } catch {
+                        errors[env.rawValue] = .string(error.localizedDescription)
+                    }
+                }
+                return ["branch": .string(branch), "workspaces": .array(found), "errors": .object(errors)]
             },
             ClaudeTool(
                 name: "workspace_status",

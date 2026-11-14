@@ -24,7 +24,7 @@ struct WorkspacesFeatureTests {
         #expect(feature.layer == .feature)
         #expect(feature.widgets.map(\.kind) == ["workspaces.list", "workspaces.train"])
         #expect(feature.tools.map(\.name) == [
-            "workspaces_list", "workspace_status", "workspaces_clean_candidates", "workspace_set_persist", "workspace_delete", "workspace_deploy_image",
+            "workspaces_list", "workspaces_for_branch", "workspace_status", "workspaces_clean_candidates", "workspace_set_persist", "workspace_delete", "workspace_deploy_image",
             "workspace_profiles", "workspace_create", "workspace_deploy_worktree", "workspace_config_changes", "workspace_apply_config",
             "workspace_diagnose", "workspace_logs", "workspace_cloud_logs", "workspace_commands",
             "workspace_deployments", "workspace_pods", "workspace_containers", "workspace_events", "workspace_findings", "workspace_nodes",
@@ -291,5 +291,15 @@ struct WorkspacesWidgetTests {
         #expect(samples.contains { $0.persist } && samples.contains { $0.cleanReason != nil })
         _ = WorkspacesWidget.preview(config: .init(onlyMine: true))
         _ = WorkspacesWidget.preview(config: .init(onlyMine: false))
+    }
+}
+
+@Suite("Workspaces for a branch")
+struct WorkspacesForBranchTests {
+    @Test func branchNamesMatchLoosely() {
+        #expect(WorkspacesFeature.sameBranch("feature/LAF-1-retries", "feature/LAF-1-retries"))
+        #expect(WorkspacesFeature.sameBranch("refs/heads/Feature/LAF-1-retries", "origin/feature/laf-1-retries"))
+        #expect(!WorkspacesFeature.sameBranch("main", "feature/LAF-1-retries"))
+        #expect(!WorkspacesFeature.sameBranch(nil, "main"))
     }
 }
