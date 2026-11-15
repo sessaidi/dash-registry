@@ -1,0 +1,15 @@
+{
+  "name": "SRE",
+  "kind": "feature",
+  "icon": "stethoscope",
+  "description": "A senior on-call SRE: watches Datadog monitors and Kubernetes pods, investigates with evidence across Datadog, Google Cloud and Kubernetes, hands narrow jobs to smaller models, and reports likely causes and next steps. Read-only.",
+  "optional": [
+    "datadog",
+    "gcp",
+    "kubernetes"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}
