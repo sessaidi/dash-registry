@@ -121,6 +121,51 @@ extension PullRequestsFeature {
         try? host.context.save()
     }
 
+    /// Dashii's wording of something the user is about to post: a clearer version and what
+    /// changed. Only a suggestion: the user decides and sends it themselves.
+    struct Rewording: Equatable, Sendable {
+        let rewrite: String
+        let notes: [String]
+    }
+
+    static let rewordSchema: JSONValue = [
+        "type": "object", "additionalProperties": false, "required": ["rewrite", "notes"],
+        "properties": [
+            "rewrite": ["type": "string", "description": "The text, reworded. Same language, same intent and verdict, in the user's voice."],
+            "notes": ["type": "array", "items": ["type": "string"], "description": "Up to 4 short notes: what you changed and why, and anything wrong in the user's point given the diff."],
+        ],
+    ]
+
+    func reword(_ text: String, purpose: String, context: String, pr: PullRequest) async throws -> Rewording {
+        guard let host else { throw ToolError("Pull Requests isn't ready.") }
+        let diff = (try? await client.diff(pr.repo, pr.number)) ?? ""
+        let prompt = """
+            Pull request \(pr.repo)#\(pr.number) “\(pr.title)” by \(pr.author).
+
+            <diff>
+            \(diff.prefix(30_000))
+            </diff>
+
+            <thread>
+            \(context.prefix(6000))
+            </thread>
+
+            I'm about to post \(purpose). Here is my draft:
+
+            <draft>
+            \(text)
+            </draft>
+
+            Rewrite it so it's clear, specific and kind to the author: point at the code (file, line) when it helps, \
+            say what to change and why, keep it short. Keep my intent and my verdict; don't add praise or filler. \
+            If my point is wrong given the diff, say so in the notes.
+            """
+        let answer = try JSONValue.parse(try await host.dashii.complete(
+            system: "You help an engineer word their own code review comments. You never post anything; they decide.",
+            prompt: prompt, outputSchema: Self.rewordSchema, effort: "low"))
+        return Rewording(rewrite: answer["rewrite"]?.string ?? text, notes: answer["notes"]?.array?.compactMap(\.string) ?? [])
+    }
+
     /// The workspaces deployed from a branch in dev and qa, through the Workspaces plugin when installed.
     func workspaces(forBranch branch: String) async -> (found: [JSONValue], note: String?) {
         guard let host, let workspaces = host.extensions.first(where: { $0.id == "workspaces" }), host.isEnabled(workspaces) else {
