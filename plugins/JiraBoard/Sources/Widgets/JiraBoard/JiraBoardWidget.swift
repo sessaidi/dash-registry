@@ -46,9 +46,10 @@ struct JiraBoardWidget: DashboardWidget {
         Toggle("Hide done", isOn: config.hideDone)
     }
 
-    /// Sample tickets on a three-column board; no store, network or account.
+    /// Sample tickets on a four-column board, in the same responsive view as the widget; no store,
+    /// network or account.
     static func preview(config: Config) -> some View {
-        JiraBoardLayout(
+        JiraBoardContent(
             config: config, tickets: JiraTicket.visible(JiraTicket.samples, config: config),
             columns: JiraClient.Column.samples, onSelect: nil)
     }

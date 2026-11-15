@@ -147,7 +147,7 @@ struct JiraBoardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                JiraBoardLayout(config: config, tickets: visible,
+                JiraBoardContent(config: config, tickets: visible,
                                 columns: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : JiraBoardLayout.statusColumns(visible)) { pick($0) }
                     .environment(\.jiraSelectedKey, selectedKey)
             }
@@ -176,7 +176,7 @@ struct JiraBoardView: View {
     }
 }
 
-/// Columns (board mode with a known column layout) or a list; shared by the widget and its preview.
+/// Lanes (board mode with a known column layout, or one per status) or a list: the wide layout, and the large one's main area.
 struct JiraBoardLayout: View {
     /// Column colours from to-do (grey) through work (blue, purple) to done (green).
     static func color(_ index: Int, of count: Int) -> Color {
