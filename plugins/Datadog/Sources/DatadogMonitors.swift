@@ -102,17 +102,18 @@ struct DatadogMonitorsWidget: DashboardWidget {
     }
 
     static let actions = [
-        WidgetAction(name: "filter", description: "Show only monitors whose name or tags contain a text (empty shows all).",
+        WidgetAction(name: "filter", description: "Show only monitors whose name or tags contain a text (empty shows all). Temporary: the widget's saved filter stays.",
                      properties: ["text": JSONSchema.string("Text, e.g. service:api or checkout.")], required: ["text"]),
-        WidgetAction(name: "select", description: "Select a monitor so its detail shows (wide sizes).",
+        WidgetAction(name: "select", description: "Select a monitor so its detail shows (wide sizes); linked widgets follow the selection.",
                      properties: ["id": JSONSchema.integer("Monitor id.")], required: ["id"]),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected monitor."),
         WidgetAction(name: "refresh", description: "Check Datadog now."),
     ]
 
     static let queryFields = DatadogMonitor.queryFields
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        MonitorsView(config: config, host: context.host, query: context.query(fields: DatadogMonitor.queryFields), queryText: context.queryText)
+        MonitorsView(settings: config, host: context.host, query: context.query(fields: DatadogMonitor.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -145,7 +146,13 @@ struct DatadogMonitorsWidget: DashboardWidget {
 }
 
 private struct MonitorsView: View {
-    @Binding var config: DatadogMonitorsWidget.Config
+    /// The widget's saved settings.
+    @Binding var settings: DatadogMonitorsWidget.Config
+    /// What Dashii's filter action changed for now; the saved filter stays, and this resets when
+    /// the settings change.
+    @State private var override: DatadogMonitorsWidget.Config?
+    /// The settings with Dashii's temporary filter on top.
+    private var config: DatadogMonitorsWidget.Config { override ?? settings }
     let host: any ExtensionContext
     /// The widget's DashQL query (its query bar), applied after the settings' filters.
     let query: WidgetQuery?
@@ -158,7 +165,11 @@ private struct MonitorsView: View {
         Group {
             if let feature = host.ext(DatadogMonitorsFeature.self) {
                 content(feature)
+                    .onChange(of: settings) { override = nil }
+                    .onExitCommand { selected = nil }
+                    .reportsSelection(selected.flatMap { id in feature.monitors.first { $0.id == id }.map { $0.queryRow(url: feature.monitorURL($0)) } })
                     .reportsWidgetState(["filter": .string(config.filter), "selected": selected.map { .number(Double($0)) } ?? .null,
+                                         "temporary_changes": .bool(override != nil),
                                          "layout": .string(layout.family.rawValue), "query": queryText.isEmpty ? .null : .string(queryText)])
                     .task(id: QueryRows.key(queryText, DatadogMonitorsWidget.shown(feature.monitors, config)) { $0.queryRow(url: feature.monitorURL($0)) }) {
                         queryIDs = await QueryRows.ids(query, DatadogMonitorsWidget.shown(feature.monitors, config)) { $0.queryRow(url: feature.monitorURL($0)) }
@@ -166,8 +177,13 @@ private struct MonitorsView: View {
                     .handlesWidgetActions { name, input in
                         switch name {
                         case "filter":
-                            config.filter = input["text"]?.string ?? ""
-                            return ["shown": .number(Double(DatadogMonitorsWidget.shown(feature.monitors, config).count))]
+                            var view = config
+                            view.filter = input["text"]?.string ?? ""
+                            override = view == settings ? nil : view
+                            return ["shown": .number(Double(DatadogMonitorsWidget.shown(feature.monitors, view).count))]
+                        case "clear_selection":
+                            selected = nil
+                            return "cleared"
                         case "select":
                             guard let id = input["id"]?.int, feature.monitors.contains(where: { $0.id == id }) else { throw ToolError("No monitor with that id is shown.") }
                             selected = id

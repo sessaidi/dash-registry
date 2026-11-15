@@ -103,7 +103,8 @@ struct DatadogIntegrationTests {
         #expect(DatadogMonitorsWidget.shown(monitors, .init()).map(\.id) == [1, 2, 3])
         #expect(DatadogMonitorsWidget.shown(monitors, .init(filter: "service:db")).map(\.id) == [2])
         #expect(DatadogMonitorsWidget.shown(monitors, .init(showWarn: false, showNoData: false)).map(\.id) == [1])
-        #expect(DatadogMonitorsWidget.actions.map(\.name) == ["filter", "select", "refresh"])
+        #expect(DatadogMonitorsWidget.actions.map(\.name) == ["filter", "select", "clear_selection", "refresh"])
+        #expect(DatadogMonitorsWidget.actions.first { $0.name == "filter" }?.description.contains("Temporary") == true)
         #expect(WidgetType(DatadogMonitorsWidget.self).preview != nil)
     }
 }
