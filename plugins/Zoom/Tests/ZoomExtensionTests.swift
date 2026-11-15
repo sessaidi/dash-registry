@@ -13,8 +13,8 @@ struct ZoomExtensionTests {
         #expect(zoom.id == "zoom")
         #expect(zoom.layer == .feature)
         #expect(zoom.requires.isEmpty)
-        #expect(zoom.widgets.map(\.kind) == ["zoom.meeting"])
-        #expect(zoom.tools.map(\.name) == ["meetings_list", "meeting_transcript", "meeting_speakers", "meeting_participants", "meeting_summarize"])
+        #expect(zoom.widgets.map(\.kind) == ["zoom.meeting", "zoom.upcoming"])
+        #expect(zoom.tools.map(\.name) == ["zoom_upcoming_meetings", "meetings_list", "meeting_transcript", "meeting_speakers", "meeting_participants", "meeting_summarize"])
         #expect(zoom.models.count == 2)
         #expect(ZoomPlugin.makeExtensions().map(\.id) == ["zoom"])
     }

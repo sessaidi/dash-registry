@@ -30,6 +30,10 @@ final class ZoomExtension: DashExtension {
     /// Also record Zoom's windows as video (the file becomes a .mov). Needs `saveAudio`.
     var recordVideo: Bool { didSet { defaults.set(recordVideo, forKey: "zoom.recordVideo") } }
     var recordingsFolder: URL { didSet { defaults.set(recordingsFolder.path, forKey: "zoom.recordingsFolder") } }
+    /// Read upcoming Zoom meetings from the Mac's calendars.
+    var useCalendar: Bool { didSet { defaults.set(useCalendar, forKey: "zoom.calendar"); refreshCalendar() } }
+    /// Minutes before a meeting that `zoom.meeting_soon` fires.
+    var reminderMinutes: Int { didSet { defaults.set(reminderMinutes, forKey: "zoom.reminderMinutes") } }
 
     static var defaultRecordingsFolder: URL { FileManager.default.homeDirectoryForCurrentUser.appending(path: "Movies/Dash Meetings") }
     /// What the next meeting saves to disk, if anything.
@@ -46,12 +50,21 @@ final class ZoomExtension: DashExtension {
     private(set) var participants: [String] = []
     private(set) var lastError: String?
     private(set) var isSummarizing = false
+    /// The next 24 hours of calendar events with a Zoom link (empty without the calendar).
+    var upcoming: [CalendarMeeting] = []
+    private(set) var calendarAccess: ZoomCalendar.Access = .notAsked
 
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var recorder: MeetingRecorder?
     @ObservationIgnored private var missedMeetingChecks = 0
+    @ObservationIgnored let calendar = ZoomCalendar()
+    @ObservationIgnored private var calendarObserver: NSObjectProtocol?
+    /// Calendar meetings `zoom.meeting_soon` already fired for.
+    @ObservationIgnored private var reminded = Set<String>()
+    /// Meetings named after their calendar event: the summary keeps that name.
+    @ObservationIgnored private var namedFromCalendar = Set<UUID>()
 
     init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
@@ -62,18 +75,25 @@ final class ZoomExtension: DashExtension {
         saveAudio = defaults.object(forKey: "zoom.saveAudio") as? Bool ?? true
         recordVideo = defaults.bool(forKey: "zoom.recordVideo")
         recordingsFolder = defaults.string(forKey: "zoom.recordingsFolder").map { URL(filePath: $0) } ?? Self.defaultRecordingsFolder
+        useCalendar = defaults.bool(forKey: "zoom.calendar")
+        reminderMinutes = defaults.object(forKey: "zoom.reminderMinutes") as? Int ?? 2
     }
 
     var models: [any PersistentModel.Type] { [MeetingRecord.self, TranscriptSegment.self] }
-    var widgets: [WidgetType] { [WidgetType(MeetingWidget.self)] }
+    var widgets: [WidgetType] { [WidgetType(MeetingWidget.self), WidgetType(UpcomingMeetingsWidget.self)] }
     func settingsView() -> AnyView { AnyView(ZoomSettingsView(zoom: self)) }
 
     func start(host: any ExtensionContext) {
         attach(host)
         monitor?.cancel()
+        calendarObserver = calendar.observeChanges { [weak self] in self?.refreshCalendar() }
         monitor = Task { [weak self] in
+            var ticks = 0
             while !Task.isCancelled {
                 self?.poll()
+                // The calendar every minute: meetings move, and reminders are due by the minute.
+                if ticks % 12 == 0 { self?.refreshCalendar() }
+                ticks += 1
                 try? await Task.sleep(for: .seconds(5))
             }
         }
@@ -87,7 +107,36 @@ final class ZoomExtension: DashExtension {
     func stop() {
         monitor?.cancel()
         monitor = nil
+        if let calendarObserver { NotificationCenter.default.removeObserver(calendarObserver) }
+        calendarObserver = nil
         if isRecording { Task { await stopRecording() } }
+    }
+
+    /// Asks for calendar access, then turns the calendar on.
+    func enableCalendar() async {
+        if calendar.access == .notAsked { _ = await calendar.requestAccess() }
+        calendarAccess = calendar.access
+        useCalendar = calendarAccess == .granted
+    }
+
+    func refreshCalendar() {
+        calendarAccess = calendar.access
+        upcoming = useCalendar ? calendar.upcoming() : []
+        remind()
+    }
+
+    /// `zoom.meeting_soon` once per meeting, `reminderMinutes` before it starts.
+    func remind(now: Date = .now) {
+        for meeting in upcoming where meeting.start > now && meeting.start.timeIntervalSince(now) <= Double(reminderMinutes) * 60 {
+            guard reminded.insert(meeting.id + meeting.start.formatted(.iso8601)).inserted else { continue }
+            host?.emit("zoom.meeting_soon", from: self, title: "\(meeting.title) starts at \(meeting.start.formatted(date: .omitted, time: .shortened))",
+                       detail: meeting.joinURL?.absoluteString, importance: .notable)
+        }
+    }
+
+    /// The calendar meeting happening now (from 10 minutes before it starts), if any.
+    func calendarMeeting(at now: Date = .now) -> CalendarMeeting? {
+        upcoming.first { $0.isHappening(at: now) }
     }
 
     private func poll() {
@@ -197,7 +246,10 @@ final class ZoomExtension: DashExtension {
         guard let host, !isRecording else { return nil }
         isRecording = true
         lastError = nil
-        let meeting = MeetingRecord(title: "Zoom meeting \(Date.now.formatted(date: .abbreviated, time: .shortened))")
+        // Named after the calendar event when one is on now; Dashii's summary names it otherwise.
+        let event = calendarMeeting()
+        let meeting = MeetingRecord(title: event?.title ?? "Zoom meeting \(Date.now.formatted(date: .abbreviated, time: .shortened))")
+        if event != nil { namedFromCalendar.insert(meeting.id) }
         meeting.participants = participants
         host.context.insert(meeting)
         try? host.context.save()
@@ -308,7 +360,7 @@ final class ZoomExtension: DashExtension {
             system: "You summarise work meetings for an engineer: what was discussed, what was decided, and who owes what.",
             prompt: prompt, outputSchema: Self.summarySchema, effort: "low")
         let result = try JSONValue.parse(text)
-        meeting.title = result["title"]?.string ?? meeting.title
+        if !namedFromCalendar.contains(meeting.id) { meeting.title = result["title"]?.string ?? meeting.title }
         meeting.summary = result["summary"]?.string ?? ""
         meeting.decisions = result["decisions"]?.array?.compactMap(\.string) ?? []
         meeting.actionItems = (try? result["action_items"]?.decode([MeetingRecord.ActionItem].self)) ?? []
