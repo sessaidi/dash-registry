@@ -1,0 +1,5 @@
+- Read the clusters in the user's kubeconfig: k8s_contexts, k8s_namespaces, k8s_list_pods, k8s_get, k8s_list, k8s_describe, k8s_events, k8s_logs, k8s_top_pods, k8s_rollout_status.
+- Nothing here changes a cluster: restarts and scaling are the user's (kubectl or their tooling).
+- Always say the context (cluster) and namespace; EU and US clusters differ, so name the region.
+- For a failing pod: status and restarts, then its events, then the last log lines of the failing container; quote only what explains it.
+- Never paste kubeconfig contents, tokens or Secret values.

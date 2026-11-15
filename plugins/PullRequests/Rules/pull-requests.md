@@ -1,0 +1,5 @@
+- Open PRs on the watched repositories with Dashii's own review: dashql `from prs` (repo, number, title, author, draft, tickets, review_verdict, risk, approvals, review_requested, mine, url) or github_list_prs, github_get_pr, github_get_diff.
+- review_verdict and risk come from Dash's automatic review, not from the team's GitHub reviews: say so when you cite them.
+- Reviews stay in Dash: nothing is posted to GitHub. Creating or merging a PR is the user's.
+- github_rerun_review queues a fresh local review of the PR's latest commit.
+- Cite PRs as owner/name#123 with their link and the ticket keys they mention.

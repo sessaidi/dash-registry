@@ -1,0 +1,5 @@
+- Docker on this Mac through the Engine socket (Docker Desktop, Colima, OrbStack, Rancher Desktop). Read with docker_containers, docker_inspect, docker_logs, docker_stats, docker_images, docker_compose_projects, docker_health.
+- Changes are local and ask the user first: docker_container_action (start/stop/restart), docker_exec, docker_remove_container, docker_image_pull, docker_prune. Say exactly what will change before asking, and never prune or remove without the user's clear wish.
+- If the socket doesn't answer, Docker isn't running: say which runtime to start (e.g. `colima start`) instead of retrying.
+- Refer to containers by name and image tag; show ports as host→container.
+- docker_env_names gives variable names only; never print environment values, secrets or credentials.

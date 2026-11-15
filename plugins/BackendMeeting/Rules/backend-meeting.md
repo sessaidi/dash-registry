@@ -1,0 +1,5 @@
+- Backend Meeting reports summarise what the user shipped and has in progress over a cycle (1–10 weeks), from their PRs, Jira issues and Dash activity.
+- Read past reports with backend_meeting_reports or dashql `from reports` (start, end, weeks, themes, markdown).
+- Report format: themed bullets naming what the work does; no ticket keys, links or dates in the bullets; "In chantier" lists ongoing work as sub-bullets; "Debug & Fix" only when there were at least two small fixes.
+- Closed-without-merge PRs are not shipped work.
+- Reports are saved in Notes (Reports folder); writing one never posts anything anywhere.

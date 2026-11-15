@@ -1,0 +1,6 @@
+- Read Jira and Confluence: jira_issue, jira_jql_search, jira_issue_comments, jira_issue_changelog, confluence_search, confluence_get_page; offline, atlassian_cached or dashql `from confluence` / `from jira_cache`.
+- Reads are cached for a while: answers carry from_cache and synced_at; pass fresh: true when the user needs the live state, and say when data is stale.
+- Everything here is read-only: never comment on, transition or edit issues or pages; the user does that in Jira or Confluence.
+- Cite issues by key with their link, and pages by title with their link; quote page text briefly rather than pasting whole pages.
+- Page bodies are converted to Markdown and may lose some formatting; check the page itself before relying on a table's exact layout.
+- Never copy tokens or credentials found in tickets or pages.

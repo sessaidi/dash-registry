@@ -20,6 +20,9 @@ targets:
       - Sources
       - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
         buildPhase: resources
+      - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: DashKit
         product: DashKit
@@ -39,7 +42,12 @@ targets:
   GCPPluginTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [Sources, Tests]
+    sources:
+      - Sources
+      - Tests
+      - path: Rules                   # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: DashKit
         product: DashKit

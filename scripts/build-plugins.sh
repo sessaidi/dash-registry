@@ -28,6 +28,10 @@ for name in $names; do
   id="$(/usr/libexec/PlistBuddy -c 'Print DashPluginID' "$bundle/Contents/Info.plist")"
   version="$(/usr/libexec/PlistBuddy -c 'Print DashPluginVersion' "$bundle/Contents/Info.plist")"
   [ -f "$bundle/Contents/Resources/plugin.json" ] || { echo "$name: plugin.json missing from the bundle" >&2; exit 1; }
+  for rules in "$dir"/Rules/*.md; do
+    [ -e "$rules" ] || continue
+    [ -f "$bundle/Contents/Resources/Rules/$(basename "$rules")" ] || { echo "$name: Rules/$(basename "$rules") missing from the bundle" >&2; exit 1; }
+  done
   /usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$bundle/Contents/Info.plist" >/dev/null 2>&1 \
     || { echo "$name: Info.plist has no CFBundleExecutable; macOS can't load the bundle" >&2; exit 1; }
   codesign --verify --deep "$bundle" || { echo "$name: the bundle's signature doesn't verify" >&2; exit 1; }

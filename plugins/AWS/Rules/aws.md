@@ -1,0 +1,5 @@
+- aws_api calls AWS as the user, signed with their profile; only read actions run (Describe, List, Get, BatchGet, Search, Lookup, Query, Scan, Filter, Select). Anything that changes AWS is refused: don't try.
+- Start with aws_whoami to know the account, profile and region before reading resources.
+- Query APIs take a form body with Action=…&Version=…; JSON APIs take a target (e.g. Logs_20140328.DescribeLogGroups).
+- Name the account and region with every result; large answers are cut, so narrow the request (filters, max results).
+- Never paste access keys, session tokens or secrets from responses.

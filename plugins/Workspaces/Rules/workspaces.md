@@ -1,0 +1,5 @@
+- Backend workspaces on GKE: dashql `from workspaces` (name, owner, branch, tickets, last_deploy, persist, cleanable) and `from deploys` (workspace, app, version, branch, by, at, status); workspace_status, workspace_pods, workspace_logs, workspace_events, workspace_diagnose, workspace_train.
+- Creating, deploying, restarting, configuring or deleting a workspace changes the cluster: those tools are not available to Dashii; the user runs them from Dash.
+- workspace_link_worktree is local (which folder a workspace deploys from).
+- Name the workspace and app with every finding; for a failing deploy give the step, the error and the last log lines.
+- Never print environment values or secrets from a workspace (workspace_env lists names).

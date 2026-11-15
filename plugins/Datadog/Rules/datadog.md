@@ -1,0 +1,6 @@
+- Read-only Datadog: monitors (datadog_monitors, datadog_monitor), metrics (datadog_metrics_query), logs (datadog_logs_search), events, incidents, dashboards, SLOs, hosts and services; dashql `from monitors` for monitor states.
+- Prefer the specific tools; datadog_api_get is for GET endpoints the others don't cover.
+- Nothing here mutes, resolves or edits anything; the user does that in Datadog.
+- Give time ranges explicitly (last 15 minutes, since 10:00) and the site/environment; log lines are trimmed, so search narrowly (service, env, status).
+- Monitor states: Alert and Warn need attention, No Data may mean the service is down or the monitor is stale; say which.
+- Never paste API or application keys.
