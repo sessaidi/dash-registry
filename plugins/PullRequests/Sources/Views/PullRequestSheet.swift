@@ -145,7 +145,7 @@ struct PullRequestSheet: View {
                 Panel(title: "Changes by file", systemImage: "chart.bar.xaxis", tint: .purple) { ChangesChart(files: files) }
             }
             Panel(title: "Description", systemImage: "text.alignleft", tint: .blue) {
-                if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { InlineMarkdown(pr.body) }
+                if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { host.markdown(pr.body) }
             }
         }
         .task { if files == nil { files = (try? await github?.client.files(pr.repo, pr.number)) ?? [] } }
@@ -202,14 +202,14 @@ struct PullRequestSheet: View {
                                 Badge(state.replacingOccurrences(of: "_", with: " ").capitalized,
                                       tone: state == "APPROVED" ? .success : state == "CHANGES_REQUESTED" ? .danger : .neutral)
                             }
-                            if let body = review["body"]?.string, !body.isEmpty { InlineMarkdown(body) }
+                            if let body = review["body"]?.string, !body.isEmpty { host.markdown(body) }
                         }
                     }
                     ForEach(Array(human.comments.suffix(30).enumerated()), id: \.offset) { _, comment in
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(comment["user"]?["login"]?.string ?? "?") on \(comment["path"]?.string ?? "")\(comment["line"]?.int.map { ":\($0)" } ?? "")")
                                 .font(.caption.weight(.semibold))
-                            Text(comment["body"]?.string ?? "").font(.callout).textSelection(.enabled)
+                            host.markdown(comment["body"]?.string ?? "").font(.callout)
                         }
                     }
                 } else {
