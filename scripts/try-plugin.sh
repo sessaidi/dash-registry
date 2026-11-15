@@ -27,8 +27,11 @@ xcodebuild build -project "$dir/${name}Plugin.xcodeproj" -scheme "${name}Plugin"
   -derivedDataPath "$derived" -quiet
 bundle="$(find "$derived/Build/Products/Release" -maxdepth 1 -name '*.dashplugin' | head -1)"
 [ -n "$bundle" ] || { echo "No .dashplugin was built." >&2; exit 1; }
+# Named by its id, like the Marketplace names it: a second copy under another name would load
+# first and hide the Marketplace's updates.
+id="$(/usr/libexec/PlistBuddy -c 'Print DashPluginID' "$bundle/Contents/Info.plist")"
 mkdir -p "$dest"
-rm -rf "$dest/$(basename "$bundle")"
-cp -R "$bundle" "$dest/"
-echo "==> installed $(basename "$bundle") in $dest"
+rm -rf "$dest/$id.dashplugin"
+cp -R "$bundle" "$dest/$id.dashplugin"
+echo "==> installed $id.dashplugin in $dest"
 echo "    First time: Dash asks to load it. Otherwise: relaunch Dash to use this build."
