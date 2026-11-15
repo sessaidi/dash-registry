@@ -145,14 +145,19 @@ struct PullRequestSheet: View {
             if let files {
                 List(Array(files.enumerated()), id: \.offset) { _, file in
                     DisclosureGroup {
-                        Text(file["patch"]?.string ?? "No textual diff (binary or too large).")
-                            .font(.caption.monospaced()).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        if let patch = file["patch"]?.string {
+                            DiffView(patch: patch)
+                        } else {
+                            Text("No textual diff (binary or too large).").font(.callout).foregroundStyle(.secondary)
+                        }
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
+                            FileStatusBadge(status: file["status"]?.string ?? "modified")
                             Text(file["filename"]?.string ?? "?").font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
                             Spacer()
                             Text("+\(file["additions"]?.int ?? 0)").foregroundStyle(.green).font(.caption.monospacedDigit())
                             Text("−\(file["deletions"]?.int ?? 0)").foregroundStyle(.red).font(.caption.monospacedDigit())
+                            ChangeSquares(additions: file["additions"]?.int ?? 0, deletions: file["deletions"]?.int ?? 0)
                         }
                     }
                 }
