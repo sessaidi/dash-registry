@@ -88,7 +88,7 @@ enum Git {
         return parts.joined(separator: "/")
     }
 
-    /// "laf-1234-add-retry-to-the-fetcher"
+    /// "kan-1234-add-retry-to-the-fetcher"
     static func branchName(key: String, summary: String) -> String {
         let words = summary.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
         var slug = key.lowercased()

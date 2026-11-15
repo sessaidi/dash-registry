@@ -187,7 +187,7 @@ final class DailyStandupFeature: DashExtension {
 
     static let updateSchema: JSONValue = {
         let refs: JSONValue = ["type": "array", "items": ["type": "string"], "description": "Commit SHAs, PR ids, ticket keys, workspace names that show it."]
-        let ticket: JSONValue = ["type": "string", "description": "The ticket key (e.g. LAF-5680) from the branch, commit, PR title or agent session; empty if none."]
+        let ticket: JSONValue = ["type": "string", "description": "The ticket key (e.g. KAN-5680) from the branch, commit, PR title or agent session; empty if none."]
         let item: JSONValue = ["type": "object", "additionalProperties": false, "required": ["ticket", "text", "refs"],
                                "properties": ["ticket": ticket, "text": ["type": "string"], "refs": refs]]
         let next: JSONValue = ["type": "object", "additionalProperties": false, "required": ["ticket", "text", "refs", "kind"],

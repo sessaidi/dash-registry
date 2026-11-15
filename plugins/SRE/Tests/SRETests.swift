@@ -53,7 +53,7 @@ struct SRETests {
     }
 
     static let alerting: JSONValue = ["id": 1201, "name": "api 5xx rate", "status": "Alert", "service": "api", "env": "prod"]
-    static let crashing: JSONValue = ["name": "api-1", "namespace": "papi-eu", "status": "CrashLoopBackOff", "restarts": 14, "healthy": false]
+    static let crashing: JSONValue = ["name": "api-1", "namespace": "bill-eu", "status": "CrashLoopBackOff", "restarts": 14, "healthy": false]
 
     @Test func statusListsWhatNeedsAttentionWorstFirst() async throws {
         let (_, ops, host) = try make()
@@ -61,7 +61,7 @@ struct SRETests {
         ops.pods = [Self.crashing, ["name": "ok", "namespace": "x", "status": "Running", "healthy": true]]
         let status = try #require(await host.runTool("sre_status"))
         #expect(status["monitors"]?.array?.map { $0["title"]?.string } == ["api 5xx rate", "latency"])
-        #expect(status["unhealthy_pods"]?.array?.first?["id"] == "papi-eu/api-1")
+        #expect(status["unhealthy_pods"]?.array?.first?["id"] == "bill-eu/api-1")
         #expect(status["quiet"] == false && status["sources"] == ["datadog", "kubernetes"])
     }
 
@@ -70,9 +70,9 @@ struct SRETests {
         ops.monitors = [Self.alerting]
         ops.pods = [Self.crashing]
         host.testDashii.reply = #"{"summary":"v1.42 broke api","hypotheses":[{"cause":"v1.42 misses a config key","likelihood":0.8,"evidence":["e1","e3","e4"],"nextCheck":"logs of api-1"}]}"#
-        let result = try #require(await host.runTool("sre_investigate", ["symptom": "api 5xx", "namespace": "papi-eu", "service": "api"]))
+        let result = try #require(await host.runTool("sre_investigate", ["symptom": "api 5xx", "namespace": "bill-eu", "service": "api"]))
         let sources = result["evidence"]?.array?.compactMap { $0["source"]?.string } ?? []
-        #expect(sources == ["datadog monitor 1201", "pod papi-eu/api-1", "k8s event Pod/api-1", "datadog event"])
+        #expect(sources == ["datadog monitor 1201", "pod bill-eu/api-1", "k8s event Pod/api-1", "datadog event"])
         #expect(result["analysis"]?["hypotheses"]?[0]?["likelihood"] == 0.8)
         let call = try #require(host.testDashii.calls.last)
         #expect(call.prompt.contains("Deployed api v1.42") && call.source == "extension.sre/root_cause")

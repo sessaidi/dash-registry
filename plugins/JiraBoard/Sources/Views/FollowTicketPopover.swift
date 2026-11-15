@@ -16,7 +16,7 @@ struct FollowTicketPopover: View {
             Text("Follow a ticket").font(.headline)
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("LAF-1234, a Jira link, or words to search", text: $query)
+                TextField("KAN-1234, a Jira link, or words to search", text: $query)
                     .textFieldStyle(.plain)
                     .onSubmit(submit)
                 if searching { ProgressView().controlSize(.small) }
@@ -62,7 +62,7 @@ struct FollowTicketPopover: View {
         }
     }
 
-    /// A key typed or found in a pasted link (…/browse/LAF-123, ?selectedIssue=LAF-123).
+    /// A key typed or found in a pasted link (…/browse/KAN-123, ?selectedIssue=KAN-123).
     private var directKey: String? {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if JiraBoardFeature.isIssueKey(text) { return text }

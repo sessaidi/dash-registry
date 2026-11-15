@@ -88,7 +88,7 @@ extension GCPIntegration {
             name: "gcp_logs_query",
             description: "Read Google Cloud Logging entries (newest first): Kubernetes container logs of a namespace/pod/container, or any filter (e.g. k8s_pod events, k8s_node logs for OOM kills and disk pressure). Read-only.",
             properties: [
-                "project": JSONSchema.string("GCP project id, e.g. fubotv-dev."),
+                "project": JSONSchema.string("GCP project id, e.g. acme-dev."),
                 "filter": JSONSchema.string("Optional Cloud Logging filter, e.g. resource.type=\"k8s_node\" AND jsonPayload.MESSAGE:\"OOM\"."),
                 "namespace": JSONSchema.string("Kubernetes namespace (a workspace name)."),
                 "cluster": JSONSchema.string("GKE cluster name."),

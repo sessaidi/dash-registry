@@ -21,9 +21,9 @@ struct BackendMeetingTests {
 
     nonisolated private static let searchBody = """
         {"items": [
-          {"number": 12, "title": "LAF-12 renew subscriptions", "state": "closed", "html_url": "https://github.com/acme/api/pull/12",
+          {"number": 12, "title": "KAN-12 renew subscriptions", "state": "closed", "html_url": "https://github.com/acme/api/pull/12",
            "repository_url": "https://api.github.com/repos/acme/api", "updated_at": "2026-11-10T10:00:00Z", "pull_request": {"merged_at": "2026-11-10T10:00:00Z"}},
-          {"number": 13, "title": "LAF-13 observability", "state": "open", "draft": false, "html_url": "https://github.com/acme/api/pull/13",
+          {"number": 13, "title": "KAN-13 observability", "state": "open", "draft": false, "html_url": "https://github.com/acme/api/pull/13",
            "repository_url": "https://api.github.com/repos/acme/api", "updated_at": "2026-11-11T10:00:00Z", "pull_request": {"merged_at": null}},
           {"number": 14, "title": "abandoned", "state": "closed", "html_url": "https://github.com/acme/api/pull/14",
            "repository_url": "https://api.github.com/repos/acme/api", "updated_at": "2026-11-09T10:00:00Z", "pull_request": {"merged_at": null}},
@@ -44,8 +44,8 @@ struct BackendMeetingTests {
 
     private func serveJira(_ host: String) {
         StubHTTP.serve(host, json: """
-            {"issues": [{"key": "LAF-12", "fields": {"summary": "Renewals", "status": {"name": "Done", "statusCategory": {"key": "done"}},
-             "issuetype": {"name": "Story"}, "project": {"name": "Laf"}, "resolutiondate": "2026-11-10"}}]}
+            {"issues": [{"key": "KAN-12", "fields": {"summary": "Renewals", "status": {"name": "Done", "statusCategory": {"key": "done"}},
+             "issuetype": {"name": "Story"}, "project": {"name": "Kan"}, "resolutiondate": "2026-11-10"}}]}
             """)
     }
 
@@ -75,7 +75,7 @@ struct BackendMeetingTests {
         // Same items from the org-less and the org query: kept once; the issue is dropped.
         #expect(pulls.map(\.number) == [13, 12, 14])
         #expect(pulls.map(\.state) == [.open, .merged, .closed])
-        #expect(pulls.first?.repo == "acme/api" && pulls.first?.tickets == ["LAF-13"])
+        #expect(pulls.first?.repo == "acme/api" && pulls.first?.tickets == ["KAN-13"])
         let queries = StubHTTP.requests(gh).compactMap { request in
             URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "q" }?.value
         }
@@ -90,7 +90,7 @@ struct BackendMeetingTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         serveGitHub(gh)
         serveJira(atl)
-        host.activity.emit("agent.pr_opened", source: "agents", title: "Draft PR opened for LAF-13", importance: .notable)
+        host.activity.emit("agent.pr_opened", source: "agents", title: "Draft PR opened for KAN-13", importance: .notable)
         host.testDashii.reply = "```markdown\n- **Renewals**: subscriptions renew automatically\n- **In chantier**:\n  - observability on renewals (open PR)\n```"
         let range = feature.nextRange(cycleWeeks: 2, sinceLastReport: true)
         let report = try await feature.generate(range: range, cycleWeeks: 2)
@@ -101,8 +101,8 @@ struct BackendMeetingTests {
         let data = try JSONValue.parse(Data(call.prompt.utf8))
         // Closed-unmerged PRs never reach Claude.
         #expect(data["pull_requests"]?.array?.compactMap { $0["number"]?.int } == [13, 12])
-        #expect(data["tickets"]?.array?.first?["key"] == "LAF-12")
-        #expect(data["dash_activity"]?.array?.first?["title"] == "Draft PR opened for LAF-13")
+        #expect(data["tickets"]?.array?.first?["key"] == "KAN-12")
+        #expect(data["dash_activity"]?.array?.first?["title"] == "Draft PR opened for KAN-13")
         #expect(StubHTTP.requests(atl).first?.url?.query()?.contains("currentUser") == true)
 
         // Stored: the next report starts where this one ended.

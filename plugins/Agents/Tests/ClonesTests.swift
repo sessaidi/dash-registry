@@ -4,8 +4,8 @@ import Testing
 @MainActor
 struct ClonesTests {
     @Test func worktreesLiveInTheClone() {
-        let url = AgentsExtension.worktreeURL(repo: URL(filePath: "/Users/me/Codes/api"), branch: "feat/laf-12-renew")
-        #expect(url.path == "/Users/me/Codes/api/.worktrees/feat-laf-12-renew")
+        let url = AgentsExtension.worktreeURL(repo: URL(filePath: "/Users/me/Codes/api"), branch: "feat/kan-12-renew")
+        #expect(url.path == "/Users/me/Codes/api/.worktrees/feat-kan-12-renew")
     }
 
     @Test func clonesMissingRepositoriesFromALocalRemote() async throws {

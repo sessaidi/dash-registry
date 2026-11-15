@@ -35,7 +35,7 @@ extension JiraBoardFeature {
             DashiiTool(
                 name: "jira_follow",
                 description: "Follow or unfollow a Jira ticket in Dash (local only; nothing changes in Jira). Followed tickets sync into the cache and show in \"Issues I follow\".",
-                properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234."),
+                properties: ["key": JSONSchema.string("Issue key, e.g. KAN-1234."),
                              "follow": JSONSchema.boolean("true to follow (default), false to unfollow.")],
                 required: ["key"]
             ) { [weak self] input in
@@ -49,7 +49,7 @@ extension JiraBoardFeature {
             DashiiTool(
                 name: "jira_get_issue",
                 description: "Fetch one Jira issue live, with its description and recent comments.",
-                properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234.")], required: ["key"]
+                properties: ["key": JSONSchema.string("Issue key, e.g. KAN-1234.")], required: ["key"]
             ) { [weak self] input in
                 guard let self else { return nil }
                 return try await client.issueDetail(input.toolInput(KeyInput.self).key.uppercased())

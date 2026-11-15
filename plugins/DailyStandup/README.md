@@ -29,7 +29,7 @@ day; it never calls GitHub or Jira itself:
 
 | Section | What goes in it |
 |---|---|
-| **Yesterday I did** | What you did, by ticket: `LAF-5680 — finished the renewal endpoint and its tests (a1b2c3d, api#88)` |
+| **Yesterday I did** | What you did, by ticket: `KAN-5680 — finished the renewal endpoint and its tests (a1b2c3d, api#88)` |
 | **Today I will** | Each next step, by ticket, with its kind (see below). |
 | **Blockers** | What stops you, by ticket. Each one is remembered until you resolve it. |
 

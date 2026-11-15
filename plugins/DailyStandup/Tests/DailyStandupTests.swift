@@ -20,7 +20,7 @@ private final class FakeZoom: DashExtension {
             DashiiTool(name: "meetings_list", description: "") { _ in [["id": "m1", "title": "Daily standup", "started": .string(started)]] },
             DashiiTool(name: "meeting_transcript", description: "") { _ in
                 ["id": "m1", "started": .string(started), "participants": ["Sadik", "Ada", "Sam"],
-                 "transcript": "[00:05] Sadik: Yesterday I finished LAF-12.\n[00:40] Ada: Today I review it.\n[01:10] Sam: Blocked on the QA env."]
+                 "transcript": "[00:05] Sadik: Yesterday I finished KAN-12.\n[00:40] Ada: Today I review it.\n[01:10] Sam: Blocked on the QA env."]
             },
             DashiiTool(name: "meeting_speakers", description: "") { _ in
                 ["meeting_id": "m1", "named": true, "speakers": [["name": "Sadik", "words": 6], ["name": "Ada", "words": 5], ["name": "Sam", "words": 5]],
@@ -57,33 +57,33 @@ struct DailyStandupTests {
         let repo = codes.appending(path: "api")
         defer { try? FileManager.default.removeItem(at: codes) }
         try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
-        for arguments in [["init", "-q", "-b", "feat/laf-12-renew"], ["config", "user.email", "me@example.com"], ["config", "user.name", "Me"],
-                          ["-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "LAF-12 renewal endpoint"]] {
+        for arguments in [["init", "-q", "-b", "feat/kan-12-renew"], ["config", "user.email", "me@example.com"], ["config", "user.name", "Me"],
+                          ["-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "KAN-12 renewal endpoint"]] {
             _ = StandupGit.git(repo, arguments)
         }
-        #expect(StandupGit.git(repo, ["log", "--oneline"])?.contains("LAF-12") == true, "commit: \(StandupGit.git(repo, ["status"]) ?? "nil")")
+        #expect(StandupGit.git(repo, ["log", "--oneline"])?.contains("KAN-12") == true, "commit: \(StandupGit.git(repo, ["status"]) ?? "nil")")
         standup.codeRoot = codes.path
         let since = Date.now.addingTimeInterval(-3600)
         let evidence = await standup.evidence(since: since)
-        #expect(evidence["commits"]?.array?.first?["subject"]?.string == "LAF-12 renewal endpoint")
+        #expect(evidence["commits"]?.array?.first?["subject"]?.string == "KAN-12 renewal endpoint")
         #expect(evidence["commits"]?.array?.first?["repo"]?.string == "api")
 
         host.testDashii.reply = #"""
-            {"yesterday":[{"ticket":"LAF-12","text":"Finished the renewal endpoint","refs":["abc1234"]}],
-             "today":[{"ticket":"LAF-12","text":"Fix the failing proration test","refs":["api#8"],"kind":"fix"},
-                      {"ticket":"LAF-20","text":"Proration on upgrade","refs":[],"kind":"start"}],
-             "blockers":[{"ticket":"LAF-12","text":"QA workspace keeps restarting","refs":["laf-12"]}]}
+            {"yesterday":[{"ticket":"KAN-12","text":"Finished the renewal endpoint","refs":["abc1234"]}],
+             "today":[{"ticket":"KAN-12","text":"Fix the failing proration test","refs":["api#8"],"kind":"fix"},
+                      {"ticket":"KAN-20","text":"Proration on upgrade","refs":[],"kind":"start"}],
+             "blockers":[{"ticket":"KAN-12","text":"QA workspace keeps restarting","refs":["kan-12"]}]}
             """#
         let update = try await standup.prepare()
-        #expect(update.text.contains("*Yesterday I did*\n• LAF-12 — Finished the renewal endpoint (abc1234)"))
-        #expect(update.text.contains("• LAF-12 — Fix: Fix the failing proration test (api#8)"))
-        #expect(update.text.contains("• LAF-20 — Start: Proration on upgrade"))
+        #expect(update.text.contains("*Yesterday I did*\n• KAN-12 — Finished the renewal endpoint (abc1234)"))
+        #expect(update.text.contains("• KAN-12 — Fix: Fix the failing proration test (api#8)"))
+        #expect(update.text.contains("• KAN-20 — Start: Proration on upgrade"))
         #expect(standup.day()?.preparedAt != nil)
         #expect(standup.openBlockers().map(\.text) == ["QA workspace keeps restarting"])
         #expect(host.activity.events.contains { $0.kind == "standup.prepared" })
         // The prompt asked for tickets and the kinds of next step.
         let call = try #require(host.testDashii.calls.last)
-        #expect(call.system.contains("Yesterday I did") && call.prompt.contains("LAF-12 renewal endpoint"))
+        #expect(call.system.contains("Yesterday I did") && call.prompt.contains("KAN-12 renewal endpoint"))
         // Mentioned again tomorrow: the same blocker, not a new one.
         standup.remember("QA workspace keeps restarting", owner: "Sadik")
         #expect(standup.openBlockers().count == 1)
@@ -97,15 +97,15 @@ struct DailyStandupTests {
         #expect(standup.isStandup(title: "Weekly sync", started: standup.standupDate()))
         host.testDashii.reply = #"""
             {"summary":"Renewals shipped; QA env blocks Sam.",
-             "people":[{"name":"Sadik","yesterday":["Finished LAF-12"],"today":[],"blockers":[]},
+             "people":[{"name":"Sadik","yesterday":["Finished KAN-12"],"today":[],"blockers":[]},
                        {"name":"Sam","yesterday":[],"today":[],"blockers":["QA env"]}],
              "blockers":[{"owner":"Sam","task":"QA env down"}],
-             "actionItems":[{"owner":"Ada","task":"Review LAF-12"}]}
+             "actionItems":[{"owner":"Ada","task":"Review KAN-12"}]}
             """#
         let report = try await standup.report(meetingID: "m1")
         #expect(report.namesFromCaptions && report.people.first { $0.name == "Sadik" }?.words == 6)
-        #expect(standup.day()?.report?.actionItems == [MeetingReport.Action(owner: "Ada", task: "Review LAF-12")])
-        #expect(host.notes.first?.folder == "Standups" && host.notes.first?.markdown.contains("- [ ] Ada: Review LAF-12") == true)
+        #expect(standup.day()?.report?.actionItems == [MeetingReport.Action(owner: "Ada", task: "Review KAN-12")])
+        #expect(host.notes.first?.folder == "Standups" && host.notes.first?.markdown.contains("- [ ] Ada: Review KAN-12") == true)
         #expect(standup.openBlockers().contains { $0.owner == "Sam" })
         #expect(host.testDashii.calls.last?.system.contains("Lines carry each speaker's name") == true)
     }

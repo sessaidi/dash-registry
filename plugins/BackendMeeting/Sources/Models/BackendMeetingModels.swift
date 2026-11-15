@@ -67,7 +67,7 @@ struct AuthoredPull: Equatable, Sendable {
     let state: State
     let url: String
     let updated: String
-    /// Ticket keys in the title (LAF-5689), to group PRs that share one.
+    /// Ticket keys in the title (KAN-5689), to group PRs that share one.
     var tickets: [String] { Self.tickets(in: title) }
 
     static func tickets(in text: String) -> [String] {

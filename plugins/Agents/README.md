@@ -34,7 +34,7 @@ Settings › Agents:
 - **Worktrees folder**: default `~/Dash/worktrees`. Worktrees go in
   `<folder>/<repo>/<branch>`.
 - **Repositories**: one `PROJECT=/path/to/clone` line per Jira project key, for example
-  `LAF=~/code/services-presentation-api`.
+  `KAN=~/code/billing-api`.
 - **While implementing**: **Accept edits, pre-approved commands only** (`acceptEdits`, the
   default) or **Bypass all permission checks** (`bypassPermissions`). Planning always runs in
   plan mode.
@@ -44,7 +44,7 @@ Settings › Agents:
   `git push` and `gh pr` are always blocked.
 
 When an agent starts, Dash runs `git fetch origin --prune`. It then creates a branch named after
-the ticket (for example `laf-1234-add-retry-to-the-fetcher`) from the remote default branch,
+the ticket (for example `kan-1234-add-retry-to-the-fetcher`) from the remote default branch,
 and adds a worktree for it.
 
 ## What it stores

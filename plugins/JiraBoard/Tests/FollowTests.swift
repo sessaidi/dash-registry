@@ -24,7 +24,7 @@ struct FollowTests {
             case "/rest/api/3/search/jql":
                 jql.contains("GONE-1") && jql.hasPrefix("key in") ? nil  // a missing key fails the whole query
                     : jql == "key = GONE-1" ? nil
-                    : jql.hasPrefix("key") ? issuesPage([issueJSON("LAF-9")])
+                    : jql.hasPrefix("key") ? issuesPage([issueJSON("KAN-9")])
                     : issuesPage([])
             default: nil
             }
@@ -43,23 +43,23 @@ struct FollowTests {
         let found = try await feature.client.boards(matching: "")
         #expect(found.map(\.name) == ["Web", "Ops"] && found[0].project == "WEB")
         await feature.follow(board: found[1])
-        await feature.follow("laf-9")
+        await feature.follow("kan-9")
         await feature.follow("GONE-1")
         #expect(feature.lastError == nil)
         #expect(feature.boards.map(\.id) == [7, 8] && feature.columns(board: 8).map(\.name) == ["Ops"])
-        #expect(feature.followedKeys == ["LAF-9", "GONE-1"])
+        #expect(feature.followedKeys == ["KAN-9", "GONE-1"])
 
         let issues = Dictionary(uniqueKeysWithValues: try host.context.fetch(FetchDescriptor<JiraIssue>()).map { ($0.key, $0) })
-        #expect(issues.keys.sorted() == ["LAF-9", "OPS-1", "WEB-1", "WEB-2"])
+        #expect(issues.keys.sorted() == ["KAN-9", "OPS-1", "WEB-1", "WEB-2"])
         #expect(issues["WEB-2"]?.boardIDs == [7, 8] && issues["OPS-1"]?.boardIDs == [8])
-        #expect(issues["LAF-9"]?.pinned == true && issues["LAF-9"]?.followed == true && issues["LAF-9"]?.onBoard == false)
+        #expect(issues["KAN-9"]?.pinned == true && issues["KAN-9"]?.followed == true && issues["KAN-9"]?.onBoard == false)
 
         // The widget shows one board at a time.
         let tickets = try host.context.fetch(FetchDescriptor<JiraIssue>()).map(JiraTicket.init)
         let ops = JiraTicket.visible(tickets, config: .init(mode: "board", hideDone: false, board: 8))
         #expect(Set(ops.map(\.key)) == ["OPS-1", "WEB-2"])
 
-        await feature.unfollow("LAF-9")
-        #expect(try host.context.fetch(FetchDescriptor<JiraIssue>()).contains { $0.key == "LAF-9" } == false)
+        await feature.unfollow("KAN-9")
+        #expect(try host.context.fetch(FetchDescriptor<JiraIssue>()).contains { $0.key == "KAN-9" } == false)
     }
 }

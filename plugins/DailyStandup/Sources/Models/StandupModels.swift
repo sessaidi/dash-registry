@@ -71,7 +71,7 @@ final class StandupBlocker {
 
 struct StandupItem: Codable, Hashable, Sendable {
     var text: String
-    /// The ticket it's about ("LAF-5680"), when there is one.
+    /// The ticket it's about ("KAN-5680"), when there is one.
     var ticket: String?
     /// Commit SHAs, PR numbers, ticket keys… that show it.
     var refs: [String]

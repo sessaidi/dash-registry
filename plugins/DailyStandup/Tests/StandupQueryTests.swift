@@ -12,9 +12,9 @@ struct StandupQueryTests {
         standup.start(host: host)
         defer { standup.stop() }
         let day = StandupDay(day: "2026-11-13", date: .now.addingTimeInterval(-2 * 86_400), onZoom: true)
-        day.update = StandupUpdate(yesterday: [StandupItem(text: "Shipped the fix", ticket: "LAF-12", refs: [])],
+        day.update = StandupUpdate(yesterday: [StandupItem(text: "Shipped the fix", ticket: "KAN-12", refs: [])],
                                    today: [StandupItem(text: "Review", ticket: nil, refs: [])], blockers: [])
-        let blocked = StandupBlocker(text: "Waiting on CAPIG", owner: "Maya", reference: "LAF-20")
+        let blocked = StandupBlocker(text: "Waiting on PROXY", owner: "Maya", reference: "KAN-20")
         let fixed = StandupBlocker(text: "QA env down", owner: "Sam")
         fixed.resolvedAt = .now
         [day].forEach(host.context.insert)
@@ -23,8 +23,8 @@ struct StandupQueryTests {
 
         let engine = QueryEngine(datasets: standup.datasets)
         let standups = try await engine.run("standups on_zoom=true | select day, tickets")
-        #expect(standups.rows == [["day": "2026-11-13", "tickets": ["LAF-12"]]])
+        #expect(standups.rows == [["day": "2026-11-13", "tickets": ["KAN-12"]]])
         let open = try await engine.run("blockers open=true | select owner, ticket")
-        #expect(open.rows == [["owner": "Maya", "ticket": "LAF-20"]])
+        #expect(open.rows == [["owner": "Maya", "ticket": "KAN-20"]])
     }
 }

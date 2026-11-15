@@ -8,7 +8,7 @@ enum ReleaseSamples {
         var tags: [TagInfo] = []
         for week in 0..<8 {
             let day = now.addingTimeInterval(Double(week - 9) * 7 * 86_400)
-            tags.append(TagInfo(name: "release-2026W\(20 + week)-02-eu.01", date: day, commit: "e\(week)", subject: "LAF-\(100 + week): change"))
+            tags.append(TagInfo(name: "release-2026W\(20 + week)-02-eu.01", date: day, commit: "e\(week)", subject: "KAN-\(100 + week): change"))
             tags.append(TagInfo(name: "release-2026W\(20 + week)-03-us.01", date: day.addingTimeInterval(86_400), commit: "u\(week)", subject: "PPT-\(200 + week): change"))
             if week % 3 == 1 {
                 tags.append(TagInfo(name: "release-2026W\(20 + week)-02-eu.02", date: day.addingTimeInterval(2 * 86_400), commit: "e\(week)b", subject: "fix"))
@@ -25,7 +25,7 @@ enum ReleaseSamples {
                        "drop the v1 search", "trace checkout calls", "bump the player SDK"]
         for index in timeline.releases.indices {
             let release = timeline.releases[index]
-            let project = release.train == "us" ? "PPT" : "LAF"
+            let project = release.train == "us" ? "PPT" : "KAN"
             timeline.releases[index].commits = (0..<(3 + index % 6)).map { number in
                 ReleaseCommit(sha: String(format: "%07x%02d", index * 4_099 + number * 131, number), author: authors[(index + number) % authors.count],
                               date: release.start.addingTimeInterval(-Double(number + 1) * 7_200),

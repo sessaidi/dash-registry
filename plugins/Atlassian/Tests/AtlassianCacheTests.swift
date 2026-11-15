@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct AtlassianCacheTests {
-    nonisolated private static let issue = #"{"key":"LAF-12","fields":{"summary":"Fix login","status":{"name":"In Progress"},"issuetype":{"name":"Bug"},"priority":{"name":"High"},"assignee":{"displayName":"Ada"},"reporter":{"displayName":"Bob"},"updated":"2026-11-10T10:00:00.000+0000","labels":["auth"],"description":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Users can't sign in. Set "},{"type":"text","text":"DB_PASSWORD=hunter2secret","marks":[{"type":"code"}]}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"iOS"}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"web","marks":[{"type":"strong"}]}]}]}]}]},"subtasks":[{"key":"LAF-13","fields":{"summary":"Test","status":{"name":"To Do"}}}],"issuelinks":[{"type":{"inward":"is blocked by","outward":"blocks"},"inwardIssue":{"key":"CAP-1","fields":{"summary":"Gateway","status":{"name":"Done"}}}}],"comment":{"total":1,"comments":[{"author":{"displayName":"Ada"},"created":"2026-11-10","body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"On it"}]}]}}]}}}"#
+    nonisolated private static let issue = #"{"key":"KAN-12","fields":{"summary":"Fix login","status":{"name":"In Progress"},"issuetype":{"name":"Bug"},"priority":{"name":"High"},"assignee":{"displayName":"Ada"},"reporter":{"displayName":"Bob"},"updated":"2026-11-10T10:00:00.000+0000","labels":["auth"],"description":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Users can't sign in. Set "},{"type":"text","text":"DB_PASSWORD=hunter2secret","marks":[{"type":"code"}]}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"iOS"}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"web","marks":[{"type":"strong"}]}]}]}]}]},"subtasks":[{"key":"KAN-13","fields":{"summary":"Test","status":{"name":"To Do"}}}],"issuelinks":[{"type":{"inward":"is blocked by","outward":"blocks"},"inwardIssue":{"key":"CAP-1","fields":{"summary":"Gateway","status":{"name":"Done"}}}}],"comment":{"total":1,"comments":[{"author":{"displayName":"Ada"},"created":"2026-11-10","body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"On it"}]}]}}]}}}"#
 
     private func setUp() -> (Sandbox, AtlassianIntegration, MemorySyncedStore, Clock) {
         let sandbox = Sandbox()
@@ -30,25 +30,25 @@ struct AtlassianCacheTests {
         defer { sandbox.cleanUp() }
         StubURLProtocol.reset { _ in .init(body: Data(Self.issue.utf8)) }
 
-        let first = try await run(atlassian, "jira_issue", ["key": "laf-12"])
+        let first = try await run(atlassian, "jira_issue", ["key": "kan-12"])
         #expect(first["from_cache"] == false && first["summary"] == "Fix login" && first["status"] == "In Progress")
         #expect(first["description"]?.string?.contains("- iOS\n- **web**") == true)
-        #expect(first["links"]?[0]?["relation"] == "is blocked by" && first["subtasks"]?[0]?["key"] == "LAF-13")
+        #expect(first["links"]?[0]?["relation"] == "is blocked by" && first["subtasks"]?[0]?["key"] == "KAN-13")
         #expect(first["latest_comments"]?[0]?["text"] == "On it")
         // Secrets never reach the mirror (or Claude).
-        let stored = try #require(mirror.record(kind: "jira.issue", scope: "acme.atlassian.net", key: "LAF-12"))
+        let stored = try #require(mirror.record(kind: "jira.issue", scope: "acme.atlassian.net", key: "KAN-12"))
         #expect(!stored.value.jsonString().contains("hunter2secret") && !first.jsonString().contains("hunter2secret"))
         #expect(StubURLProtocol.requests.count == 1)
 
         clock.now += 60
-        let second = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
+        let second = try await run(atlassian, "jira_issue", ["key": "KAN-12"])
         #expect(second["from_cache"] == true && StubURLProtocol.requests.count == 1)
 
-        _ = try await run(atlassian, "jira_issue", ["key": "LAF-12", "fresh": true])
+        _ = try await run(atlassian, "jira_issue", ["key": "KAN-12", "fresh": true])
         #expect(StubURLProtocol.requests.count == 2)
 
         clock.now += 16 * 60
-        let expired = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
+        let expired = try await run(atlassian, "jira_issue", ["key": "KAN-12"])
         #expect(expired["from_cache"] == false && StubURLProtocol.requests.count == 3)
         await #expect(throws: ToolError.self) { try await run(atlassian, "jira_issue", ["key": "not a key"]) }
     }
@@ -57,30 +57,30 @@ struct AtlassianCacheTests {
         let (sandbox, atlassian, _, clock) = setUp()
         defer { sandbox.cleanUp() }
         StubURLProtocol.reset { _ in .init(body: Data(Self.issue.utf8)) }
-        _ = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
+        _ = try await run(atlassian, "jira_issue", ["key": "KAN-12"])
         StubURLProtocol.reset { _ in .init(status: 503, body: Data("{}".utf8)) }
         clock.now += 3600
-        let stale = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
+        let stale = try await run(atlassian, "jira_issue", ["key": "KAN-12"])
         #expect(stale["stale"] == true && stale["from_cache"] == true && stale["summary"] == "Fix login")
         #expect(stale["error"]?.string?.contains("503") == true)
         // Never cached: the error comes through.
-        await #expect(throws: (any Error).self) { try await run(atlassian, "jira_issue", ["key": "LAF-99"]) }
+        await #expect(throws: (any Error).self) { try await run(atlassian, "jira_issue", ["key": "KAN-99"]) }
     }
 
     @Test func searchesGoOnlineAndRememberHits() async throws {
         let (sandbox, atlassian, mirror, _) = setUp()
         defer { sandbox.cleanUp() }
-        StubURLProtocol.reset { _ in .init(body: Data(#"{"issues":[{"key":"LAF-1","fields":{"summary":"Token ghp_abcdefghijklmnopqrstuvwxyz0123456789 leaked","status":{"name":"To Do"}}}]}"#.utf8)) }
-        let hits = try await run(atlassian, "jira_jql_search", ["jql": "project = LAF"])
-        #expect(hits[0]?["key"] == "LAF-1" && hits.jsonString().contains("ghp_abcdefghij") == false)
-        _ = try await run(atlassian, "jira_jql_search", ["jql": "project = LAF"])
+        StubURLProtocol.reset { _ in .init(body: Data(#"{"issues":[{"key":"KAN-1","fields":{"summary":"Token ghp_abcdefghijklmnopqrstuvwxyz0123456789 leaked","status":{"name":"To Do"}}}]}"#.utf8)) }
+        let hits = try await run(atlassian, "jira_jql_search", ["jql": "project = KAN"])
+        #expect(hits[0]?["key"] == "KAN-1" && hits.jsonString().contains("ghp_abcdefghij") == false)
+        _ = try await run(atlassian, "jira_jql_search", ["jql": "project = KAN"])
         #expect(StubURLProtocol.requests.count == 2)
-        #expect(mirror.records(kind: "jira.hit", scope: "acme.atlassian.net").map(\.key) == ["LAF-1"])
+        #expect(mirror.records(kind: "jira.hit", scope: "acme.atlassian.net").map(\.key) == ["KAN-1"])
         let body = try JSONValue.parse(try #require(StubURLProtocol.requests.first?.body))
-        #expect(body["jql"] == "project = LAF" && body["maxResults"] == 25)
+        #expect(body["jql"] == "project = KAN" && body["maxResults"] == 25)
 
         let cached = try await run(atlassian, "atlassian_cached", ["text": "leaked"])
-        #expect(cached[0]?["key"] == "LAF-1" && cached[0]?["kind"] == "jira.hit")
+        #expect(cached[0]?["key"] == "KAN-1" && cached[0]?["kind"] == "jira.hit")
         #expect(try await run(atlassian, "atlassian_cached", ["text": "nothing like it"]) == [])
 
         #expect(atlassian.cachedCount("jira.hit") == 1)
@@ -130,13 +130,13 @@ struct AtlassianCacheTests {
         let (sandbox, atlassian, mirror, _) = setUp()
         defer { sandbox.cleanUp() }
         StubURLProtocol.reset { _ in .init(body: Data(Self.issue.utf8)) }
-        _ = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
-        mirror.upsert([SyncedRecord(kind: "jira.hit", scope: "acme.atlassian.net", key: "LAF-99",
-                                    value: ["key": "LAF-99", "summary": "Other", "status": "To Do"], source: "atlassian", updatedAt: .now)])
+        _ = try await run(atlassian, "jira_issue", ["key": "KAN-12"])
+        mirror.upsert([SyncedRecord(kind: "jira.hit", scope: "acme.atlassian.net", key: "KAN-99",
+                                    value: ["key": "KAN-99", "summary": "Other", "status": "To Do"], source: "atlassian", updatedAt: .now)])
 
         let engine = QueryEngine(datasets: atlassian.datasets)
         let rows = try await engine.run("from jira_cache | sort key | select key, full, priority").rows
-        #expect(rows == [["key": "LAF-12", "full": true, "priority": "High"], ["key": "LAF-99", "full": false, "priority": .null]])
+        #expect(rows == [["key": "KAN-12", "full": true, "priority": "High"], ["key": "KAN-99", "full": false, "priority": .null]])
         #expect(try await engine.run("from confluence").rows.isEmpty)
     }
 }

@@ -31,7 +31,7 @@ struct PullRequestSheet: View {
     }
 
     private var github: PullRequestsFeature? { host.ext(PullRequestsFeature.self) }
-    /// "owner/services-user" → "services-user": the service the PR changes.
+    /// "owner/users-api" → "users-api": the service the PR changes.
     private var service: String { String(pr.repo.split(separator: "/").last ?? Substring(pr.repo)) }
 
     var body: some View {
@@ -104,7 +104,7 @@ struct PullRequestSheet: View {
                     } else {
                         ForEach(Array(workspaces.enumerated()), id: \.offset) { _, workspace in
                             let env = workspace["environment"]?.string ?? "?"
-                            Link(destination: URL(string: workspace["url"]?.string ?? "") ?? URL(string: "https://fubo.tv")!) {
+                            Link(destination: URL(string: workspace["url"]?.string ?? "") ?? URL(string: "https://example.com")!) {
                                 Badge("\(workspace["name"]?.string ?? "workspace") · \(env)", tone: env == "qa" ? .warning : .success, systemImage: "network")
                             }
                             .help("Deployed by \(workspace["deployed_by"]?.string ?? "?")\(workspace["deployed_at"]?.string.map { " at \($0)" } ?? "")")

@@ -23,7 +23,7 @@ extension AtlassianIntegration {
 
     private func issueKey(_ key: String) throws -> String {
         let key = key.uppercased()
-        guard Self.validIssueKey(key) else { throw ToolError("Issue key should look like LAF-1234.") }
+        guard Self.validIssueKey(key) else { throw ToolError("Issue key should look like KAN-1234.") }
         return key
     }
 
@@ -162,7 +162,7 @@ extension AtlassianIntegration {
             },
             DashiiTool(
                 name: "jira_jql_search",
-                description: "Search Jira with JQL (read-only), e.g. project = LAF AND status = \"In Progress\" ORDER BY updated DESC. Returns key, summary, status, type, priority, assignee, updated and url, up to 50.",
+                description: "Search Jira with JQL (read-only), e.g. project = KAN AND status = \"In Progress\" ORDER BY updated DESC. Returns key, summary, status, type, priority, assignee, updated and url, up to 50.",
                 properties: ["jql": JSONSchema.string("JQL query."), "limit": JSONSchema.integer("How many (default 25, at most 50).")],
                 required: ["jql"]
             ) { [weak self] input in
@@ -180,7 +180,7 @@ extension AtlassianIntegration {
             DashiiTool(
                 name: "jira_issue",
                 description: "Read a Jira issue by key: summary, status, type, priority, assignee, reporter, description (as text), labels, components, fix versions, parent, subtasks, linked issues and the latest comments. Reuses a recent copy unless fresh is true.",
-                properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234."), "fresh": Self.freshProperty], required: ["key"]
+                properties: ["key": JSONSchema.string("Issue key, e.g. KAN-1234."), "fresh": Self.freshProperty], required: ["key"]
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(IssueInput.self)

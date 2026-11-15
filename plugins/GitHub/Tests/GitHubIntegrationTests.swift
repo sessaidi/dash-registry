@@ -254,7 +254,7 @@ struct GitHubReadToolTests {
         #expect(summary["author"] == "ada" && summary["head"] == "feature/x" && summary["labels"] == ["backend"] && summary["requested_reviewers"] == ["bob"])
         let job: JSONValue = ["id": 1, "name": "test", "conclusion": "failure", "steps": [["name": "Build", "conclusion": "success"], ["name": "Unit tests", "conclusion": "failure"]]]
         #expect(GitHubIntegration.jobSummary(job)["failed_steps"] == ["Unit tests"])
-        #expect(try GitHubIntegration.repoPath(["repo": "fubotv/services-user"]) == "/repos/fubotv/services-user")
+        #expect(try GitHubIntegration.repoPath(["repo": "acme/users-api"]) == "/repos/acme/users-api")
         #expect(throws: ToolError.self) { try GitHubIntegration.repoPath(["repo": "../etc"]) }
         #expect(GitHubIntegration.query([("state", "open"), ("base", nil), ("q", "is:pr is:open")]) == "?state=open&q=is%3Apr%20is%3Aopen")
     }

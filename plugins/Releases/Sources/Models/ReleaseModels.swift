@@ -169,7 +169,7 @@ struct ReleaseCommit: Hashable, Sendable, Identifiable, Codable {
 }
 
 enum Tickets {
-    /// LAF-5917, PPT-12, ABC1-3.
+    /// KAN-5917, PPT-12, ABC1-3.
     static func extract(_ text: String) -> [String] {
         var seen: [String] = []
         for match in text.matches(of: /\b[A-Z][A-Z0-9]{1,9}-\d+\b/) where !seen.contains(String(match.0)) {
@@ -386,7 +386,7 @@ enum CommitGroups {
         subject.contains(/(?i)dependabot|chore\(deps\)|^bump |chore: bump|translations|lokalise|renovate/)
     }
 
-    /// Commits grouped by ticket project ("LAF", "PPT"…), then "Other", then dependencies; newest first.
+    /// Commits grouped by ticket project ("KAN", "PPT"…), then "Other", then dependencies; newest first.
     static func group(_ commits: [ReleaseCommit]) -> [(title: String, commits: [ReleaseCommit])] {
         var groups: [String: [ReleaseCommit]] = [:]
         for commit in commits {

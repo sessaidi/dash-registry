@@ -16,7 +16,7 @@ enum JiraBoardActions {
         WidgetAction(name: "hide_done", description: "Hide (on) or show (off) finished issues. Temporary: the widget's saved setting stays.",
                      properties: ["on": JSONSchema.boolean("true to hide done issues.")], required: ["on"]),
         WidgetAction(name: "select_issue", description: "Select an issue by key and open its detail; linked widgets follow the selection.",
-                     properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234.")], required: ["key"]),
+                     properties: ["key": JSONSchema.string("Issue key, e.g. KAN-1234.")], required: ["key"]),
         WidgetAction(name: "clear_selection", description: "Unselect the selected issue."),
         WidgetAction(name: "clear", description: "Clear the search, status filter and Dashii's temporary mode, board and hide-done (back to the widget's settings)."),
     ]

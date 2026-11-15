@@ -37,15 +37,15 @@ struct TagSchemeTests {
     }
 
     @Test func ticketKeys() {
-        #expect(Tickets.extract("LAF-5917: fix PPT-12 and LAF-5917 again (#81)") == ["LAF-5917", "PPT-12"])
+        #expect(Tickets.extract("KAN-5917: fix PPT-12 and KAN-5917 again (#81)") == ["KAN-5917", "PPT-12"])
         #expect(Tickets.extract("ABC1-3 and A-1 and lower-12") == ["ABC1-3"])
-        #expect(Tickets.isKey("laf-5917") && !Tickets.isKey("hello"))
+        #expect(Tickets.isKey("kan-5917") && !Tickets.isKey("hello"))
     }
 
     @Test func commitGroupsPutDependenciesLast() {
         func commit(_ subject: String) -> ReleaseCommit { ReleaseCommit(sha: UUID().uuidString, author: "a", date: .now, subject: subject, alreadyShipped: false) }
-        let groups = CommitGroups.group([commit("LAF-1: a"), commit("LAF-2: b"), commit("PPT-1: c"), commit("chore(deps): Bump x"), commit("tidy")])
-        #expect(groups.map(\.title) == ["LAF changes", "PPT changes", "Other", "Dependencies & translations"])
+        let groups = CommitGroups.group([commit("KAN-1: a"), commit("KAN-2: b"), commit("PPT-1: c"), commit("chore(deps): Bump x"), commit("tidy")])
+        #expect(groups.map(\.title) == ["KAN changes", "PPT changes", "Other", "Dependencies & translations"])
     }
 
     @Test func dates() throws {
@@ -127,7 +127,7 @@ struct GitTimelineTests {
         #expect(hotfix.base == "release-2026W03-01.01")
         #expect(hotfix.commits.map(\.sha) == [shas["h1"], shas["c3"]])
         #expect(hotfix.commits.first { $0.sha == shas["h1"] }?.build == "release-2026W04-01-eu.02")
-        #expect(hotfix.tickets == ["LAF-20", "PPT-5"])
+        #expect(hotfix.tickets == ["KAN-20", "PPT-5"])
 
         // Cherry-pick: the next eu release has the same fix again, flagged as already shipped.
         let next = try #require(timeline.release(named: "release-2026W05-01-eu.01"))
@@ -135,12 +135,12 @@ struct GitTimelineTests {
         #expect(next.commits.count == 2)
         #expect(next.commits.first { $0.sha == shas["m1"] }?.alreadyShipped == true)
         #expect(next.newCommits.map(\.sha) == [shas["m2"]])
-        #expect(next.tickets == ["LAF-21"])
+        #expect(next.tickets == ["KAN-21"])
         #expect(next.authors == ["Tester"])
 
         // The us train never had the hotfix: the fix is new there.
         let us = try #require(timeline.release(named: "release-2026W06-02-us"))
-        #expect(us.newCommits.map(\.subject).sorted() == ["LAF-20: urgent fix", "LAF-21: next feature"])
+        #expect(us.newCommits.map(\.subject).sorted() == ["KAN-20: urgent fix", "KAN-21: next feature"])
 
         // First release ever: nothing to compare with.
         #expect(timeline.release(named: "release-2026W02-01")?.base == nil)
@@ -171,9 +171,9 @@ struct GitTimelineTests {
         func first(_ text: String) async throws -> [String: String] {
             Dictionary(uniqueKeysWithValues: try await ReleasesFeature.containing(text, in: timeline).map { ($0.train, $0.release.name) })
         }
-        // The hotfix shipped LAF-20 on eu; us got it with its next release.
-        #expect(try await first("LAF-20") == ["eu": "release-2026W04-01-eu", "us": "release-2026W06-02-us"])
-        #expect(try await first("laf-21") == ["eu": "release-2026W05-01-eu", "us": "release-2026W06-02-us"])
+        // The hotfix shipped KAN-20 on eu; us got it with its next release.
+        #expect(try await first("KAN-20") == ["eu": "release-2026W04-01-eu", "us": "release-2026W06-02-us"])
+        #expect(try await first("kan-21") == ["eu": "release-2026W05-01-eu", "us": "release-2026W06-02-us"])
         #expect(try await first(String(shas["m2"]!.prefix(10))) == ["eu": "release-2026W05-01-eu", "us": "release-2026W06-02-us"])
         // c1 is older than any compared range: found through the release heads' history.
         #expect(try await first(String(shas["c1"]!.prefix(8))) == ["": "release-2026W02-01", "eu": "release-2026W04-01-eu", "us": "release-2026W04-02-us"])
@@ -246,7 +246,7 @@ struct FeatureTests {
         let detail = try #require(try await host.runTool("release_detail", ["tag": "release-2026W05-01-eu.01"]))
         #expect(detail["previous"] == "release-2026W04-01-eu")
         #expect(detail["already_shipped"] == .number(1))
-        #expect(detail["tickets"] == ["LAF-21"])
+        #expect(detail["tickets"] == ["KAN-21"])
 
         let live = try await host.runTool("release_live_at", ["date": "2026-01-21"])?.array?.first?["live"]?.array
         #expect(Set(live?.compactMap { $0["tag"]?.string } ?? []) == ["release-2026W04-01-eu.02", "release-2026W04-02-us.01"])
@@ -320,7 +320,7 @@ struct FeatureTests {
         #expect(day(ReleaseDates.search("12 October 2025", now: now, calendar: utc)) == "2025-10-12")
         #expect(day(ReleaseDates.search("W41", now: now, calendar: utc)) == "2026-10-05")
         #expect(day(ReleaseDates.search("2026W02", now: now, calendar: utc)) == "2026-01-05")
-        #expect(ReleaseDates.search("LAF-5917", now: now, calendar: utc) == nil)
+        #expect(ReleaseDates.search("KAN-5917", now: now, calendar: utc) == nil)
         #expect(ReleaseDates.search("fix", now: now, calendar: utc) == nil)
     }
 
@@ -471,8 +471,8 @@ final class FakeGitHub: Integration {
                 calls.append("github_sync_compare")
                 let base = input["base"]?.string ?? "", head = input["head"]?.string ?? ""
                 let commits: JSONValue = switch (base, head) {
-                case ("c1", "c2"): [["sha": "x2", "author": "Ann", "date": Self.iso(6), "subject": "LAF-10: second"]]
-                case ("c2", "c3"): [["sha": "x3", "author": "Ann", "date": Self.iso(12), "subject": "LAF-10: second"],
+                case ("c1", "c2"): [["sha": "x2", "author": "Ann", "date": Self.iso(6), "subject": "KAN-10: second"]]
+                case ("c2", "c3"): [["sha": "x3", "author": "Ann", "date": Self.iso(12), "subject": "KAN-10: second"],
                                     ["sha": "x4", "author": "Bob", "date": Self.iso(13), "subject": "PPT-5: third"]]
                 default: []
                 }

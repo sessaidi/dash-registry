@@ -28,7 +28,7 @@ struct AgentsSettingsView: View {
             } header: {
                 Text("Repositories")
             } footer: {
-                Text("One per line: Jira project key = repository (owner/name, cloned into the code folder when missing) or a local path, e.g. LAF=fubotv/services-presentation-api. Worktrees go in <clone>/.worktrees/<branch>.")
+                Text("One per line: Jira project key = repository (owner/name, cloned into the code folder when missing) or a local path, e.g. KAN=acme/billing-api. Worktrees go in <clone>/.worktrees/<branch>.")
             }
             Section {
                 Picker("While implementing", selection: $agents.implementPermissionMode) {

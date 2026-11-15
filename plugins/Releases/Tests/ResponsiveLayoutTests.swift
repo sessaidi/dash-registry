@@ -53,7 +53,7 @@ struct ResponsiveLayoutTests {
         #expect(feature.now() == ReleaseSamples.now)
         let timeline = try #require(feature.timelines["sample"])
         #expect(timeline.releases.allSatisfy { !$0.newCommits.isEmpty && !$0.tickets.isEmpty })
-        // The us train's commits name PPT tickets, the others LAF.
+        // The us train's commits name PPT tickets, the others KAN.
         #expect(timeline.releases(on: "us").allSatisfy { $0.tickets.allSatisfy { $0.hasPrefix("PPT-") } })
     }
 

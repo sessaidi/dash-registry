@@ -61,28 +61,28 @@ final class TempRepo {
     /// The shared scenario: a shared train that splits into eu and us, a hotfix build on a
     /// branch, and the same fix later on main (a cherry-pick by patch).
     ///
-    ///     day 0   c1 PAPI-1   release-2026W02-01.01            (shared)
-    ///     day 7   c2 LAF-10   release-2026W03-01.01            (shared, last)
+    ///     day 0   c1 BILL-1   release-2026W02-01.01            (shared)
+    ///     day 7   c2 KAN-10   release-2026W03-01.01            (shared, last)
     ///     day 14  c3 PPT-5    release-2026W04-01-eu.01, day 15 release-2026W04-02-us.01
-    ///     day 16  h1 LAF-20   (branch hotfix) release-2026W04-01-eu.02
-    ///     day 17  m1 LAF-20   (main, same patch as h1)
-    ///     day 18  m2 LAF-21   release-2026W05-01-eu.01 (day 21), release-2026W06-02-us.01 (day 30)
+    ///     day 16  h1 KAN-20   (branch hotfix) release-2026W04-01-eu.02
+    ///     day 17  m1 KAN-20   (main, same patch as h1)
+    ///     day 18  m2 KAN-21   release-2026W05-01-eu.01 (day 21), release-2026W06-02-us.01 (day 30)
     static func scenario() throws -> (repo: TempRepo, shas: [String: String]) {
         let repo = try TempRepo()
         var shas: [String: String] = [:]
-        shas["c1"] = try repo.commit("PAPI-1: first", file: "a.txt", content: "1\n", day: 0)
+        shas["c1"] = try repo.commit("BILL-1: first", file: "a.txt", content: "1\n", day: 0)
         try repo.tag("release-2026W02-01.01", day: 0)
-        shas["c2"] = try repo.commit("LAF-10: second", file: "a.txt", content: "1\n2\n", day: 7)
+        shas["c2"] = try repo.commit("KAN-10: second", file: "a.txt", content: "1\n2\n", day: 7)
         try repo.tag("release-2026W03-01.01", day: 7)
         shas["c3"] = try repo.commit("PPT-5: third", file: "a.txt", content: "1\n2\n3\n", day: 14)
         try repo.tag("release-2026W04-01-eu.01", day: 14)
         try repo.tag("release-2026W04-02-us.01", day: 15)
         try repo.git("checkout", "-q", "-b", "hotfix")
-        shas["h1"] = try repo.commit("LAF-20: urgent fix", file: "fix.txt", content: "fix\n", day: 16)
+        shas["h1"] = try repo.commit("KAN-20: urgent fix", file: "fix.txt", content: "fix\n", day: 16)
         try repo.tag("release-2026W04-01-eu.02", day: 16)
         try repo.git("checkout", "-q", "main")
-        shas["m1"] = try repo.commit("LAF-20: urgent fix", file: "fix.txt", content: "fix\n", day: 17)
-        shas["m2"] = try repo.commit("LAF-21: next feature", file: "b.txt", content: "b\n", day: 18)
+        shas["m1"] = try repo.commit("KAN-20: urgent fix", file: "fix.txt", content: "fix\n", day: 17)
+        shas["m2"] = try repo.commit("KAN-21: next feature", file: "b.txt", content: "b\n", day: 18)
         try repo.tag("release-2026W05-01-eu.01", day: 21)
         try repo.tag("release-2026W06-02-us.01", day: 30)
         // Not a release tag: ignored.

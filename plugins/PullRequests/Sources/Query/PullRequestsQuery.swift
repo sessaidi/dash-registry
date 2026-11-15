@@ -27,7 +27,7 @@ extension PullRequest {
         .init("url", "string", "Link"),
     ]
 
-    /// Ticket keys (LAF-123) in the title and head branch.
+    /// Ticket keys (KAN-123) in the title and head branch.
     var ticketKeys: [String] {
         var keys: [String] = []
         for text in [title, headRef] {

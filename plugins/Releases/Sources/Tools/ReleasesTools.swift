@@ -72,7 +72,7 @@ extension ReleasesFeature {
             },
             DashiiTool(
                 name: "releases_containing",
-                description: "Which release first shipped a change, on each train: give a ticket key (LAF-5917), a commit sha (at least 7 characters) or words from a commit subject.",
+                description: "Which release first shipped a change, on each train: give a ticket key (KAN-5917), a commit sha (at least 7 characters) or words from a commit subject.",
                 properties: ["text": JSONSchema.string("Ticket key, commit sha or text."), "repo": JSONSchema.string("Repository name (optional).")],
                 required: ["text"]) { [weak self] input in
                 guard let self else { return .null }

@@ -76,7 +76,7 @@ struct StartAgentField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                TextField("Ticket", text: $key, prompt: Text("LAF-1234"))
+                TextField("Ticket", text: $key, prompt: Text("KAN-1234"))
                     .textFieldStyle(.roundedBorder)
                     .labelsHidden()
                 AsyncButton("Start Agent") {

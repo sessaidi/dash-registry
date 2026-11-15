@@ -14,7 +14,7 @@ struct PodsLayoutTests {
     func rendersEachFamily(_ family: WidgetLayout.Family) throws {
         let size = try #require(Self.sizes[family])
         #expect(WidgetLayout.family(for: size) == family)
-        for selected in [nil, "papi-eu/api-8b1e2f4c7-q4m8n"] as [String?] {
+        for selected in [nil, "bill-eu/api-8b1e2f4c7-q4m8n"] as [String?] {
             let view = PodsContent(pods: PodsSamples.pods, total: 12, warnings: PodsSamples.warnings, scope: PodsSamples.scope)
                 .frame(width: size.width, height: size.height)
                 .environment(\.widgetLayout, WidgetLayout(size: size))

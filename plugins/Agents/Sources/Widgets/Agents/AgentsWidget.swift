@@ -23,7 +23,7 @@ struct AgentsWidget: DashboardWidget {
     static let queryFields = AgentSession.queryFields
     static let actions = [
         WidgetAction(name: "select", description: "Select an agent session by ticket key (or id); linked widgets follow the selection. Temporary.",
-                     properties: ["key": JSONSchema.string("Ticket key, e.g. LAF-1234, or the session id.")], required: ["key"]),
+                     properties: ["key": JSONSchema.string("Ticket key, e.g. KAN-1234, or the session id.")], required: ["key"]),
         WidgetAction(name: "clear_selection", description: "Unselect the selected session."),
     ]
 

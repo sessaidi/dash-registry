@@ -5,7 +5,7 @@ import SwiftData
 /// Jira issues for DashQL: the `jira` dataset (Dash's local copy) and the board widget's query bar.
 extension JiraIssue {
     static let queryFields: [QueryDataset.Field] = [
-        .init("key", "string", "Issue key, e.g. LAF-1234 (joins prs.tickets and agents.issue_key)", aliases: ["ticket", "id"]),
+        .init("key", "string", "Issue key, e.g. KAN-1234 (joins prs.tickets and agents.issue_key)", aliases: ["ticket", "id"]),
         .init("summary", "string", "Title", aliases: ["title"]),
         .init("status", "string", "Status name, e.g. In Progress"),
         .init("status_category", "string", "new (to do), indeterminate (in progress) or done", aliases: ["category"]),
@@ -13,7 +13,7 @@ extension JiraIssue {
         .init("priority", "string", "Highest, High, Medium, Low…"),
         .init("type", "string", "Story, Bug, Task…", aliases: ["issue_type"]),
         .init("labels", "list", "Labels"),
-        .init("project", "string", "Project key, e.g. LAF"),
+        .init("project", "string", "Project key, e.g. KAN"),
         .init("updated", "date", "Last update"),
         .init("followed", "bool", "The user follows it"),
         .init("on_board", "bool", "On a followed board"),
