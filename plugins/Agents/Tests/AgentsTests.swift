@@ -15,9 +15,9 @@ struct AgentsExtensionTests {
         #expect(agents.id == "agents" && agents.name == "Agents" && agents.systemImage == "hammer")
         #expect(agents.layer == .feature)
         #expect(agents.requires == ["atlassian"] && agents.optional == ["github"])
-        #expect(agents.metadata.version == "1.6.0" && agents.metadata.category == .ai)
+        #expect(agents.metadata.version == "1.8.0" && agents.metadata.category == .ai)
         #expect(agents.storagePrefix == "agents")
-        #expect(agents.models.map { String(describing: $0) } == ["AgentSession", "AgentMessage"])
+        #expect(agents.models.map { String(describing: $0) } == ["AgentSession", "AgentMessage", "PullRequestTemplate"])
         #expect(agents.widgets.map(\.kind) == ["agents.sessions"])
         #expect(agents.tools.map(\.name) == ["agents_list", "agents_start", "agents_open", "agents_send", "agents_read"])
         #expect(agents.tools.filter(\.requiresApproval).map(\.name) == ["agents_start", "agents_send"])
@@ -308,11 +308,20 @@ struct AgentsExtensionTests {
         let (agents, _) = makeAgents()
         let session = AgentSession(issueKey: "LAF-1", title: "t", repoPath: "/r", worktreePath: "/w", branch: "b", baseRef: "origin/main")
         do {
-            _ = try await agents.createPullRequest(session)
+            _ = try await agents.draftPullRequest(session)
             Issue.record("expected an error")
         } catch {
             #expect(error.localizedDescription == "Connect GitHub to open pull requests.")
         }
+    }
+
+    @Test func repositoryTemplateOverridesTheGlobalOne() throws {
+        let (agents, host) = makeAgents()
+        #expect(agents.pullRequestTemplate(for: "/r") == nil)
+        host.context.insert(PullRequestTemplate(repoPath: "/r", title: "{{issue_key}}: {{issue_title}}", body: "Fixes {{issue_key}}"))
+        try host.context.save()
+        #expect(agents.pullRequestTemplate(for: "/r")?.title == "{{issue_key}}: {{issue_title}}")
+        #expect(agents.pullRequestTemplate(for: "/other") == nil)
     }
 
     // MARK: Widget

@@ -92,7 +92,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     static var alive: [FakeHost] = []
 
     init(_ extensions: [any DashExtension]) {
-        let container = try! ModelContainer(for: Schema([AgentSession.self, AgentMessage.self]), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try! ModelContainer(for: Schema([AgentSession.self, AgentMessage.self, PullRequestTemplate.self]), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         context = ModelContext(container)
         self.extensions = extensions
     }

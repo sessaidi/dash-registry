@@ -111,3 +111,29 @@ struct AgentSummary: Identifiable, Equatable, Sendable {
                      branch: "laf-1240-drop-the-legacy-auth-header", status: "failed", costUSD: 0.05, hasPullRequest: false),
     ]
 }
+
+/// A repository's own pull request template; repositories without one use the global template
+/// (Agents › AI › Opening pull requests). Placeholders: {{issue_key}}, {{issue_title}},
+/// {{ticket_url}}, {{summary}}, {{branch}}, {{base}}.
+@Model
+final class PullRequestTemplate {
+    @Attribute(.unique) var repoPath: String
+    var title: String
+    var body: String
+
+    init(repoPath: String, title: String, body: String) {
+        self.repoPath = repoPath
+        self.title = title
+        self.body = body
+    }
+}
+
+/// A PR the user is reviewing before it's opened.
+struct PullRequestDraft: Equatable {
+    var title: String
+    var body: String
+    var base: String
+    var branch: String
+    /// Whether the repository's own template was used instead of the global one.
+    var repoTemplate: Bool
+}

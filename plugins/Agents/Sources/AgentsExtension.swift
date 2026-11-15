@@ -13,8 +13,8 @@ final class AgentsExtension: DashExtension {
     let id = "agents"
     let name = "Agents"
     let systemImage = "hammer"
-    let metadata = ExtensionMetadata(version: "1.6.0", summary: "Claude Code agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
-    /// Tickets come from Jira; GitHub is only needed for Create PR.
+    let metadata = ExtensionMetadata(version: "1.8.0", summary: "Claude Code agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
+    /// Tickets come from Jira; GitHub is only needed to open a PR, which the user confirms.
     let requires = ["atlassian"]
     let optional = ["github"]
 
@@ -68,7 +68,7 @@ final class AgentsExtension: DashExtension {
         model = defaults.string(forKey: "agents.model") ?? ""
     }
 
-    var models: [any PersistentModel.Type] { [AgentSession.self, AgentMessage.self] }
+    var models: [any PersistentModel.Type] { [AgentSession.self, AgentMessage.self, PullRequestTemplate.self] }
     var widgets: [WidgetType] { [WidgetType(AgentsWidget.self)] }
     func settingsView() -> AnyView { AnyView(AgentsSettingsView(agents: self)) }
 
@@ -161,7 +161,7 @@ final class AgentsExtension: DashExtension {
 
     static let pullRequestTask = AITask(
         id: "pull-request", title: "Opening pull requests",
-        summary: "When the agent is done, Dash pushes its branch and opens a draft PR with these title and description templates.",
+        summary: "When the agent is done, Dash drafts the PR from these templates (a repository can have its own in Agents settings); you review it, then confirm to push and open it.",
         models: [.sonnet, .haiku, .opus], enabledByDefault: true,
         templates: [
             AITemplate(id: "title", title: "PR title", defaultText: "[{{issue_key}}] {{issue_title}}",
@@ -440,18 +440,21 @@ final class AgentsExtension: DashExtension {
         host?.integration("atlassian")?.connection.map { JiraClient(connection: $0).browseURL(issueKey) }
     }
 
-    /// Pushes the branch and opens a draft PR linked to the ticket.
-    func createPullRequest(_ session: AgentSession) async throws -> String {
+    /// The repository's own PR template, if the user set one; otherwise the global one applies.
+    func pullRequestTemplate(for repoPath: String) -> PullRequestTemplate? {
+        try? host?.context.fetch(FetchDescriptor<PullRequestTemplate>(predicate: #Predicate { $0.repoPath == repoPath })).first
+    }
+
+    /// Renders the PR title and description for review. Nothing leaves the Mac until the user
+    /// confirms with `createPullRequest(_:draft:)`.
+    func draftPullRequest(_ session: AgentSession) async throws -> PullRequestDraft {
         guard ai.isEnabled(Self.pullRequestTask.id) else {
             throw ToolError("Opening PRs is turned off in Agents › AI settings.")
         }
-        guard let connection = host?.integration("github")?.connection else { throw ToolError("Connect GitHub to open pull requests.") }
-        let github = GitHubClient(connection: connection)
+        guard host?.integration("github")?.connection != nil else { throw ToolError("Connect GitHub to open pull requests.") }
         let worktree = URL(filePath: session.worktreePath)
         let ahead = try await Git.git(["rev-list", "--count", "\(session.baseRef)..HEAD"], in: worktree)
         guard Int(ahead) ?? 0 > 0 else { throw ToolError("The branch has no commits yet.") }
-        let slug = try await Git.gitHubSlug(worktree)
-        try await Git.git(["push", "-u", "origin", session.branch], in: worktree)
         let summary = messages(session.id).last { $0.role == "assistant" }?.text ?? ""
         let base = session.baseRef.replacingOccurrences(of: "origin/", with: "")
         let values = [
@@ -459,8 +462,44 @@ final class AgentsExtension: DashExtension {
             "summary": summary, "branch": session.branch, "base": base,
         ]
         let task = Self.pullRequestTask.id
-        let pull = try await github.createPull(
-            slug, title: ai.render(task, "title", values), head: session.branch, base: base, body: ai.render(task, "body", values), draft: true)
+        let template = pullRequestTemplate(for: session.repoPath)
+        return PullRequestDraft(
+            title: template.map { AISettings.render($0.title, values) } ?? ai.render(task, "title", values),
+            body: template.map { AISettings.render($0.body, values) } ?? ai.render(task, "body", values),
+            base: base, branch: session.branch, repoTemplate: template != nil)
+    }
+
+    /// Answers a question about the drafted PR (why a sentence is there, what a change does)
+    /// from the branch's commits, diff summary and the agent's last report. Read-only.
+    func explain(_ draft: PullRequestDraft, question: String, session: AgentSession) async throws -> String {
+        guard let claude = host?.claude else { throw ToolError("Agents are not ready.") }
+        let worktree = URL(filePath: session.worktreePath)
+        let log = (try? await Git.git(["log", "--oneline", "\(session.baseRef)..HEAD"], in: worktree)) ?? ""
+        let stat = (try? await Git.git(["diff", "--stat", "\(session.baseRef)...HEAD"], in: worktree)) ?? ""
+        let report = messages(session.id).last { $0.role == "assistant" }?.text ?? ""
+        return try await claude.complete(task: Self.pullRequestTask.id, settings: ai, system: """
+            You help the user review a pull request before they open it. Answer their question about the \
+            title or description briefly and concretely, citing the commits or files involved. If the \
+            description says something the changes do not support, say so and suggest a correction.
+            """, prompt: """
+            <title>\(draft.title)</title>
+            <description>\(draft.body)</description>
+            <commits>\(log)</commits>
+            <diffstat>\(stat)</diffstat>
+            <agent-report>\(report)</agent-report>
+
+            \(question)
+            """)
+    }
+
+    /// Pushes the branch and opens the draft PR the user reviewed and confirmed.
+    func createPullRequest(_ session: AgentSession, draft: PullRequestDraft) async throws -> String {
+        guard let connection = host?.integration("github")?.connection else { throw ToolError("Connect GitHub to open pull requests.") }
+        let github = GitHubClient(connection: connection)
+        let worktree = URL(filePath: session.worktreePath)
+        let slug = try await Git.gitHubSlug(worktree)
+        try await Git.git(["push", "-u", "origin", session.branch], in: worktree)
+        let pull = try await github.createPull(slug, title: draft.title, head: session.branch, base: draft.base, body: draft.body, draft: true)
         let url = pull["html_url"]?.string ?? ""
         session.prURL = url
         append(session, role: "info", text: "Opened draft PR \(url)")
@@ -582,8 +621,9 @@ private struct AgentsSettingsView: View {
             } header: {
                 Text("Permissions")
             } footer: {
-                Text("Planning always runs in plan mode (read-only). git push is always blocked; Dash pushes when you click Create PR.")
+                Text("Planning always runs in plan mode (read-only). The agent never writes remotely: git push, gh, glab and curl are blocked. Only Create PR pushes, after you review and confirm the title and description.")
             }
+            PullRequestTemplatesSection(agents: agents)
         }
     }
 }
