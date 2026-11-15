@@ -10,10 +10,16 @@ struct FollowTicketPopover: View {
     @State private var results: [JiraClient.Issue] = []
     @State private var searching = false
     @State private var error: String?
+    @State private var recent: [JiraClient.Issue] = []
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Follow a ticket").font(.headline)
+            HStack {
+                Text("Follow a ticket").font(.headline)
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("KAN-1234, a Jira link, or words to search", text: $query)
@@ -27,6 +33,17 @@ struct FollowTicketPopover: View {
                 row(key: key, title: jira.issue(key)?.summary ?? "Follow \(key)", followed: jira.followedKeys.contains(key))
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if query.isEmpty, !suggestions.isEmpty {
+                Text("Yours and recently viewed").font(.caption.bold()).foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(suggestions, id: \.key) { issue in
+                            row(key: issue.key, title: issue.summary, subtitle: issue.statusName, followed: false)
+                        }
+                    }
+                }
+                .frame(maxHeight: 260)
+            }
             if !results.isEmpty {
                 ScrollView {
                     VStack(spacing: 4) {
@@ -52,7 +69,8 @@ struct FollowTicketPopover: View {
             Text("Followed tickets sync into the board; nothing changes in Jira.").font(.caption).foregroundStyle(.tertiary)
         }
         .padding(16)
-        .frame(width: 420)
+        .frame(width: 480)
+        .task { recent = (try? await jira.client.search(Self.recentJQL, limit: 20)) ?? [] }
         .task(id: query) {
             // Words search Jira after a pause; keys and links follow directly.
             guard directKey == nil, query.trimmingCharacters(in: .whitespaces).count >= 3 else { results = []; return }
@@ -61,6 +79,11 @@ struct FollowTicketPopover: View {
             await runSearch()
         }
     }
+
+    /// Tickets to follow in one click: viewed lately, assigned to or reported by the user, still open.
+    static let recentJQL = "(issuekey IN issueHistory() OR assignee = currentUser() OR reporter = currentUser()) AND statusCategory != Done ORDER BY lastViewed DESC"
+
+    private var suggestions: [JiraClient.Issue] { recent.filter { !jira.followedKeys.contains($0.key) } }
 
     /// A key typed or found in a pasted link (…/browse/KAN-123, ?selectedIssue=KAN-123).
     private var directKey: String? {
