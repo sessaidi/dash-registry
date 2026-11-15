@@ -15,8 +15,8 @@ final class PodsFeature: DashExtension {
     let systemImage = "cube.box"
     let requires = ["kubernetes"]
     let metadata = ExtensionMetadata(
-        version: "1.4.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
-        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.4.0")
+        version: "1.5.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
+        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.5.0")
 
     static let refreshInterval: Duration = .seconds(30)
 
@@ -231,9 +231,11 @@ struct PodsWidget: DashboardWidget {
     ]
 
     static let actions = PodsWidgetActions.actions
+    static let queryFields = PodSummary.queryFields
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, config: config)
+        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, config: config,
+                       query: context.query(fields: PodSummary.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -461,7 +463,11 @@ private struct PodsWidgetView: View {
     let feature: PodsFeature?
     let host: any ExtensionContext
     @Binding var config: PodsWidget.Config
+    /// The widget's DashQL query (its query bar), applied after the settings' filters.
+    let query: WidgetQuery?
+    let queryText: String
     @State private var selected: PodSummary?
+    @State private var queryIDs: [String]?
     /// The widget's size family, from the dashboard: each gets its own layout.
     @Environment(\.widgetLayout) private var layout
 
@@ -474,15 +480,23 @@ private struct PodsWidgetView: View {
             }
             .reportsWidgetState(PodsWidgetActions.state(config: config, pods: visiblePods, total: browse?.pods.count ?? 0,
                                                         namespace: feature.map(namespaceLabel) ?? "", selected: selected))
+            .task(id: QueryRows.key(queryText, filteredPods, row: row)) {
+                queryIDs = await QueryRows.ids(query, filteredPods, row: row)
+            }
     }
 
     private var browse: PodsFeature.Browse? { feature?.browsing[config.browseKey] }
 
-    /// The pods the widget lists, filtered and sorted as shown.
-    private var visiblePods: [PodSummary] {
+    /// The pods the settings' filters keep, sorted.
+    private var filteredPods: [PodSummary] {
         let browse = browse
         return PodSummary.sorted((browse?.pods ?? []).filter { config.query.matches($0, warnings: browse?.warnings[$0.id] ?? []) }, by: config.podSort)
     }
+
+    /// The pods the widget lists: the settings' filters, then the DashQL query.
+    private var visiblePods: [PodSummary] { QueryRows.ordered(filteredPods, by: queryIDs) }
+
+    private func row(_ pod: PodSummary) -> JSONValue { pod.queryRow(context: config.context, warnings: browse?.warnings[pod.id] ?? []) }
 
     @ViewBuilder private var main: some View {
         if let feature {
@@ -504,8 +518,7 @@ private struct PodsWidgetView: View {
     private func content(_ feature: PodsFeature) -> some View {
         let browse = feature.browsing[config.browseKey]
         let pods = browse?.pods ?? []
-        let query = config.query
-        let visible = PodSummary.sorted(pods.filter { query.matches($0, warnings: browse?.warnings[$0.id] ?? []) }, by: config.podSort)
+        let visible = visiblePods
         if config.context == nil, feature.kubernetes?.isConnected != true {
             StateView(.needsConnection(names: ["Kubernetes"]), action: ("Open Settings", { host.openManager("kubernetes") }))
         } else if let error = browse?.error, browse?.lastSync == nil {
