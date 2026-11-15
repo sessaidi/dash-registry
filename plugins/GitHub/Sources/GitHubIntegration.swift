@@ -243,28 +243,8 @@ final class GitHubIntegration: Integration {
 
     func settingsView() -> AnyView { AnyView(GitHubSettingsView(github: self)) }
 
-    // MARK: Claude tools
-
-    private struct GetInput: Decodable { let path: String }
-
+    /// Cuts `github_api_get` answers (and file reads) at this many characters.
     static let maxToolCharacters = 100_000
-
-    var tools: [DashiiTool] {
-        [
-            DashiiTool(
-                name: "github_api_get",
-                description: "Read any GitHub REST endpoint as the user (GET only), e.g. /repos/owner/name/actions/runs?per_page=10. Use when no more specific GitHub tool fits. Large responses are cut at 100,000 characters.",
-                properties: ["path": JSONSchema.string("Path and query after the API root, starting with /.")], required: ["path"]
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let path = try GitHubAPI.validatedPath(try input.toolInput(GetInput.self).path)
-                let json = try await api.get(path)
-                let text = json.jsonString()
-                return text.count > Self.maxToolCharacters
-                    ? ["truncated": true, "json": .string(String(text.prefix(Self.maxToolCharacters)))] : json
-            },
-        ] + readTools + syncTools
-    }
 
     /// The API for the granular tools (throws when GitHub isn't connected).
     var toolAPI: GitHubAPI { get throws { try api } }
