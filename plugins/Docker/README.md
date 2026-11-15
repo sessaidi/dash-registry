@@ -66,7 +66,7 @@ Exports: `socket`, `version`.
 
 ## Build & test
 
-From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (each `project.yml` says where it expects DashKit).
+From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (point `DASH_ROOT` at it; see `scripts/dash-root.sh`).
 
 ```sh
 TEST=1 scripts/build-plugins.sh Docker   # generate the project, run DockerPluginTests, build, zip

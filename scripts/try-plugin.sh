@@ -10,6 +10,7 @@
 set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+. scripts/dash-root.sh
 name="${1:?usage: scripts/try-plugin.sh <Name>}"
 dir="plugins/$name"
 [ -f "$dir/project.yml" ] || dir="examples/$name"
