@@ -15,7 +15,7 @@ struct AgentsExtensionTests {
         #expect(agents.id == "agents" && agents.name == "Agents" && agents.systemImage == "hammer")
         #expect(agents.layer == .feature)
         #expect(agents.requires == ["atlassian"] && agents.optional == ["github"])
-        #expect(agents.metadata.version == "1.9.0" && agents.metadata.category == .ai)
+        #expect(agents.metadata.version == "1.10.0" && agents.metadata.category == .ai)
         #expect(agents.storagePrefix == "agents")
         #expect(agents.models.map { String(describing: $0) } == ["AgentSession", "AgentMessage", "PullRequestTemplate"])
         #expect(agents.widgets.map(\.kind) == ["agents.sessions"])
@@ -463,5 +463,19 @@ struct ClientTests {
             data.append(buffer, count: count)
         }
         return data
+    }
+}
+
+/// The Agents widget's selection, for linked widgets.
+@MainActor
+struct AgentSelectionTests {
+    @Test func selectsBySessionKeyOrIDAndPublishesItsRow() {
+        let a = AgentSession(issueKey: "LAF-1", title: "One", repoPath: "/r", worktreePath: "/w", branch: "b", baseRef: "origin/main")
+        let b = AgentSession(issueKey: "LAF-2", title: "Two", repoPath: "/r", worktreePath: "/w", branch: "c", baseRef: "origin/main")
+        #expect(AgentSession.find("laf-2", in: [a, b])?.id == b.id)
+        #expect(AgentSession.find(a.id.uuidString, in: [a, b])?.issueKey == "LAF-1")
+        #expect(AgentSession.find("LAF-9", in: [a, b]) == nil)
+        #expect(a.queryRow["issue_key"] == "LAF-1")
+        #expect(AgentsWidget.actions.map(\.name) == ["select", "clear_selection"])
     }
 }
