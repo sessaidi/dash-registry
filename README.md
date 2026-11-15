@@ -25,7 +25,7 @@ In Dash, Settings › Marketplace › Registries, add one line:
 
 ```
 sessaidi/dash-registry              # from GitHub (private repos need the GitHub integration)
-~/code/dash-registry                # or a local checkout while developing
+/path/to/dash-registry              # or a local checkout while developing
 ```
 
 Install a plugin and it loads right away. Each download is checked against the SHA-256 in
@@ -34,8 +34,9 @@ finishes at the next launch.
 
 ## Building
 
-Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), and the Dash repository
-at `~/code/perso/dash` (plugins compile against `../../../perso/dash/Packages/DashKit`).
+Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), and a checkout of the
+[Dash repository](https://github.com/sessaidi/dash): plugins compile against its
+`Packages/DashKit` (each plugin's `project.yml` says where it expects it).
 
 ```sh
 TEST=1 scripts/build-plugins.sh          # build + test + zip every plugin, regenerate registry.json
