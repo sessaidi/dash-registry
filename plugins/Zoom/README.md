@@ -7,10 +7,15 @@ SpeechAnalyzer. Participants are read from Zoom's window through Accessibility. 
 account, app or API is involved. The transcript leaves your Mac only when you summarise a
 meeting or ask Claude about it.
 
+With the calendar turned on, it also reads your upcoming Zoom meetings from the Mac's
+calendars (Google, Outlook or iCloud, as synced to Calendar) through EventKit: an Upcoming
+Meetings widget with a Join button, recordings named after their calendar event, and a
+reminder event before each meeting.
+
 | | |
 |---|---|
 | Plugin id | `zoom` |
-| Version | 1.2.0 |
+| Version | 1.8.0 |
 | Minimum DashKit | 1.2.0 |
 | Layer | feature (provides `zoom`) |
 | Requires | nothing |
@@ -35,6 +40,9 @@ Settings › Zoom:
 - **Language**: a locale identifier, for example `en_US`. Defaults to the system locale.
 - **Start transcribing when a Zoom meeting starts**: default off.
 - **Summarise with Claude when the meeting ends**: default on. The summary runs at low effort.
+- **Calendar**: off by default. Turning on **Read Zoom meetings from my calendar** asks macOS for
+  calendar access once (the prompt is Dash's). **Remind me … min before** (default 2) sets when
+  `zoom.meeting_soon` fires.
 - **Permissions**: the Accessibility status, and a link to the Screen Recording settings.
 
 Dash checks Zoom every 5 seconds. Recording stops once the meeting window has been gone for two
@@ -54,12 +62,14 @@ service.
 
 | Kind | Shows | Options |
 |---|---|---|
+| `zoom.upcoming` (Upcoming Meetings) | Calendar events with a Zoom link in the next 24 hours, soonest first, with a Join button that opens the Zoom app. Narrow: the next meeting alone. Wide and large: end times and calendars too. Without calendar access, a button to turn it on. Default size: medium. | `count`: how many meetings to list (default 6). |
 | `zoom.meeting` (Meeting) | While a meeting runs: the live transcript, participants and a Stop button. Otherwise: recent meetings with their summaries, and a Transcribe button. Opening a meeting lets you summarise it again, ask Claude about it, or delete it. Default size: large. | `recentCount`: how many past meetings to list (default 5). Set through the widget config; the widget has no settings form. |
 
 ## Claude tools
 
 | Tool | What it does | Needs approval |
 |---|---|---|
+| `zoom_upcoming_meetings` | Lists the Zoom meetings in the next 24 hours from the calendar, with their join links. | No |
 | `meetings_list` | Lists up to 30 recorded meetings, newest first, with summaries and action items. | No |
 | `meeting_transcript` | Returns a meeting's transcript, with lines attributed to you or "Others". Defaults to the current meeting, else the latest. | No |
 | `meeting_participants` | Returns who is in the Zoom meeting right now, and whether Dash is recording. | No |
@@ -69,7 +79,8 @@ service.
 
 | Kind | When |
 |---|---|
-| `meeting.started` | Transcription of a Zoom meeting started. The detail lists the participants. |
+| `zoom.meeting_soon` | A calendar meeting with a Zoom link starts in the reminder time. The detail is its join link. Once per meeting. |
+| `meeting.started` | Transcription of a Zoom meeting started. The detail lists the participants. When a calendar event is on (from 10 minutes before), the meeting is named after it and the summary keeps that name. |
 | `meeting.ended` | The meeting ended or transcription stopped. |
 | `meeting.summarized` | Claude's summary is ready, with counts of decisions and action items. |
 

@@ -34,6 +34,25 @@ struct ZoomSettingsView: View {
                 Text("Audio is saved as an .m4a with two tracks, Zoom and your microphone. With video it is a .mov of Zoom's windows on the screen showing the meeting (other apps are left out), at up to 1920 pixels and 15 frames a second. Files stay on this Mac.")
             }
             Section {
+                if zoom.calendarAccess == .denied {
+                    LabeledContent("Calendar") {
+                        Button("Open Settings…") {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
+                        }
+                    }
+                } else {
+                    Toggle("Read Zoom meetings from my calendar", isOn: Binding(
+                        get: { zoom.useCalendar },
+                        set: { on in if on { Task { await zoom.enableCalendar() } } else { zoom.useCalendar = false } }))
+                }
+                Stepper("Remind me \(zoom.reminderMinutes) min before", value: $zoom.reminderMinutes, in: 0...30)
+                    .disabled(!zoom.useCalendar)
+            } header: {
+                Text("Calendar")
+            } footer: {
+                Text("Reads the Mac's calendars (Google, Outlook or iCloud, as synced to Calendar) for events with a Zoom link: the Upcoming Meetings widget, a recording named after its event, and a `zoom.meeting_soon` event for hooks and notifications. Nothing leaves this Mac.")
+            }
+            Section {
                 LabeledContent("Accessibility") {
                     if ZoomAccessibility.isTrusted { Text("Granted").foregroundStyle(.green) } else {
                         Button("Grant…") { ZoomAccessibility.requestTrust() }
