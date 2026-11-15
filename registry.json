@@ -13,7 +13,7 @@
         "provides": [
           "aws"
         ],
-        "sha256": "399a4835c39d362eff54403b8ed360b2159e87c95aac16527db1b3240052cc14"
+        "sha256": "0aff8e6b5ee1cdbfb19a96742492181fab797e4c36a5982984351d63d6605be8"
       },
       "description": "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.",
       "icon": "server.rack",
@@ -34,7 +34,7 @@
         "provides": [
           "agents"
         ],
-        "sha256": "1ca917ed072c56b2fd99d053b477955af30ee40256a7ed286c6169b5006e6e46"
+        "sha256": "dc03908362696c93b577d87e3fe15720303efef4a3257cac23d2b42286029528"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
@@ -58,7 +58,7 @@
         "provides": [
           "atlassian"
         ],
-        "sha256": "3d3002529438d57b38f46a1705977d7ed206745c7c6161af33c79bbadb75b9bd"
+        "sha256": "76435a95dfcc245441ace1836a95a4455671b7a2c9a0b76d4eb9ce53175d8a57"
       },
       "description": "Jira and Confluence Cloud with one site, email and API token.",
       "icon": "square.stack.3d.up",
@@ -79,7 +79,7 @@
         "provides": [
           "backend-meeting"
         ],
-        "sha256": "cb7b5f237b5caf07e19cff95acbe9296f436007b043c5fa3dfd8df1eaab00ffa"
+        "sha256": "4e6a177c23230306dbef9b7f01944ee4f7f58fa1389a6d9ab882ac538e6db74b"
       },
       "description": "Your highlights for the backend meeting: PRs, tickets and activity since the last report (1\u201310 week cycles), grouped into themes.",
       "icon": "person.2.wave.2",
@@ -105,7 +105,7 @@
         "provides": [
           "daily-standup"
         ],
-        "sha256": "788b107cf2ee5921c8480608d0d3528bb1a06376380e1afc4e4e45f48000b9d1"
+        "sha256": "fead5efa02f6bcff2607731095e0cab0ac6680085025a06c1ee80da78fbd62f4"
       },
       "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
       "icon": "person.3.sequence",
@@ -134,7 +134,7 @@
         "provides": [
           "datadog"
         ],
-        "sha256": "bf9cfc04a5aec6ed6d77c4679a9f3b6b63be8acfd9bcd903f9a3d2f02b8fe095"
+        "sha256": "7fdbf2013d9881ca882a15bc583a40f56341bf2b3c5f5cd6aba79dad6f111b8c"
       },
       "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
       "icon": "dog",
@@ -156,7 +156,7 @@
           "docker",
           "docker-containers"
         ],
-        "sha256": "4c608d92095ac3d868e55ea41a4e2bd2ccb12bc09cde4a494da925ef83dfbc5e"
+        "sha256": "0e042ac38aee6260c1474aeef240bac3b00093bd6b8a6d511671d16eccdd335d"
       },
       "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
       "icon": "shippingbox",
@@ -177,7 +177,7 @@
         "provides": [
           "gcp"
         ],
-        "sha256": "e22518bce81a5630eecc615d50e3aee95f1532f1d6c4d53e4fba331ce04f89f2"
+        "sha256": "38e81d866cb2cec11d171ba81306d3e76102deec6c02c9572205c7ebc602c037"
       },
       "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
       "icon": "cloud",
@@ -198,7 +198,7 @@
         "provides": [
           "github"
         ],
-        "sha256": "129171f7c9b2dfde6ade3c071c37593f647664bc60f6b7bf0c990d579cd1f8cb"
+        "sha256": "74282d2b932b9659794571ef112dec2ecfd7627428a1294dedb5ece5c0cdab1b"
       },
       "description": "GitHub account, API URL and the repositories you watch.",
       "icon": "chevron.left.forwardslash.chevron.right",
@@ -219,7 +219,7 @@
         "provides": [
           "gitlab"
         ],
-        "sha256": "d765799548d42d2864cfa3e3fec7044d941d65665efd7349797d56b2ccaae324"
+        "sha256": "cf14f4c060af9cdb137cba0810a6fbdfabc5ea4632f81ee79ed9b846e3e02c51"
       },
       "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
       "icon": "point.3.connected.trianglepath.dotted",
@@ -240,7 +240,7 @@
         "provides": [
           "jira-board"
         ],
-        "sha256": "501a935733e965e46a66293c45bf6746ecada601ecae8ca059c090fa57027225"
+        "sha256": "8dd3dde84b389163c0f005c1fbba81c6893172b2d519663623f3d2f56a9d52c1"
       },
       "description": "Your Jira board's columns and the issues you follow, with Claude tools to search, comment and move tickets.",
       "icon": "checklist",
@@ -265,7 +265,7 @@
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "12a7a6e57acce9bc066c3ca8ded5efdaed39958f11dee82d6e8cef46b0815bfd"
+        "sha256": "02b72dc2430657d6b69b430126af4bbc3d7a9352d52cc36dd7e5c4f713a86aca"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
@@ -286,7 +286,7 @@
         "provides": [
           "pull-requests"
         ],
-        "sha256": "c90de751d07206cc40f55eba570c4f7e9352fa4babe930386f1de8f8ab6c6dfa"
+        "sha256": "d40870dc1b5121a90decc0b982849015da1bdf89e5c43f4fec0df612695e05b0"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
@@ -310,7 +310,7 @@
         "provides": [
           "releases"
         ],
-        "sha256": "8a480711882cc20d7db4e4d2c239c3bd2c9c7626010a644deaa93509b182a043"
+        "sha256": "b032803f8bbf9c7e67832d48ff8500f6071e66720317b476e49ef3d214f1a94a"
       },
       "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
       "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
@@ -329,7 +329,7 @@
         "provides": [
           "sre"
         ],
-        "sha256": "3b980eba67adbe5f0caf80a6735bc637fc5567f3d8c56e46e1d97c3e71a71d80"
+        "sha256": "d26fd56e6b17c6b4dcaf6b385dd2f5c087cf993aab1e8e9a34aeeae086f541d0"
       },
       "description": "A senior on-call SRE: watches Datadog monitors and Kubernetes pods, investigates with evidence across Datadog, Google Cloud and Kubernetes, hands narrow jobs to smaller models, and reports likely causes and next steps. Read-only.",
       "icon": "stethoscope",
@@ -355,7 +355,7 @@
         "provides": [
           "workspaces"
         ],
-        "sha256": "70272f956c97df78857fe003a5ca999229da9e9cd9098928ca8c3790e5a591e3"
+        "sha256": "ca007bfda03b632e27a7b8e66ddd4f29ed2930c0b50f5de14e38813db007ffb4"
       },
       "description": "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis.",
       "icon": "shippingbox",
@@ -383,7 +383,7 @@
         "provides": [
           "zoom"
         ],
-        "sha256": "9a66e1ea033787169a8d7e6780d5093948c1a5f452d99f5eec447a08632edc1a"
+        "sha256": "873cef2d1639687d8db7cc908f56babc6eb8f82f811b7f9c493b87f87b3f8de4"
       },
       "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
