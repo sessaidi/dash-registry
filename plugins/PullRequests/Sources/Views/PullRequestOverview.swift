@@ -1,3 +1,4 @@
+import Charts
 import DashKit
 import DashKitUI
 import SwiftUI
@@ -69,6 +70,27 @@ struct StatTile: View {
     }
 }
 
+/// A titled card: the Overview's sections.
+struct Panel<Content: View>: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = .accentColor
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage).font(.headline).foregroundStyle(tint)
+            content
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background.secondary, in: .rect(cornerRadius: 12))
+        .overlay(alignment: .leading) {
+            UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 12).fill(tint).frame(width: 4)
+        }
+    }
+}
+
 /// The tiles row.
 struct PRStatTiles: View {
     let stats: PRStats?
@@ -91,5 +113,37 @@ struct PRStatTiles: View {
                      systemImage: "arrow.triangle.merge", tone: stats.mergeLabel.tone)
         }
         .redacted(reason: self.stats == nil ? .placeholder : [])
+    }
+}
+
+/// Lines added and removed in the biggest files, as stacked bars.
+struct ChangesChart: View {
+    let files: [JSONValue]
+
+    private struct Bar: Identifiable {
+        let file: String
+        let kind: String
+        let lines: Int
+        var id: String { file + kind }
+    }
+
+    var body: some View {
+        let top = files.sorted { ($0["changes"]?.int ?? 0) > ($1["changes"]?.int ?? 0) }.prefix(8)
+        let bars = top.flatMap { file -> [Bar] in
+            let name = Self.short(file["filename"]?.string ?? "?")
+            return [Bar(file: name, kind: "Added", lines: file["additions"]?.int ?? 0), Bar(file: name, kind: "Removed", lines: file["deletions"]?.int ?? 0)]
+        }
+        Chart(bars) { bar in
+            BarMark(x: .value("Lines", bar.lines), y: .value("File", bar.file))
+                .foregroundStyle(by: .value("Change", bar.kind))
+        }
+        .chartForegroundStyleScale(["Added": Color.green, "Removed": Color.red])
+        .chartLegend(position: .top, alignment: .trailing)
+        .frame(height: CGFloat(max(top.count, 1)) * 26 + 30)
+    }
+
+    /// The last two path components: enough to tell files apart.
+    static func short(_ path: String) -> String {
+        path.split(separator: "/").suffix(2).joined(separator: "/")
     }
 }
