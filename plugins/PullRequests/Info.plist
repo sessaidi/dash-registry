@@ -19,7 +19,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>DashKitMinimumVersion</key>
-	<string>2.0.0</string>
+	<string>2.2.0</string>
 	<key>DashPluginID</key>
 	<string>pull-requests</string>
 	<key>DashPluginVersion</key>
