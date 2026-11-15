@@ -1,63 +1,6 @@
 import DashKit
 import DashKitUI
 import Foundation
-import SwiftUI
-
-// MARK: Read-through cache
-
-/// What Claude reads from Jira and Confluence is kept in Dash's mirror of online data
-/// (`host.synced`), only what was asked for. Online stays the source of truth: a record is reused
-/// while it's younger than `cacheMinutes`, refetched after, and served stale (flagged) when the
-/// site can't be reached. Every stored value goes through `Sanitizer` first.
-extension AtlassianIntegration {
-    /// Mirror kinds and what Settings calls them.
-    static let cacheKinds: [(kind: String, label: String)] = [
-        ("confluence.page", "Confluence pages"), ("confluence.hit", "Confluence search hits"), ("confluence.children", "Confluence child lists"),
-        ("confluence.attachments", "Confluence attachment lists"), ("confluence.spaces", "Confluence space lists"),
-        ("jira.issue", "Jira issues"), ("jira.hit", "Jira search hits"), ("jira.comments", "Jira comment lists"),
-        ("jira.changelog", "Jira changelogs"), ("jira.projects", "Jira project lists"),
-    ]
-
-    /// Records are per site.
-    var cacheScope: String { siteURL?.host() ?? "atlassian" }
-
-    /// `fetch`'s result, or the mirror's copy while it's fresh. `fresh` always goes online; when
-    /// online fails, a cached copy is returned with `stale: true` and the error.
-    func cached(_ kind: String, key: String, fresh: Bool, fetch: () async throws -> JSONValue) async throws -> JSONValue {
-        let existing = mirror?.record(kind: kind, scope: cacheScope, key: key)
-        if !fresh, let existing, now().timeIntervalSince(existing.updatedAt) < Double(cacheMinutes) * 60 {
-            return marked(existing.value, fromCache: true, at: existing.updatedAt)
-        }
-        do {
-            let value = Sanitizer.clean(try await fetch())
-            remember(kind, key: key, value: value)
-            return marked(value, fromCache: false, at: now())
-        } catch let error where existing != nil {
-            return marked(existing!.value, fromCache: true, at: existing!.updatedAt)
-                .merging(["stale": true, "error": .string(error.localizedDescription)])
-        }
-    }
-
-    /// Stores one value (sanitized) in the mirror.
-    func remember(_ kind: String, key: String, value: JSONValue) {
-        mirror?.upsert([SyncedRecord(kind: kind, scope: cacheScope, key: key, value: Sanitizer.clean(value), source: id, updatedAt: now())])
-    }
-
-    private func marked(_ value: JSONValue, fromCache: Bool, at date: Date) -> JSONValue {
-        let stamp: JSONValue = ["from_cache": .bool(fromCache), "synced_at": .string(date.formatted(.iso8601))]
-        if value.object != nil { return value.merging(stamp) }
-        return stamp.merging(["items": value])
-    }
-
-    func cachedCount(_ kind: String) -> Int { mirror?.records(kind: kind, scope: cacheScope).count ?? 0 }
-
-    /// Forgets everything cached for this site (online data is untouched).
-    func clearCache() {
-        for (kind, _) in Self.cacheKinds { mirror?.replace(kind: kind, scope: cacheScope, with: []) }
-    }
-}
-
-// MARK: Tools
 
 extension AtlassianIntegration {
     private struct SearchInput: Decodable { let query: String; let space: String?; let limit: Int? }
@@ -372,45 +315,5 @@ extension AtlassianIntegration {
                         "url": value["url"] ?? .null, "synced_at": .string(record.updatedAt.formatted(.iso8601))]
             })
         }
-    }
-}
-
-// MARK: Settings
-
-/// How long reads are reused, what's cached, and a way to forget it.
-struct AtlassianCacheSection: View {
-    @Bindable var atlassian: AtlassianIntegration
-    @State private var counts: [String: Int] = [:]
-
-    var body: some View {
-        Section {
-            Picker("Reuse a page or issue for", selection: $atlassian.cacheMinutes) {
-                ForEach([5, 15, 30, 60, 240, 1440], id: \.self) { minutes in
-                    Text(minutes < 60 ? "\(minutes) min" : minutes == 1440 ? "1 day" : "\(minutes / 60) h").tag(minutes)
-                }
-            }
-            let stored = AtlassianIntegration.cacheKinds.filter { (counts[$0.kind] ?? 0) > 0 }
-            if stored.isEmpty {
-                Text("Nothing cached yet.").foregroundStyle(.secondary)
-            } else {
-                ForEach(stored, id: \.kind) { item in
-                    LabeledContent(item.label) { Text("\(counts[item.kind] ?? 0)").monospacedDigit() }
-                }
-            }
-            Button("Clear Cached Confluence and Jira Data", role: .destructive) {
-                atlassian.clearCache()
-                reload()
-            }
-            .disabled(stored.isEmpty)
-        } header: {
-            Text("Cache")
-        } footer: {
-            Text("Only what Dashii asked for is kept, in Dash's database, with secrets removed. Jira and Confluence stay the source of truth: older copies are read again online, and a cached copy is used only when the site can't be reached.")
-        }
-        .onAppear(perform: reload)
-    }
-
-    private func reload() {
-        counts = Dictionary(uniqueKeysWithValues: AtlassianIntegration.cacheKinds.map { ($0.kind, atlassian.cachedCount($0.kind)) })
     }
 }
