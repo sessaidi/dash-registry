@@ -36,6 +36,9 @@ final class DailyStandupFeature: DashExtension {
     var gitEmail: String { didSet { defaults.set(gitEmail, forKey: "daily-standup.gitEmail") } }
     /// Where clones live (the Agents plugin's code folder).
     var codeRoot: String { didSet { defaults.set(codeRoot, forKey: "daily-standup.codeRoot") } }
+    /// Take the standup's time and link from the calendar event (through the Zoom plugin), when
+    /// there is one today; `time` otherwise.
+    var useCalendar: Bool { didSet { defaults.set(useCalendar, forKey: "daily-standup.useCalendar") } }
     /// Prepare your update this many minutes before the standup.
     var prepareMinutesBefore: Int { didSet { defaults.set(prepareMinutesBefore, forKey: "daily-standup.prepareBefore") } }
     /// Sprints, ceremony and chapter days, and French holidays.
@@ -57,6 +60,9 @@ final class DailyStandupFeature: DashExtension {
     private(set) var lastError: String?
     /// The meeting followed live: who spoke, who's speaking, who's left (from Zoom).
     private(set) var live: JSONValue?
+    /// Today's standup from the calendar, kept after the event ends (the calendar only lists
+    /// what's ahead) and replaced the next day.
+    private(set) var calendarStandup: CalendarStandup?
     var revision = 0
 
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
@@ -85,6 +91,8 @@ final class DailyStandupFeature: DashExtension {
         gitEmail = defaults.string(forKey: "daily-standup.gitEmail") ?? ""
         codeRoot = defaults.string(forKey: "daily-standup.codeRoot") ?? (DashStorage.defaults.string(forKey: "agents.codeRoot") ?? "~/Codes")
         prepareMinutesBefore = defaults.object(forKey: "daily-standup.prepareBefore") as? Int ?? 20
+        useCalendar = defaults.object(forKey: "daily-standup.useCalendar") as? Bool ?? true
+        calendarStandup = defaults.data(forKey: "daily-standup.calendarStandup").flatMap { try? JSONDecoder().decode(CalendarStandup.self, from: $0) }
     }
 
     var models: [any PersistentModel.Type] { [StandupDay.self, StandupBlocker.self] }
@@ -124,13 +132,22 @@ final class DailyStandupFeature: DashExtension {
         return true
     }
 
-    /// The daily happens on Zoom: a Zoom weekday that isn't a holiday, ceremony or chapter day.
+    /// The daily happens on Zoom: a Zoom weekday that isn't a holiday, ceremony or chapter day,
+    /// or any working day the calendar has a standup with a Zoom link.
     func isZoomDay(_ date: Date = .now) -> Bool {
-        isWorkday(date) && zoomDays.contains(Calendar.current.component(.weekday, from: date)) && calendar.skip(on: date) == nil
+        if isWorkday(date), let event = calendarStandup(on: date), event.joinURL != nil { return true }
+        return isWorkday(date) && zoomDays.contains(Calendar.current.component(.weekday, from: date)) && calendar.skip(on: date) == nil
     }
 
-    /// Today's standup time.
+    /// The standup on `date`'s day from the calendar, if it's the day the event was read for.
+    func calendarStandup(on date: Date) -> CalendarStandup? {
+        guard useCalendar, let event = calendarStandup, Calendar.current.isDate(event.start, inSameDayAs: date) else { return nil }
+        return event
+    }
+
+    /// Today's standup time: the calendar event's start, else the configured time.
     func standupDate(on day: Date = .now) -> Date {
+        if let event = calendarStandup(on: day) { return event.start }
         let parts = time.split(separator: ":").compactMap { Int($0) }
         return Calendar.current.date(bySettingHour: parts.first ?? 10, minute: parts.count > 1 ? parts[1] : 0, second: 0, of: day) ?? day
     }
@@ -157,6 +174,7 @@ final class DailyStandupFeature: DashExtension {
 
     /// Every 15 s: prepare the update before the standup; during it on a Zoom day, follow the meeting.
     func tick(now: Date = .now) async {
+        await refreshCalendar(now: now)
         guard isWorkday(now) else { live = nil; return }
         let meeting = standupDate(on: now)
         if now >= meeting.addingTimeInterval(-Double(prepareMinutesBefore) * 60), day(now)?.preparedAt == nil, !isPreparing {
@@ -167,6 +185,37 @@ final class DailyStandupFeature: DashExtension {
         } else {
             live = nil
         }
+    }
+
+    // MARK: Calendar
+
+    /// Finds today's standup among the Zoom plugin's upcoming meetings (its calendar): the first
+    /// one today titled like a standup. Every 5 minutes; nothing changes when the calendar is off
+    /// or the Zoom plugin can't read it.
+    func refreshCalendar(now: Date = .now) async {
+        guard useCalendar, now.timeIntervalSince(lastCalendarRead) >= 300 || calendarStandup.map({ !Calendar.current.isDate($0.start, inSameDayAs: now) }) ?? true else { return }
+        lastCalendarRead = now
+        guard let result = try? await tool("zoom_upcoming_meetings"), let meetings = result["meetings"]?.array else { return }
+        let words = keywordList
+        let today = meetings.compactMap(CalendarStandup.init).first { event in
+            Calendar.current.isDate(event.start, inSameDayAs: now) && words.contains { event.title.lowercased().contains($0) }
+        }
+        if let today, today != calendarStandup {
+            calendarStandup = today
+            defaults.set(try? JSONEncoder().encode(today), forKey: "daily-standup.calendarStandup")
+            revision += 1
+        }
+    }
+
+    @ObservationIgnored private var lastCalendarRead = Date.distantPast
+
+    var keywordList: [String] {
+        keywords.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// "HH:mm" of today's standup, from the calendar or the setting.
+    var timeText: String {
+        calendarStandup(on: .now).map { $0.start.formatted(date: .omitted, time: .shortened) } ?? time
     }
 
     // MARK: Your update
@@ -307,7 +356,7 @@ final class DailyStandupFeature: DashExtension {
     /// Whether a meeting is the standup: on a Zoom day, near the standup time or titled like one.
     func isStandup(title: String, started: Date) -> Bool {
         guard isZoomDay(started) else { return false }
-        let words = keywords.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let words = keywordList
         return abs(started.timeIntervalSince(standupDate(on: started))) < 45 * 60 || words.contains { title.lowercased().contains($0) }
     }
 

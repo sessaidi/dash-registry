@@ -10,7 +10,7 @@ Your daily standup, every working day:
 | | |
 |---|---|
 | Plugin id | `daily-standup` |
-| Version | 1.0.0 |
+| Version | 1.7.0 |
 | Minimum DashKit | 1.2.0 |
 | Layer | feature |
 | Requires | `zoom` |
@@ -48,6 +48,12 @@ Kinds of next step:
 ## Zoom days
 
 In Settings, pick which working days the standup is on Zoom.
+
+**From your calendar** (on by default, needs the Zoom plugin 1.8 with its calendar turned on):
+today's event titled like a standup (one of your keywords) sets the standup time, so the update
+is prepared before the real start, and adds a **Join** button. A working day whose calendar has
+a standup with a Zoom link counts as a Zoom day. The event is remembered for the rest of the day
+once it's over. Without one, the configured time and Zoom days apply.
 
 **How the standup meeting is recognised:** on a Zoom day, a meeting that started within
 45 minutes of the standup time, or whose title contains one of your keywords.

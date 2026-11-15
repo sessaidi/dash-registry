@@ -30,7 +30,7 @@ struct StandupWidgetView: View {
         return StandupState(
             update: day?.update, preparedAt: day?.preparedAt,
             unpreparedTitle: standup.isWorkday() ? "Not prepared yet" : standup.calendar.skip(on: .now)?.reason ?? "No standup today",
-            time: standup.time, prepareMinutesBefore: standup.prepareMinutesBefore, isZoomDay: standup.isZoomDay(),
+            time: standup.timeText, joinURL: standup.calendarStandup(on: .now)?.joinURL, prepareMinutesBefore: standup.prepareMinutesBefore, isZoomDay: standup.isZoomDay(),
             isPreparing: standup.isPreparing, isReporting: standup.isReporting, error: prepareError ?? standup.lastError,
             live: live, myName: standup.myName, report: day?.report, notePath: day?.notePath ?? "",
             blockers: standup.openBlockers().map {

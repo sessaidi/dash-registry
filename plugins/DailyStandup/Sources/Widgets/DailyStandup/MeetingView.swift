@@ -19,6 +19,7 @@ struct MeetingSection: View {
                 } else {
                     Text("The standup at \(state.time) is followed here while it runs, and reported when it ends. Turn on Zoom's captions so each line has its speaker's name.")
                         .font(.callout).foregroundStyle(.secondary)
+                    if let link = state.joinURL { JoinButton(link: link) }
                 }
                 if state.isReporting { ProgressView("Writing the report…").controlSize(.small) }
             }
@@ -86,5 +87,17 @@ struct ReportView: View {
                 Button("Open Note") { NSWorkspace.shared.open(URL(fileURLWithPath: notePath)) }.buttonStyle(.link)
             }
         }
+    }
+}
+
+/// Joins the standup from its calendar link (Zoom's page opens the app).
+struct JoinButton: View {
+    let link: URL
+
+    var body: some View {
+        Button("Join", systemImage: "video.fill") { NSWorkspace.shared.open(link) }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .help(link.absoluteString)
     }
 }
