@@ -330,7 +330,7 @@
         "provides": [
           "sre"
         ],
-        "sha256": "fe41dbd7415f65ca933a721d7866e06d22186ba32d6cdd6d1b1d06632e60ae5e"
+        "sha256": "043f4255a81debd446e28b7206ecae53e8a602d24b930d88ac5ff2dbc199e2c5"
       },
       "description": "A senior on-call SRE: watches Datadog monitors and Kubernetes pods, investigates with evidence across Datadog, Google Cloud and Kubernetes, hands narrow jobs to smaller models, and reports likely causes and next steps. Read-only.",
       "icon": "stethoscope",
