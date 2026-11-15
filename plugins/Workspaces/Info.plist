@@ -19,12 +19,10 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>DashKitMinimumVersion</key>
-	<string>1.5.0</string>
+	<string>2.0.0</string>
 	<key>DashPluginID</key>
 	<string>workspaces</string>
 	<key>DashPluginVersion</key>
-	<string>2.5.0</string>
-	<key>NSPrincipalClass</key>
-	<string>WorkspacesDashPlugin</string>
+	<string>2.6.0</string>
 </dict>
 </plist>

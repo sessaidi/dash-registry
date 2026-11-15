@@ -15,7 +15,7 @@ final class GCPIntegration: Integration {
     let systemImage = "cloud"
     let metadata = ExtensionMetadata(
         version: "1.3.0", author: .dash, summary: "Google credentials refreshed in-process; read-only tools for GKE, Cloud Run, Pub/Sub, Cloud SQL, Artifact Registry, IAM, Compute, Cloud Build, Error Reporting, logs and metrics.",
-        category: .cloud, tags: ["gcp", "google", "cloud", "gke", "cloud-run", "pubsub"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "1.5.0")
+        category: .cloud, tags: ["gcp", "google", "cloud", "gke", "cloud-run", "pubsub"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.0.0")
 
     static let baseURL = URL(string: "https://www.googleapis.com")!
     nonisolated static let tokenInfoURL = URL(string: "https://oauth2.googleapis.com/tokeninfo")!

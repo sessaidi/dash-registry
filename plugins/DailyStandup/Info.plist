@@ -19,12 +19,10 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>DashKitMinimumVersion</key>
-	<string>1.5.0</string>
+	<string>2.0.0</string>
 	<key>DashPluginID</key>
 	<string>daily-standup</string>
 	<key>DashPluginVersion</key>
-	<string>1.4.0</string>
-	<key>NSPrincipalClass</key>
-	<string>DailyStandupDashPlugin</string>
+	<string>1.5.0</string>
 </dict>
 </plist>

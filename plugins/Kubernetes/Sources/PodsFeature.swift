@@ -16,7 +16,7 @@ final class PodsFeature: DashExtension {
     let requires = ["kubernetes"]
     let metadata = ExtensionMetadata(
         version: "1.5.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
-        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.5.0")
+        category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "2.0.0")
 
     static let refreshInterval: Duration = .seconds(30)
 

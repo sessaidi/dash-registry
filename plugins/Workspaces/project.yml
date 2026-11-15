@@ -35,8 +35,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: workspaces
-        DashPluginVersion: "2.5.0"
-        DashKitMinimumVersion: "1.5.0"
+        DashPluginVersion: "2.6.0"
+        DashKitMinimumVersion: "2.0.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin

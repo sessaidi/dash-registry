@@ -32,8 +32,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: kubernetes
-        DashPluginVersion: "1.9.0"
-        DashKitMinimumVersion: "1.5.0"
+        DashPluginVersion: "1.10.0"
+        DashKitMinimumVersion: "2.0.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin

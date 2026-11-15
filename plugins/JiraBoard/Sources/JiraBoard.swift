@@ -74,7 +74,7 @@ final class JiraBoardFeature: DashExtension {
     let systemImage = "checklist"
     let metadata = ExtensionMetadata(
         version: "1.2.0", author: .dash, summary: "Your Jira board and the issues you follow.", category: .projectManagement,
-        tags: ["jira", "board"], homepage: "https://github.com/sessaidi/dash-extensions", minimumDashKit: "1.5.0")
+        tags: ["jira", "board"], homepage: "https://github.com/sessaidi/dash-extensions", minimumDashKit: "2.0.0")
     let requires = ["atlassian"]
 
     /// A followed board, with the columns it had at the last sync.

@@ -18,7 +18,7 @@ final class WorkspacesFeature: DashExtension {
     let systemImage = "shippingbox"
     let metadata = ExtensionMetadata(
         version: "2.1.0", summary: "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis, without up-toolbox or kubectl.", category: .cloud,
-        homepage: "https://github.com/sessaidi/dash", minimumDashKit: "1.5.0")
+        homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.0.0")
     /// Google Cloud (credentials, Cloud Logging, Artifact Registry), Kubernetes (the kubeconfig
     /// contexts the replay commands use), Docker (image builds), GitHub (PR merges) and Agents
     /// (worktrees).

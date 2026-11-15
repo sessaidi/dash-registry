@@ -18,7 +18,7 @@ final class ZoomExtension: DashExtension {
     let metadata = ExtensionMetadata(
         version: "1.3.0", author: .dash, summary: "On-device Zoom transcripts, participants, summaries and recordings.",
         category: .communication, tags: ["zoom", "meetings", "transcription"], homepage: "https://github.com/sessaidi/dash-extensions",
-        minimumDashKit: "1.0.0")
+        minimumDashKit: "2.0.0")
 
     // Preference keys are the built-in extension's ("zoom.myName", …) so existing settings carry over.
     var myName: String { didSet { defaults.set(myName, forKey: "zoom.myName") } }

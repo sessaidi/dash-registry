@@ -15,7 +15,7 @@ final class DatadogMonitorsFeature: DashExtension {
     let metadata = ExtensionMetadata(
         version: "1.0.0", author: .dash,
         summary: "A dashboard widget of the Datadog monitors in Alert, Warn or No Data, with activity when one starts alerting.",
-        category: .monitoring, tags: ["datadog", "monitors", "alerts"], minimumDashKit: "1.5.0")
+        category: .monitoring, tags: ["datadog", "monitors", "alerts"], minimumDashKit: "2.0.0")
     let requires = ["datadog"]
 
     static let interval: Duration = .seconds(60)

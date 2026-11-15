@@ -18,7 +18,7 @@ final class BackendMeetingFeature: DashExtension {
         version: "1.0.0", author: .dash,
         summary: "Your highlights for the backend meeting: PRs, tickets and activity over a cycle, grouped into themes.",
         category: .productivity, tags: ["meeting", "report", "highlights", "fait marquant"], homepage: "https://github.com/sessaidi/dash",
-        minimumDashKit: "1.5.0")
+        minimumDashKit: "2.0.0")
     /// PRs come from GitHub; Jira tickets are added when Atlassian is connected.
     let requires = ["github"]
     let optional = ["atlassian"]

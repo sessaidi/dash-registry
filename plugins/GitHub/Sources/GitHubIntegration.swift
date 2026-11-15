@@ -19,7 +19,7 @@ final class GitHubIntegration: Integration {
     let metadata = ExtensionMetadata(
         version: "1.1.0", author: .dash, summary: "GitHub account, API URL and the repositories you watch.",
         category: .sourceControl, tags: ["github", "git", "pull requests"], homepage: "https://github.com/sessaidi/dash",
-        minimumDashKit: "1.5.0")
+        minimumDashKit: "2.0.0")
     let secretKeys = [SecretKey("token", "Personal access token")]
     let secrets: SecretStore? = SecretStore(extensionID: "github", legacy: ["token": "github"])
 

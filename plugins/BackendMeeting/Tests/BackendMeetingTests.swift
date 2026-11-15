@@ -136,7 +136,7 @@ struct BackendMeetingTests {
 
     @Test func contracts() {
         let feature = BackendMeetingFeature(defaults: UserDefaults(suiteName: "backend-meeting-\(UUID().uuidString)")!)
-        #expect(feature.id == "backend-meeting" && feature.metadata.version == "1.0.0" && feature.metadata.minimumDashKit == "1.5.0")
+        #expect(feature.id == "backend-meeting" && feature.metadata.version == "1.0.0" && feature.metadata.minimumDashKit == "2.0.0")
         #expect(feature.defaultCycleWeeks == 2)
         #expect(feature.tools.allSatisfy { !$0.requiresApproval && !$0.writesRemotely })
         #expect(BackendMeetingWidget.kind == "backend-meeting.report")

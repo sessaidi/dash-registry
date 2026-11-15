@@ -6,14 +6,14 @@
       "id": "aws",
       "name": "AWS",
       "kind": "integration",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "plugin": {
-        "download": "dist/aws-1.2.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/aws-1.3.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "aws"
         ],
-        "sha256": "62cb9299c231e1dfb0997d32e0f4b744d8647aa0b4c6cd00b97b8a7ae7bfb3d8"
+        "sha256": "3eab4ea84fb528f9e817ef4818f7a96ad747b08668af4cc8ff27472c8b823fc5"
       },
       "description": "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.",
       "icon": "server.rack",
@@ -27,14 +27,14 @@
       "id": "agents",
       "name": "Agents",
       "kind": "feature",
-      "version": "1.10.0",
+      "version": "1.11.0",
       "plugin": {
-        "download": "dist/agents-1.10.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/agents-1.11.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "agents"
         ],
-        "sha256": "470bb866446d9946af786f78cb249a1f5d79617404cf394e6e8ba2213cd0a4b9"
+        "sha256": "37879d7e70923fbbf674fb284eee1efc1c4e2470f03de19aff2f79ea2c3f2c15"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
@@ -51,14 +51,14 @@
       "id": "atlassian",
       "name": "Atlassian",
       "kind": "integration",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/atlassian-1.4.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/atlassian-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "atlassian"
         ],
-        "sha256": "9299f8b57df305072fbad9c4a3bf6e0bae880242dd22d9002d87f0f8635e4c9d"
+        "sha256": "bc14a99cf3f5f33db6d6cb24128ad50028e81ecd3a67441ca18f38534ccb3769"
       },
       "description": "Jira and Confluence Cloud with one site, email and API token.",
       "icon": "square.stack.3d.up",
@@ -72,14 +72,14 @@
       "id": "backend-meeting",
       "name": "Backend Meeting",
       "kind": "feature",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "plugin": {
-        "download": "dist/backend-meeting-1.2.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/backend-meeting-1.3.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "backend-meeting"
         ],
-        "sha256": "fdb9076021a3d3ddf1450801396e4b5a52f879ebb3993fa1394e2e16ca851447"
+        "sha256": "16455f065bd58585503a75e1d97500b3d66b88ad58b8b409e74f5724ddcb461c"
       },
       "description": "Your highlights for the backend meeting: PRs, tickets and activity since the last report (1\u201310 week cycles), grouped into themes.",
       "icon": "person.2.wave.2",
@@ -98,14 +98,14 @@
       "id": "daily-standup",
       "name": "Daily Standup",
       "kind": "feature",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/daily-standup-1.4.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/daily-standup-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "daily-standup"
         ],
-        "sha256": "d091368efc3b265ac49595231c0772f334cab8df0528e4a107e307b64d16af9c"
+        "sha256": "bbf3a4703b579ad5341b807d602f0a06e92866e4d19d6eed82e72117a655d659"
       },
       "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
       "icon": "person.3.sequence",
@@ -127,14 +127,14 @@
       "id": "datadog",
       "name": "Datadog",
       "kind": "integration",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "plugin": {
-        "download": "dist/datadog-1.2.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/datadog-1.3.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "datadog"
         ],
-        "sha256": "71a84c704c068b95a13f4cb1326d95cb4d8cd8323861e23c4a7399a2f34c03b8"
+        "sha256": "7b3986961f3093f5d2df801f86ecf0959e1541457edd265aab4963bf4c1e8125"
       },
       "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
       "icon": "dog",
@@ -148,15 +148,15 @@
       "id": "docker",
       "name": "Docker",
       "kind": "integration",
-      "version": "1.3.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/docker-1.3.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/docker-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "docker",
           "docker-containers"
         ],
-        "sha256": "1a628c52f4da7b330e6f004116b2755a59bb2a1a818e341248eab21613bc4d19"
+        "sha256": "a941e0842fe4f9f069e0e165c9851fd8a722ae828c356d30102e9688ea333a18"
       },
       "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
       "icon": "shippingbox",
@@ -170,14 +170,14 @@
       "id": "gcp",
       "name": "Google Cloud",
       "kind": "integration",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "plugin": {
-        "download": "dist/gcp-1.3.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/gcp-1.4.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "gcp"
         ],
-        "sha256": "27a051bf7a14363bb569c798ccf86af4052935a99fe0fba8c0b9405da615b4b8"
+        "sha256": "d2ebbd00ccaa02e2f7fffa3d8489c41d4d6a0269b10101b3b349e464b49661d8"
       },
       "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
       "icon": "cloud",
@@ -191,14 +191,14 @@
       "id": "github",
       "name": "GitHub",
       "kind": "integration",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/github-1.4.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/github-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "github"
         ],
-        "sha256": "fe911f3ede43836cca40b2e18b0ac819563760b41cd4ab4009274f3b8f0d157f"
+        "sha256": "1c131bd35e9c08df1c514a4d5f082c397a860c021d44d15ad01c4d59e2bb2615"
       },
       "description": "GitHub account, API URL and the repositories you watch.",
       "icon": "chevron.left.forwardslash.chevron.right",
@@ -212,14 +212,14 @@
       "id": "gitlab",
       "name": "GitLab",
       "kind": "integration",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "plugin": {
-        "download": "dist/gitlab-1.2.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/gitlab-1.3.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "gitlab"
         ],
-        "sha256": "7c12e82ce8f51f3513d3db8cf4c02ec510e811175968b11e846bdd2f49bafb11"
+        "sha256": "5a994d8503b3ff689db4c1a026e8a570e7688e0c4f4f511c12b767f916d4eadb"
       },
       "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
       "icon": "point.3.connected.trianglepath.dotted",
@@ -233,14 +233,14 @@
       "id": "jira-board",
       "name": "Jira Board",
       "kind": "feature",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "plugin": {
-        "download": "dist/jira-board-1.9.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/jira-board-1.10.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "jira-board"
         ],
-        "sha256": "d5dbed1ae409c81e29903ad4ad10e56fdcd3ac9e4e1509849f0316bde82f16ec"
+        "sha256": "83c43030d9c434d4555be1edbd324141d7d587408c764a38a126b4ff3344e44f"
       },
       "description": "Your Jira board's columns and the issues you follow, with Claude tools to search, comment and move tickets.",
       "icon": "checklist",
@@ -257,15 +257,15 @@
       "id": "kubernetes",
       "name": "Kubernetes",
       "kind": "integration",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "plugin": {
-        "download": "dist/kubernetes-1.9.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/kubernetes-1.10.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "eefe5cde72ab679be35e89c35c54faa7014124827d814eeacbf18195419fa709"
+        "sha256": "a7fa57ef423fa1e86e6f46af0c4dc11ecc144456792a1f7061e37c2fda3772b5"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
@@ -279,14 +279,14 @@
       "id": "pull-requests",
       "name": "Pull Requests",
       "kind": "feature",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "plugin": {
-        "download": "dist/pull-requests-1.9.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/pull-requests-1.10.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "pull-requests"
         ],
-        "sha256": "53dd4a7962328d884a571561911210556259125e28abb4b6f215300d5f973e09"
+        "sha256": "6172c74d1ea110c9dde6593b62e2f5727f5e26fb8c513fc09658a0a73aabbcef"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
@@ -303,14 +303,14 @@
       "id": "releases",
       "name": "Releases",
       "kind": "feature",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "plugin": {
-        "download": "dist/releases-1.5.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/releases-1.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "releases"
         ],
-        "sha256": "ab705317a5306d9ed41a305e2dac1d78280d2b0b49bb6dfd2e125598450a6de7"
+        "sha256": "f7efb73ba00281eaa2158911c5880ad73e8e0a5a228ca1549d872c06c7216393"
       },
       "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
       "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
@@ -322,14 +322,14 @@
       "id": "workspaces",
       "name": "Workspaces",
       "kind": "feature",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "plugin": {
-        "download": "dist/workspaces-2.5.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/workspaces-2.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "workspaces"
         ],
-        "sha256": "9cceaa34f6bf5d8f4c69e482a9a2dba8d5e34ec64cf1b552a7e37c909f4abb9e"
+        "sha256": "1e5c830155bf6ed53c7ecda310114351139d7ebb54ace43d06e2cc11b9477fb9"
       },
       "description": "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis.",
       "icon": "shippingbox",
@@ -350,14 +350,14 @@
       "id": "zoom",
       "name": "Zoom",
       "kind": "feature",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "plugin": {
-        "download": "dist/zoom-1.5.0.dashplugin.zip",
-        "minimumDashKit": "1.5.0",
+        "download": "dist/zoom-1.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
         "provides": [
           "zoom"
         ],
-        "sha256": "cebd0ee01b1c7445496719adf6c1253b1b5c3691cc1fe151da98dbd311b7320e"
+        "sha256": "590a00633161ec8445a6cbb68421f147c646382c7bed899bbab5b4364a7cc6fd"
       },
       "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
