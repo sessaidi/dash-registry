@@ -280,14 +280,14 @@
       "id": "pull-requests",
       "name": "Pull Requests",
       "kind": "feature",
-      "version": "1.13.0",
+      "version": "1.14.0",
       "plugin": {
-        "download": "dist/pull-requests-1.13.0.dashplugin.zip",
+        "download": "dist/pull-requests-1.14.0.dashplugin.zip",
         "minimumDashKit": "2.2.0",
         "provides": [
           "pull-requests"
         ],
-        "sha256": "11f23001ba1a4bda0bfcfa30fe784a6b75a0ecc027815aaaa0a3bc0221a707d5"
+        "sha256": "098e93ea42c9efdf3bc9726252a36e60bed500b231fc14457d383b254881fe5a"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
