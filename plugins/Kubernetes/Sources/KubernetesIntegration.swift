@@ -17,7 +17,7 @@ final class KubernetesIntegration: Integration {
     let optional = ["gcp"]
     let metadata = ExtensionMetadata(
         version: "1.1.0", author: .dash, summary: "Your kubeconfig's clusters, read in-process: read-only API access for Claude and features.",
-        category: .cloud, tags: ["kubernetes", "k8s", "kubeconfig", "gke"], minimumDashKit: "1.3.0")
+        category: .cloud, tags: ["kubernetes", "k8s", "kubeconfig", "gke"], minimumDashKit: "1.5.0")
 
     static let googleProbe = URL(string: "https://www.googleapis.com")!
 
