@@ -177,19 +177,47 @@ struct JiraBoardFeatureTests {
         }
     }
 
+    @Test func dashiiSearchesFiltersAndOpensIssues() throws {
+        #expect(JiraBoardWidget.actions.map(\.name) == ["search", "filter_status", "set_mode", "set_board", "hide_done", "select_issue", "clear"])
+        let tickets = JiraTicket.samples
+        let columns = JiraClient.Column.samples
+        let boards = [(id: 7, name: "Web"), (id: 9, name: "Ops board")]
+        var config = JiraBoardWidget.defaultConfig
+        var search = ""
+        var status = ""
+        func run(_ name: String, _ input: JSONValue) throws -> JiraBoardActions.Outcome {
+            try JiraBoardActions.perform(name, input, config: &config, search: &search, status: &status, tickets: tickets, boards: boards, columns: columns)
+        }
+        _ = try run("search", ["text": "maya"])
+        #expect(JiraBoardActions.filter(tickets, search: search, status: status, columns: columns).map(\.key) == ["WEB-482", "WEB-466", "OPS-212"])
+        _ = try run("filter_status", ["status": "review"])
+        #expect(JiraBoardActions.filter(tickets, search: search, status: status, columns: columns).map(\.key) == ["WEB-466"])
+        #expect(throws: ToolError.self) { try run("filter_status", ["status": "Blocked"]) }
+        _ = try run("set_board", ["board": "ops"])
+        #expect(config.board == 9 && config.mode == "board")
+        _ = try run("set_mode", ["mode": "followed"])
+        _ = try run("hide_done", ["on": true])
+        #expect(config.mode == "followed" && config.hideDone)
+        #expect(try run("select_issue", ["key": "web-475"]).select?.key == "WEB-475")
+        #expect(throws: ToolError.self) { try run("select_issue", ["key": "NOPE-1"]) }
+        _ = try run("clear", [:])
+        #expect(search.isEmpty && status.isEmpty)
+    }
+
     @Test func widgetSnapshotAndPreviewSamples() async throws {
         Self.serve("widget.test", board: [issueJSON("WEB-1")], followed: [issueJSON("OPS-2")])
         let (feature, host, _) = makeFeature(host: "widget.test", boardID: "7", followJQL: "x")
         await feature.sync()
         let context = WidgetContext(widgetID: UUID(), host: host)
         let board = await JiraBoardWidget.snapshot(config: JiraBoardWidget.Config(mode: "board", hideDone: false), context: context)
-        #expect(board.array?.map { $0["key"] } == ["WEB-1"])
+        #expect(board["issues"]?.array?.map { $0["key"] } == ["WEB-1"])
+        #expect(board["mode"] == "board" && board["explanation"]?.string?.contains("status_category") == true)
         let followed = await JiraBoardWidget.snapshot(config: JiraBoardWidget.Config(mode: "followed", hideDone: false), context: context)
-        #expect(followed.array?.map { $0["key"] } == ["OPS-2"])
+        #expect(followed["issues"]?.array?.map { $0["key"] } == ["OPS-2"])
 
         // Previews draw from samples that fill every sample column, and hideDone drops done tickets.
         let samples = JiraTicket.samples
-        let onBoard = JiraTicket.visible(samples, config: JiraBoardWidget.defaultConfig)
+        let onBoard = JiraTicket.visible(samples, config: JiraBoardWidget.Config(mode: "board", hideDone: false))
         #expect(JiraClient.Column.samples.allSatisfy { column in onBoard.contains { column.statusIDs.contains($0.statusID) } })
         let open = JiraTicket.visible(samples, config: JiraBoardWidget.Config(mode: "board", hideDone: true))
         #expect(open.count == onBoard.count - 1 && open.allSatisfy { $0.statusCategory != "done" })

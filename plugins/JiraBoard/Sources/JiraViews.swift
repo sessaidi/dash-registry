@@ -18,7 +18,7 @@ struct JiraBoardWidget: DashboardWidget {
     static let summary = "Your Jira board's columns, or the issues you follow. Open a ticket to comment, move it, or start an agent on it."
     static let systemImage = "checklist"
     static let defaultSize = WidgetSize.wide
-    static let defaultConfig = Config(mode: "board", hideDone: false)
+    static let defaultConfig = Config(mode: "followed", hideDone: false)
     static let configSchema: JSONValue = [
         "type": "object",
         "properties": [
@@ -29,7 +29,7 @@ struct JiraBoardWidget: DashboardWidget {
     ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        JiraBoardView(config: config.wrappedValue, host: context.host)
+        JiraBoardView(config: config, host: context.host)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -52,13 +52,28 @@ struct JiraBoardWidget: DashboardWidget {
             columns: JiraClient.Column.samples, onSelect: nil)
     }
 
+    static let actions = JiraBoardActions.actions
+
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
         let issues = (try? context.host.context.fetch(FetchDescriptor<JiraIssue>())) ?? []
         var config = config
-        if config.board == nil { config.board = context.host.ext(JiraBoardFeature.self)?.boards.first?.id }
+        let jira = context.host.ext(JiraBoardFeature.self)
+        if config.board == nil { config.board = jira?.boards.first?.id }
         let tickets = JiraTicket.visible(issues.map(JiraTicket.init), config: config)
         let keys = Set(tickets.map(\.key))
-        return .array(issues.filter { keys.contains($0.key) }.map(\.json))
+        return [
+            "explanation": """
+                Jira issues from Dash's local copy. mode board: the issues on a followed board, grouped in the board's \
+                columns (each column holds one or more statuses); mode followed: the issues the user follows. status is the \
+                issue's Jira status; status_category new = not started, indeterminate = in progress, done = finished.
+                """,
+            "mode": .string(config.mode),
+            "board": jira?.boards.first { $0.id == config.board }.map { .string($0.name) } ?? .null,
+            "columns": .array((jira?.columns(board: config.board) ?? []).map { column in
+                ["name": .string(column.name), "issues": .number(Double(tickets.filter { column.statusIDs.contains($0.statusID) }.count))]
+            }),
+            "issues": .array(issues.filter { keys.contains($0.key) }.map(\.json)),
+        ]
     }
 }
 
@@ -134,10 +149,14 @@ extension JiraClient.Column {
 }
 
 private struct JiraBoardView: View {
-    let config: JiraBoardWidget.Config
+    @Binding var config: JiraBoardWidget.Config
     let host: any ExtensionContext
     @Query(sort: \JiraIssue.updated, order: .reverse) private var issues: [JiraIssue]
     @State private var selected: JiraTicket?
+    /// What Dashii narrowed the board to (not saved): text, and a column or status.
+    @State private var search = ""
+    @State private var status = ""
+    @State private var following = false
 
     private var jira: JiraBoardFeature? { host.ext(JiraBoardFeature.self) }
 
@@ -148,18 +167,90 @@ private struct JiraBoardView: View {
         return config
     }
 
-    var body: some View {
+    private var visible: [JiraTicket] {
         let config = resolvedConfig
-        let visible = JiraTicket.visible(issues.map(JiraTicket.init), config: config)
-        Group {
+        return JiraBoardActions.filter(JiraTicket.visible(issues.map(JiraTicket.init), config: config), search: search, status: status,
+                                       columns: jira?.columns(board: config.board) ?? [])
+    }
+
+    var body: some View {
+        board
+            // Follow a ticket from here: key, link or a few words.
+            .overlay(alignment: .topTrailing) {
+                if let jira, (try? jira.client) != nil {
+                    HStack(spacing: 8) {
+                        Picker("Show", selection: $config.mode) {
+                            Text("Board").tag("board")
+                            Text("Following \(issues.filter { $0.followed && !(config.hideDone && $0.statusCategory == "done") }.count)").tag("followed")
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .fixedSize()
+                        Button("Follow a Ticket", systemImage: "plus") { following = true }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("Follow a ticket: paste its key or link, or search")
+                            .popover(isPresented: $following, arrowEdge: .bottom) { FollowTicketPopover(jira: jira) }
+                    }
+                    .offset(y: -34)
+                }
+            }
+            .handlesWidgetActions { name, input in
+                let columns = jira?.columns(board: resolvedConfig.board) ?? []
+                let outcome = try JiraBoardActions.perform(name, input, config: &config, search: &search, status: &status,
+                                                           tickets: visible, boards: (jira?.boards ?? []).map { ($0.id, $0.name) }, columns: columns)
+                if let ticket = outcome.select { selected = ticket }
+                return outcome.reply
+            }
+            .reportsWidgetState(state)
+    }
+
+    private var state: JSONValue {
+        let config = resolvedConfig
+        let visible = visible
+        return [
+            "mode": .string(config.mode), "hide_done": .bool(config.hideDone),
+            "board": jira?.boards.first { $0.id == config.board }.map { .string($0.name) } ?? .null,
+            "search": search.isEmpty ? .null : .string(search), "status": status.isEmpty ? .null : .string(status),
+            "shown": .array(visible.prefix(40).map { .string("\($0.key) [\($0.statusName)] \($0.summary)") }),
+            "open_issue": selected.map { .string($0.key) } ?? .null,
+        ]
+    }
+
+    private var board: some View {
+        let config = resolvedConfig
+        let visible = visible
+        return Group {
             if let jira, (try? jira.client) == nil {
                 setupPrompt
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if config.mode == "followed", visible.isEmpty, jira?.isSyncing != true {
+                // Following nothing yet (or nothing left after hiding done): say so and offer to follow.
+                ContentUnavailableView {
+                    Label(jira?.followedKeys.isEmpty == false ? "Nothing to show" : "You don't follow any ticket", systemImage: "star")
+                } description: {
+                    Text(jira?.followedKeys.isEmpty == false
+                         ? "The tickets you follow are done or hidden. Turn off “Hide done” to see them."
+                         : "Follow tickets to see them here, in columns by status. Nothing changes in Jira.")
+                } actions: {
+                    Button("Follow a Ticket…", systemImage: "plus") { following = true }
+                        .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visible.isEmpty {
-                ContentUnavailableView(
-                    jira?.isSyncing == true ? "Syncing…" : "No issues", systemImage: "checklist",
-                    description: Text(jira?.lastError ?? (config.mode == "board" && jira?.boardID.isEmpty == true ? "Follow a board in Settings › Jira." : "")))
+                ContentUnavailableView {
+                    Label(jira?.isSyncing == true ? "Syncing…" : "No issues", systemImage: "checklist")
+                } description: {
+                    Text(jira?.lastError ?? (config.mode == "board" && jira?.boardID.isEmpty == true ? "Follow a board in Settings › Jira, or follow tickets here." : ""))
+                } actions: {
+                    if jira != nil { Button("Follow a Ticket…", systemImage: "plus") { following = true } }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                JiraBoardLayout(config: config, tickets: visible, columns: jira?.columns(board: config.board) ?? []) { selected = $0 }
+                JiraBoardLayout(config: config, tickets: visible,
+                                columns: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : JiraBoardLayout.statusColumns(visible)) { selected = $0 }
             }
         }
         .sheet(item: $selected) { JiraIssueSheet(issue: $0, host: host) }
@@ -178,6 +269,25 @@ private struct JiraBoardView: View {
 
 /// Columns (board mode with a known column layout) or a list; shared by the widget and its preview.
 private struct JiraBoardLayout: View {
+    /// Column colours from to-do (grey) through work (blue, purple) to done (green).
+    static func color(_ index: Int, of count: Int) -> Color {
+        guard count > 1 else { return .blue }
+        if index == 0 { return .gray }
+        if index == count - 1 { return .green }
+        return [Color.blue, .orange, .purple, .teal, .pink, .indigo][(index - 1) % 6]
+    }
+
+    /// Followed tickets come from many boards: one column per status, to do → in progress → done.
+    static func statusColumns(_ tickets: [JiraTicket]) -> [JiraClient.Column] {
+        let order = ["new": 0, "indeterminate": 1, "done": 2]
+        var seen: [String: (rank: Int, ids: Set<String>)] = [:]
+        for ticket in tickets {
+            seen[ticket.statusName, default: (order[ticket.statusCategory] ?? 1, [])].ids.insert(ticket.statusID)
+        }
+        return seen.sorted { ($0.value.rank, $0.key) < ($1.value.rank, $1.key) }
+            .map { JiraClient.Column(name: $0.key, statusIDs: Array($0.value.ids)) }
+    }
+
     let config: JiraBoardWidget.Config
     let tickets: [JiraTicket]
     let columns: [JiraClient.Column]
@@ -185,24 +295,23 @@ private struct JiraBoardLayout: View {
     let onSelect: ((JiraTicket) -> Void)?
 
     var body: some View {
-        if config.mode == "board", !columns.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 10) {
-                    ForEach(columns, id: \.name) { column in
-                        let cards = tickets.filter { column.statusIDs.contains($0.statusID) }
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("\(column.name.uppercased())  \(cards.count)")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                            ScrollView {
-                                VStack(spacing: 6) {
-                                    ForEach(cards) { issue in IssueCard(issue: issue).onTapGesture { onSelect?(issue) } }
-                                }
-                            }
+        if !columns.isEmpty {
+            GeometryReader { geometry in
+                // Columns share the width when they fit, else keep 240 pt and scroll sideways.
+                let spacing = 10.0
+                let width = max(240, (geometry.size.width - spacing * Double(columns.count - 1)) / Double(columns.count))
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: spacing) {
+                        ForEach(Array(columns.enumerated()), id: \.element.name) { index, column in
+                            let cards = tickets.filter { column.statusIDs.contains($0.statusID) }
+                            BoardColumn(name: column.name, color: Self.color(index, of: columns.count), cards: cards, onSelect: onSelect)
+                                .frame(width: width)
+                                .frame(maxHeight: geometry.size.height, alignment: .top)
                         }
-                        .frame(width: 220)
                     }
+                    .padding(.bottom, 8)
                 }
+                .scrollIndicators(.visible)
             }
         } else {
             List(tickets) { issue in
@@ -214,27 +323,77 @@ private struct JiraBoardLayout: View {
     }
 }
 
-private struct IssueCard: View {
-    let issue: JiraTicket
+/// One board column: a lane with its name, count and cards.
+private struct BoardColumn: View {
+    let name: String
+    let color: Color
+    let cards: [JiraTicket]
+    let onSelect: ((JiraTicket) -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(issue.summary).font(.callout).lineLimit(3)
-            HStack {
-                Text(issue.key).font(.caption.monospaced()).foregroundStyle(.secondary)
-                Spacer()
-                if let assignee = issue.assignee {
-                    Text(assignee.split(separator: " ").compactMap(\.first).map(String.init).joined())
-                        .font(.caption2.bold())
-                        .padding(4)
-                        .background(.tint.opacity(0.2), in: .circle)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 8, height: 8)
+                Text(name.uppercased()).font(.caption.bold()).foregroundStyle(.secondary).lineLimit(1)
+                Text("\(cards.count)")
+                    .font(.caption2.monospacedDigit().bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(.quaternary, in: .capsule)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 4)
+            if cards.isEmpty {
+                Text("Nothing here").font(.caption).foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 16)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(cards) { issue in
+                            IssueCard(issue: issue, accent: color).onTapGesture { onSelect?(issue) }
+                        }
+                    }
+                    .padding(.bottom, 4)
                 }
+                .scrollIndicators(.never)
             }
         }
         .padding(8)
+        .background(.quaternary.opacity(0.3), in: .rect(cornerRadius: 12))
+    }
+}
+
+private struct IssueCard: View {
+    let issue: JiraTicket
+    var accent: Color = .accentColor
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(issue.summary).font(.callout).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Text(issue.key).font(.caption.monospaced()).foregroundStyle(.secondary)
+                Spacer()
+                if let assignee = issue.assignee {
+                    Text(assignee.split(separator: " ").compactMap(\.first).prefix(2).map(String.init).joined())
+                        .font(.caption2.bold())
+                        .frame(width: 22, height: 22)
+                        .background(.tint.opacity(0.22), in: .circle)
+                        .help(assignee)
+                }
+            }
+        }
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: .rect(cornerRadius: 8))
+        .background(.background.secondary, in: .rect(cornerRadius: 9))
+        .overlay(alignment: .leading) {
+            UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 9).fill(accent.opacity(0.8)).frame(width: 3)
+        }
+        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(hovering ? AnyShapeStyle(accent.opacity(0.6)) : AnyShapeStyle(.separator.opacity(0.6))))
+        .shadow(color: .black.opacity(hovering ? 0.25 : 0.12), radius: hovering ? 6 : 2, y: 1)
         .contentShape(.rect)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -360,5 +519,198 @@ struct JiraIssueSheet: View {
             do { try await action() } catch { self.error = error.localizedDescription }
             busy = false
         }
+    }
+}
+
+/// What Dashii can do with the Jira board widget. Only what it shows changes: nothing is
+/// commented or moved in Jira.
+enum JiraBoardActions {
+    static let actions = [
+        WidgetAction(name: "search", description: "Narrow the board to issues whose key, summary, assignee or status contains the text. Empty clears it.",
+                     properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
+        WidgetAction(name: "filter_status", description: "Only one column or status (e.g. In Progress, Code Review); empty shows every column.",
+                     properties: ["status": JSONSchema.string("Column or status name.")], required: ["status"]),
+        WidgetAction(name: "set_mode", description: "Show the board's columns, or the issues the user follows.",
+                     properties: ["mode": JSONSchema.string("board or followed.", enum: ["board", "followed"])], required: ["mode"]),
+        WidgetAction(name: "set_board", description: "Show another followed board, by name or id.",
+                     properties: ["board": JSONSchema.string("Board name or id.")], required: ["board"]),
+        WidgetAction(name: "hide_done", description: "Hide (on) or show (off) finished issues.",
+                     properties: ["on": JSONSchema.boolean("true to hide done issues.")], required: ["on"]),
+        WidgetAction(name: "select_issue", description: "Open an issue's detail (description, comments, transitions) by key.",
+                     properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234.")], required: ["key"]),
+        WidgetAction(name: "clear", description: "Clear the search and status filter."),
+    ]
+
+    struct Outcome {
+        var reply: JSONValue
+        var select: JiraTicket?
+    }
+
+    /// The tickets matching a search and a column (by name) or status name.
+    static func filter(_ tickets: [JiraTicket], search: String, status: String, columns: [JiraClient.Column]) -> [JiraTicket] {
+        let text = search.trimmingCharacters(in: .whitespaces).lowercased()
+        let wanted = status.trimmingCharacters(in: .whitespaces).lowercased()
+        let column = columns.first { $0.name.lowercased() == wanted }
+        return tickets.filter { ticket in
+            (text.isEmpty || [ticket.key, ticket.summary, ticket.assignee ?? "", ticket.statusName].contains { $0.lowercased().contains(text) })
+                && (wanted.isEmpty || column.map { $0.statusIDs.contains(ticket.statusID) } ?? (ticket.statusName.lowercased() == wanted))
+        }
+    }
+
+    static func perform(_ name: String, _ input: JSONValue, config: inout JiraBoardWidget.Config, search: inout String, status: inout String,
+                        tickets: [JiraTicket], boards: [(id: Int, name: String)], columns: [JiraClient.Column]) throws -> Outcome {
+        switch name {
+        case "search":
+            search = input["text"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            return Outcome(reply: ["search": search.isEmpty ? .null : .string(search)])
+        case "filter_status":
+            let wanted = input["status"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            let known = columns.map(\.name) + tickets.map(\.statusName)
+            if !wanted.isEmpty, !known.contains(where: { $0.lowercased() == wanted.lowercased() }) {
+                throw ToolError("No column or status “\(wanted)”. Columns: \(columns.map(\.name).joined(separator: ", ")).")
+            }
+            status = wanted
+            return Outcome(reply: ["status": wanted.isEmpty ? .null : .string(wanted)])
+        case "set_mode":
+            guard let mode = input["mode"]?.string, ["board", "followed"].contains(mode) else { throw ToolError("Mode is board or followed.") }
+            config.mode = mode
+            return Outcome(reply: ["mode": .string(mode)])
+        case "set_board":
+            let wanted = input["board"]?.string ?? input["board"]?.int.map(String.init) ?? ""
+            guard let board = boards.first(where: { String($0.id) == wanted || $0.name.lowercased() == wanted.lowercased() })
+                    ?? boards.first(where: { $0.name.lowercased().contains(wanted.lowercased()) }), !wanted.isEmpty else {
+                throw ToolError("No followed board “\(wanted)”. Boards: \(boards.map(\.name).joined(separator: ", ")).")
+            }
+            config.mode = "board"
+            config.board = board.id
+            return Outcome(reply: ["board": .string(board.name)])
+        case "hide_done":
+            config.hideDone = input["on"]?.bool ?? true
+            return Outcome(reply: ["hide_done": .bool(config.hideDone)])
+        case "select_issue":
+            let key = input["key"]?.string?.uppercased() ?? ""
+            guard let ticket = tickets.first(where: { $0.key == key }) else { throw ToolError("\(key) isn't on this widget.") }
+            return Outcome(reply: ["opened": .string(ticket.key)], select: ticket)
+        case "clear":
+            search = ""
+            status = ""
+            return Outcome(reply: "cleared")
+        default:
+            throw ToolError("Unknown action \(name).")
+        }
+    }
+}
+
+/// Follow tickets from the widget: a key, a browse link, or words to search; and the ones
+/// followed, to unfollow. Following is local: nothing changes in Jira.
+struct FollowTicketPopover: View {
+    let jira: JiraBoardFeature
+    @State private var query = ""
+    @State private var results: [JiraClient.Issue] = []
+    @State private var searching = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Follow a ticket").font(.headline)
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("LAF-1234, a Jira link, or words to search", text: $query)
+                    .textFieldStyle(.plain)
+                    .onSubmit(submit)
+                if searching { ProgressView().controlSize(.small) }
+            }
+            .padding(8)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+            if let key = directKey {
+                row(key: key, title: jira.issue(key)?.summary ?? "Follow \(key)", followed: jira.followedKeys.contains(key))
+            }
+            if let error { Text(error).font(.caption).foregroundStyle(.red) }
+            if !results.isEmpty {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(results, id: \.key) { issue in
+                            row(key: issue.key, title: issue.summary, subtitle: issue.statusName, followed: jira.followedKeys.contains(issue.key))
+                        }
+                    }
+                }
+                .frame(maxHeight: 220)
+            }
+            if !jira.followedKeys.isEmpty {
+                Divider()
+                Text("Following \(jira.followedKeys.count)").font(.caption.bold()).foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(jira.followedKeys, id: \.self) { key in
+                            row(key: key, title: jira.issue(key)?.summary ?? "", subtitle: jira.issue(key)?.statusName, followed: true)
+                        }
+                    }
+                }
+                .frame(maxHeight: 200)
+            }
+            Text("Followed tickets sync into the board; nothing changes in Jira.").font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(16)
+        .frame(width: 420)
+        .task(id: query) {
+            // Words search Jira after a pause; keys and links follow directly.
+            guard directKey == nil, query.trimmingCharacters(in: .whitespaces).count >= 3 else { results = []; return }
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await runSearch()
+        }
+    }
+
+    /// A key typed or found in a pasted link (…/browse/LAF-123, ?selectedIssue=LAF-123).
+    private var directKey: String? {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if JiraBoardFeature.isIssueKey(text) { return text }
+        if let match = text.firstMatch(of: /(?:BROWSE\/|SELECTEDISSUE=)([A-Z][A-Z0-9_]+-\d+)/) { return String(match.output.1) }
+        return nil
+    }
+
+    private func submit() {
+        if let key = directKey {
+            Task { await jira.follow(key) }
+            query = ""
+        } else {
+            Task { await runSearch() }
+        }
+    }
+
+    private func runSearch() async {
+        let words = query.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\"", with: "")
+        guard !words.isEmpty else { return }
+        searching = true
+        error = nil
+        do {
+            results = try await jira.client.search("text ~ \"\(words)\" ORDER BY updated DESC", limit: 15)
+        } catch {
+            self.error = error.localizedDescription
+        }
+        searching = false
+    }
+
+    private func row(key: String, title: String, subtitle: String? = nil, followed: Bool) -> some View {
+        HStack(spacing: 10) {
+            Text(key)
+                .font(.caption.monospaced().weight(.semibold))
+                .foregroundStyle(.tint)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(.tint.opacity(0.12), in: .capsule)
+                .fixedSize()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title.isEmpty ? key : title).font(.callout).lineLimit(1)
+                if let subtitle, !subtitle.isEmpty { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 6)
+            if followed {
+                Button("Unfollow") { Task { await jira.unfollow(key) } }.controlSize(.small)
+            } else {
+                Button("Follow") { Task { await jira.follow(key) } }.controlSize(.small).buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 8))
     }
 }
