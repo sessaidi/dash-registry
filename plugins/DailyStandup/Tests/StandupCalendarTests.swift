@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-@testable import DailyStandupPlugin
 
 /// Sprints, ceremony and chapter days, French holidays.
 struct StandupCalendarTests {
