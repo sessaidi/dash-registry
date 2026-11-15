@@ -68,8 +68,10 @@ struct JiraClientTests {
     @Test func searchStopsAtLimit() async throws {
         StubProtocol.serve("limit.test") { _ in (200, Data(issuesPage([issueJSON("A-1"), issueJSON("A-2")], next: "more").utf8)) }
         let issues = try await Self.client("limit.test").search("x", limit: 3)
-        #expect(issues.count == 4)
+        #expect(issues.map(\.key) == ["A-1", "A-2", "A-1"])
         #expect(StubProtocol.requests("limit.test").count == 2)
+        // Each page asks only for what's still missing.
+        #expect(StubProtocol.requests("limit.test").last?.jsonBody?["maxResults"] == 1)
     }
 
     @Test func boardColumns() async throws {
@@ -160,5 +162,127 @@ struct JiraClientTests {
         } catch {
             #expect(error.localizedDescription == "Jira error 400: The value 'NOPE' does not exist for the field 'project'.")
         }
+    }
+}
+
+@MainActor
+@Suite("Jira issue view")
+struct JiraIssueViewTests {
+    @Test func issueViewReadsEveryField() async throws {
+        StubProtocol.serve("view.test", routes: [
+            "GET /rest/api/3/issue/KAN-6107": """
+                {"id":"501","key":"KAN-6107","names":{"customfield_1":"Story Points","customfield_2":"Sprint","customfield_3":"Domain(s)",
+                  "customfield_4":"Rank","customfield_5":"Assigned Tester"},
+                 "fields":{"summary":"Export account data","status":{"name":"Backlog","statusCategory":{"key":"new"}},
+                  "issuetype":{"name":"Story"},"priority":{"name":"High"},"project":{"name":"Platform Squad"},
+                  "assignee":{"displayName":"Ada Lovelace"},"reporter":{"displayName":"Grace H"},
+                  "parent":{"key":"KAN-6042","fields":{"summary":"Account data export","issuetype":{"name":"Epic"}}},
+                  "subtasks":[{"key":"KAN-1","fields":{"summary":"Sub","status":{"name":"Done","statusCategory":{"key":"done"}}}}],
+                  "issuelinks":[{"type":{"inward":"is related to","outward":"relates to"},
+                    "inwardIssue":{"key":"KAN-6106","fields":{"summary":"Export audit log","status":{"name":"In Review","statusCategory":{"key":"indeterminate"}}}}}],
+                  "comment":{"comments":[{"id":"1","author":{"displayName":"A"},"body":{"type":"doc","content":[]}},
+                                         {"id":"2","author":{"displayName":"B"},"body":{"type":"doc","content":[]}}]},
+                  "components":[{"name":"API"}],"fixVersions":[],"duedate":"2026-12-01",
+                  "customfield_1":3.0,"customfield_2":[{"name":"S1","state":"closed"},{"name":"KAN - Y26Q4S4","state":"active"}],
+                  "customfield_3":[{"value":"Backend"}],"customfield_4":"0|i0abc:","customfield_5":null}}
+                """,
+        ])
+        let detail = try await JiraClientTests.client("view.test").issueView("KAN-6107")
+        #expect(detail.issue.id == "501" && detail.project == "Platform Squad" && detail.reporter == "Grace H")
+        #expect(detail.parent?.key == "KAN-6042" && detail.parent?.type == "Epic")
+        #expect(detail.subtasks.map(\.key) == ["KAN-1"])
+        #expect(detail.links.first?.relation == "is related to" && detail.links.first?.key == "KAN-6106")
+        #expect(detail.comments.map(\.id) == ["2", "1"])
+        #expect(detail.storyPoints == "3" && detail.sprint == "KAN - Y26Q4S4")
+        #expect(detail.fields == [JiraIssueDetail.Field(id: "customfield_3", name: "Domain(s)", value: "Backend")])
+        #expect(detail.components == ["API"] && detail.due == "2026-12-01")
+        let request = try #require(StubProtocol.requests("view.test").first)
+        #expect(request.query("fields") == "*all" && request.query("expand") == "names")
+    }
+
+    @Test func displayValues() {
+        #expect(JiraIssueDetail.display(.string("  ")) == nil)
+        #expect(JiraIssueDetail.display(["value": "Parent", "child": ["value": "Child"]]) == "Parent › Child")
+        #expect(JiraIssueDetail.display(["type": "doc", "content": []]) == nil)
+        #expect(JiraIssueDetail.display(2.5) == "2.5")
+        #expect(JiraIssueDetail.display(3) == "3")
+        #expect(JiraIssueDetail.display(.number(1e300)) != nil)
+    }
+
+    @Test func inlineMarks() throws {
+        let nodes = try JSONValue.parse("""
+            [{"type":"text","text":"bold","marks":[{"type":"strong"}]},
+             {"type":"text","text":"link","marks":[{"type":"link","attrs":{"href":"https://x.test/a"}}]},
+             {"type":"inlineCard","attrs":{"url":"https://site.test/browse/KAN-1"}}]
+            """).array ?? []
+        let text = ADFView.inline(nodes, site: "site.test")
+        #expect(String(text.characters) == "boldlinkKAN-1")
+        #expect(text.runs.contains { $0.inlinePresentationIntent == .stronglyEmphasized })
+        #expect(text.runs.contains { $0.link == URL(string: "https://x.test/a") })
+    }
+
+    @Test func linksCantPassForTheSiteOrOpenLocalThings() throws {
+        // Another site's /browse/ link shows its host, not a key that looks like ours.
+        #expect(ADFView.shortLink("https://evil.test/browse/KAN-1", site: "site.test") == "evil.test/browse/KAN-1")
+        #expect(ADFView.safeLink("file:///etc/passwd") == nil)
+        #expect(ADFView.safeLink("shortcuts://run-shortcut?name=x") == nil)
+        #expect(ADFView.safeLink("https://site.test/a") != nil && ADFView.safeLink("mailto:a@b.test") != nil)
+        let nodes = try JSONValue.parse(#"[{"type":"text","text":"x","marks":[{"type":"link","attrs":{"href":"file:///etc/passwd"}}]}]"#).array ?? []
+        #expect(ADFView.inline(nodes).runs.allSatisfy { $0.link == nil })
+    }
+
+    @Test func onlyPlainCommentsAreEditableAsText() throws {
+        #expect(JiraClient.isPlainText(JiraClient.document("a\nb\n\nc")))
+        let linked = try JSONValue.parse(#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"link","attrs":{"href":"https://a.test"}}]}]}]}"#)
+        let mention = try JSONValue.parse(#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"mention","attrs":{"id":"1","text":"@A"}}]}]}"#)
+        let list = try JSONValue.parse(#"{"type":"doc","content":[{"type":"bulletList","content":[]}]}"#)
+        #expect(!JiraClient.isPlainText(linked) && !JiraClient.isPlainText(mention) && !JiraClient.isPlainText(list))
+    }
+
+    @Test func manyCommentsShowTheNewest() async throws {
+        StubProtocol.serve("comments.test", routes: [
+            "GET /rest/api/3/issue/KAN-9": #"{"key":"KAN-9","fields":{"comment":{"total":120,"comments":[{"id":"1","body":{"type":"doc","content":[]}}]}}}"#,
+            "GET /rest/api/3/issue/KAN-9/comment": #"{"comments":[{"id":"120","body":{"type":"doc","content":[]}},{"id":"119","body":{"type":"doc","content":[]}}]}"#,
+        ])
+        let detail = try await JiraClientTests.client("comments.test").issueView("KAN-9")
+        #expect(detail.comments.map(\.id) == ["120", "119"])
+        let latest = try #require(StubProtocol.requests("comments.test").last)
+        #expect(latest.query("orderBy") == "-created")
+    }
+
+    @Test func acceptanceCriteriaLeaveTheDescription() throws {
+        let doc = try JSONValue.parse("""
+            {"type":"doc","content":[
+              {"type":"paragraph","content":[{"type":"text","text":"Context"}]},
+              {"type":"paragraph","content":[{"type":"text","text":"Acceptance Criteria:","marks":[{"type":"strong"}]}]},
+              {"type":"bulletList","content":[
+                {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"one"}]}]},
+                {"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"two"}]},{"type":"bulletList","content":[]}]}]},
+              {"type":"paragraph","content":[{"type":"text","text":"References:","marks":[{"type":"strong"}]}]},
+              {"type":"paragraph","content":[{"type":"text","text":"link"}]}]}
+            """)
+        let (rest, criteria) = JiraIssueDetail.splitCriteria(doc)
+        #expect(criteria.count == 2 && criteria[1].content.count == 2)
+        #expect(JiraClient.plainText(rest) == "Context\nReferences:\nlink")
+        // Ticks from a task list.
+        let tasks = try JSONValue.parse("""
+            [{"type":"taskList","content":[{"type":"taskItem","attrs":{"state":"DONE"},"content":[{"type":"text","text":"a"}]},
+                                           {"type":"taskItem","attrs":{"state":"TODO"},"content":[{"type":"text","text":"b"}]}]}]
+            """).array ?? []
+        #expect(JiraIssueDetail.criteria(in: tasks).map(\.done) == [true, false])
+        #expect(JiraIssueDetail.splitCriteria(["type": "doc", "content": []]).1.isEmpty)
+    }
+
+    @Test func replyQuotesAndMentions() {
+        let reply = JiraClient.reply(to: "acc-1", name: "Grace", quoting: "Looks good", text: "Thanks")
+        #expect(reply["content"]?.array?.first?["type"] == "blockquote")
+        let line = reply["content"]?.array?.last?["content"]?.array ?? []
+        #expect(line.first?["type"] == "mention" && line.first?["attrs"]?["id"] == "acc-1" && line.last?["text"] == "Thanks")
+        #expect(JiraClient.Reaction.emoji("1f44d") == "👍")
+        #expect(JiraClient.plainText(JiraClient.document("a\nb\n\nc")) == "a\nb\nc")
+        // Nothing to quote (an attachment-only comment): no empty text node, which Jira refuses.
+        let bare = JiraClient.reply(to: "", name: "Sam", quoting: "", text: "one\n\ntwo")
+        #expect(bare["content"]?.array?.map { $0["type"] } == ["paragraph", "paragraph"])
+        #expect(bare["content"]?.array?.first?["content"]?.array?.first?["text"] == "@Sam ")
     }
 }
