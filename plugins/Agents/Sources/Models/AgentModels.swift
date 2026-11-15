@@ -77,8 +77,11 @@ struct AgentSummary: Identifiable, Equatable, Sendable {
     let status: String
     let costUSD: Double
     let hasPullRequest: Bool
+    let updatedAt: Date
+    let lastError: String?
 
-    init(id: UUID = UUID(), issueKey: String, title: String, phase: String, branch: String, status: String, costUSD: Double, hasPullRequest: Bool) {
+    init(id: UUID = UUID(), issueKey: String, title: String, phase: String, branch: String, status: String, costUSD: Double, hasPullRequest: Bool,
+         updatedAt: Date = .now, lastError: String? = nil) {
         self.id = id
         self.issueKey = issueKey
         self.title = title
@@ -87,11 +90,14 @@ struct AgentSummary: Identifiable, Equatable, Sendable {
         self.status = status
         self.costUSD = costUSD
         self.hasPullRequest = hasPullRequest
+        self.updatedAt = updatedAt
+        self.lastError = lastError
     }
 
     init(_ session: AgentSession) {
         self.init(id: session.id, issueKey: session.issueKey, title: session.title, phase: session.phase, branch: session.branch,
-                  status: session.status, costUSD: session.costUSD, hasPullRequest: session.prURL != nil)
+                  status: session.status, costUSD: session.costUSD, hasPullRequest: session.prURL != nil,
+                  updatedAt: session.updatedAt, lastError: session.lastError)
     }
 
     /// Sessions with a PR are "finished"; the widget can hide them.
@@ -99,17 +105,56 @@ struct AgentSummary: Identifiable, Equatable, Sendable {
         rows.filter { showFinished || !$0.hasPullRequest }
     }
 
-    /// Gallery and Settings sample: no store, no processes.
+    /// Gallery and Settings sample: no store, no processes. Enough rows, states and ages that every
+    /// size family looks like a real day.
     static let samples: [AgentSummary] = [
         AgentSummary(issueKey: "LAF-1234", title: "Add retry to the fetcher", phase: "implementing",
-                     branch: "laf-1234-add-retry-to-the-fetcher", status: "running", costUSD: 1.42, hasPullRequest: false),
+                     branch: "laf-1234-add-retry-to-the-fetcher", status: "running", costUSD: 1.42, hasPullRequest: false,
+                     updatedAt: .now.addingTimeInterval(-40)),
         AgentSummary(issueKey: "LAF-1198", title: "Cache channel lineups per market", phase: "planning",
-                     branch: "laf-1198-cache-channel-lineups-per-market", status: "idle", costUSD: 0.31, hasPullRequest: false),
-        AgentSummary(issueKey: "OPS-77", title: "Fix flaky deploy health check", phase: "implementing",
-                     branch: "ops-77-fix-flaky-deploy-health-check", status: "idle", costUSD: 2.08, hasPullRequest: true),
+                     branch: "laf-1198-cache-channel-lineups-per-market", status: "idle", costUSD: 0.31, hasPullRequest: false,
+                     updatedAt: .now.addingTimeInterval(-6 * 60)),
+        AgentSummary(issueKey: "LAF-1251", title: "Paginate the recordings endpoint", phase: "implementing",
+                     branch: "laf-1251-paginate-the-recordings-endpoint", status: "running", costUSD: 0.87, hasPullRequest: false,
+                     updatedAt: .now.addingTimeInterval(-2 * 60)),
         AgentSummary(issueKey: "LAF-1240", title: "Drop the legacy auth header", phase: "planning",
-                     branch: "laf-1240-drop-the-legacy-auth-header", status: "failed", costUSD: 0.05, hasPullRequest: false),
+                     branch: "laf-1240-drop-the-legacy-auth-header", status: "failed", costUSD: 0.05, hasPullRequest: false,
+                     updatedAt: .now.addingTimeInterval(-25 * 60), lastError: "No repository for project LAF in this worktree."),
+        AgentSummary(issueKey: "OPS-77", title: "Fix flaky deploy health check", phase: "implementing",
+                     branch: "ops-77-fix-flaky-deploy-health-check", status: "idle", costUSD: 2.08, hasPullRequest: true,
+                     updatedAt: .now.addingTimeInterval(-3 * 3600)),
+        AgentSummary(issueKey: "WEB-412", title: "Show the plan price on checkout", phase: "implementing",
+                     branch: "web-412-show-the-plan-price-on-checkout", status: "idle", costUSD: 1.16, hasPullRequest: true,
+                     updatedAt: .now.addingTimeInterval(-26 * 3600)),
     ]
+}
+
+extension AgentSummary {
+    /// The agent is taking a turn right now.
+    var isWorking: Bool { status == "running" }
+    /// Waiting on the user: it failed, or it's idle without a PR (a plan to discuss, a step to approve).
+    var needsYou: Bool { !isWorking && !hasPullRequest }
+    /// Its PR is open: the agent is done.
+    var isDone: Bool { !isWorking && hasPullRequest }
+
+    var tone: Tone { isWorking ? .info : status == "failed" ? .danger : hasPullRequest ? .success : .warning }
+    var stateLabel: String { isWorking ? "Working" : status == "failed" ? "Failed" : hasPullRequest ? "PR open" : "Needs you" }
+
+    /// "2 working · 1 needs you", what a glance should say.
+    static func headline(_ rows: [AgentSummary]) -> String {
+        let working = rows.count(where: \.isWorking), waiting = rows.count(where: \.needsYou), done = rows.count(where: \.isDone)
+        var parts: [String] = []
+        if working > 0 { parts.append("\(working) working") }
+        if waiting > 0 { parts.append("\(waiting) need\(waiting == 1 ? "s" : "") you") }
+        if parts.isEmpty, done > 0 { parts.append("\(done) done") }
+        return parts.isEmpty ? "No agents" : parts.joined(separator: " · ")
+    }
+
+    /// What to look at first: failed, then waiting on you, then working, then done; newest first in each.
+    static func byAttention(_ rows: [AgentSummary]) -> [AgentSummary] {
+        func rank(_ row: AgentSummary) -> Int { row.status == "failed" && !row.hasPullRequest ? 0 : row.needsYou ? 1 : row.isWorking ? 2 : 3 }
+        return rows.sorted { rank($0) != rank($1) ? rank($0) < rank($1) : $0.updatedAt > $1.updatedAt }
+    }
 }
 
 /// A repository's own pull request template; repositories without one use the global template

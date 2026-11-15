@@ -352,7 +352,7 @@ struct AgentsExtensionTests {
         #expect(Set(samples.map(\.phase)) == ["planning", "implementing"])
         #expect(AgentSummary.visible(samples, showFinished: true).count == samples.count)
         #expect(AgentSummary.visible(samples, showFinished: false).allSatisfy { !$0.hasPullRequest })
-        #expect(AgentSummary.visible(samples, showFinished: false).count == samples.count - 1)
+        #expect(AgentSummary.visible(samples, showFinished: false).count == samples.count - samples.count(where: \.hasPullRequest))
 
         let session = AgentSession(issueKey: "A-1", title: "t", repoPath: "/r", worktreePath: "/w", branch: "b", baseRef: "origin/main")
         session.prURL = "https://x"

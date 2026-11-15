@@ -20,9 +20,9 @@ struct AgentList: View {
 
     var body: some View {
         let visible = QueryRows.ordered(shown, by: queryIDs)
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             QueryCount(shown: visible.count, total: shown.count, query: queryText)
-            AgentRows(rows: visible.map(AgentSummary.init), selectedID: selectedID) { id in
+            AgentsLayout(rows: visible.map(AgentSummary.init), selectedID: selectedID, open: { id in
                 // Clicking selects and opens; clicking the selected one again unselects it.
                 if selectedID == id {
                     selectedID = nil
@@ -30,7 +30,12 @@ struct AgentList: View {
                     selectedID = id
                     host.ext(AgentsExtension.self)?.openWindow(id)
                 }
-            }
+            }, openChat: { id in
+                host.ext(AgentsExtension.self)?.openWindow(id)
+            }, start: { key in
+                guard let agents = host.ext(AgentsExtension.self) else { throw ToolError("Agents are not ready.") }
+                agents.openWindow(try await agents.start(issueKey: key).id)
+            })
         }
         .onExitCommand { selectedID = nil }
         .reportsSelection(selectedID.flatMap { id in sessions.first { $0.id == id }?.queryRow })

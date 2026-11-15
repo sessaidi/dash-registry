@@ -33,7 +33,7 @@ struct AgentsWidget: DashboardWidget {
     }
 
     static func preview(config: Config) -> some View {
-        AgentRows(rows: AgentSummary.visible(AgentSummary.samples, showFinished: config.showFinished), open: { _ in })
+        AgentsLayout(rows: AgentSummary.visible(AgentSummary.samples, showFinished: config.showFinished), open: { _ in })
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
