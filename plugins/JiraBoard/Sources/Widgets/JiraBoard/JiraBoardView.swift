@@ -53,8 +53,8 @@ struct JiraBoardView: View {
 
     var body: some View {
         board
-            // Follow a ticket from here: key, link or a few words.
-            .overlay(alignment: .topTrailing) {
+            // Follow a ticket from here: key, link or a few words. In the card's header, next to the title.
+            .widgetHeader {
                 if let jira, (try? jira.client) != nil {
                     HStack(spacing: 8) {
                         QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
@@ -74,7 +74,6 @@ struct JiraBoardView: View {
                             .help("Follow a ticket: paste its key or link, or search")
                             .popover(isPresented: $following, arrowEdge: .bottom) { FollowTicketPopover(jira: jira) }
                     }
-                    .offset(y: -34)
                 }
             }
             .handlesWidgetActions { name, input in
