@@ -48,6 +48,7 @@ private struct StandupWidgetView: View {
     var body: some View {
         if let standup {
             VStack(alignment: .leading, spacing: 8) {
+                // Short labels so the tabs fit a narrow widget; the Zoom note is in the help.
                 Picker("View", selection: $tab) {
                     Text("Me").tag("me")
                     Text(standup.isZoomDay() ? "Meeting" : "Meeting (not on Zoom today)").tag("meeting")
