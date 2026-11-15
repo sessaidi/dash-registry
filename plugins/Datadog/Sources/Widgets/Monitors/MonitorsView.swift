@@ -1,151 +1,11 @@
+import AppKit
 import DashKit
 import DashKitUI
-import Foundation
-import Observation
 import SwiftUI
 
-/// The Monitors feature: Datadog monitors that aren't OK, refreshed every minute, with activity
-/// when one starts alerting.
-@MainActor
-@Observable
-final class DatadogMonitorsFeature: DashExtension {
-    let id = "datadog-monitors"
-    let name = "Datadog Monitors"
-    let systemImage = "bell.badge"
-    let metadata = ExtensionMetadata(
-        version: "1.0.0", author: .dash,
-        summary: "A dashboard widget of the Datadog monitors in Alert, Warn or No Data, with activity when one starts alerting.",
-        category: .monitoring, tags: ["datadog", "monitors", "alerts"], minimumDashKit: "2.0.0")
-    let requires = ["datadog"]
-
-    static let interval: Duration = .seconds(60)
-
-    private(set) var monitors: [DatadogMonitor] = []
-    private(set) var error: String?
-    private(set) var lastUpdated: Date?
-    private(set) var loading = false
-    @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
-    @ObservationIgnored private var poll: Task<Void, Never>?
-
-    var widgets: [WidgetType] { [WidgetType(DatadogMonitorsWidget.self)] }
-
-    var datadog: DatadogIntegration? { host?.integration(DatadogIntegration.self) }
-
-    func start(host: any ExtensionContext) {
-        self.host = host
-        poll?.cancel()
-        poll = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.refresh()
-                try? await Task.sleep(for: Self.interval)
-            }
-        }
-    }
-
-    func stop() {
-        poll?.cancel()
-        poll = nil
-    }
-
-    func refresh() async {
-        guard let datadog, datadog.isConnected else {
-            error = nil
-            monitors = []
-            return
-        }
-        loading = true
-        defer { loading = false }
-        do {
-            let current = DatadogMonitor.list(try await datadog.get("/api/v1/monitor/search", ["query": #"status:(alert OR warn OR "no data")"#, "per_page": "100"]))
-                .sorted { ($0.severity, $0.name) < ($1.severity, $1.name) }
-            // A monitor that wasn't alerting at the last check and is now.
-            if lastUpdated != nil, let host {
-                let before = Set(monitors.filter { $0.severity == 0 }.map(\.id))
-                for monitor in current where monitor.severity == 0 && !before.contains(monitor.id) {
-                    host.emit("datadog.alert", from: self, title: "Datadog: \(monitor.name) is alerting",
-                              link: monitorURL(monitor)?.absoluteString, importance: .notable)
-                }
-            }
-            monitors = current
-            error = nil
-            lastUpdated = .now
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    func monitorURL(_ monitor: DatadogMonitor) -> URL? {
-        datadog.map { $0.appURL.appending(path: "monitors/\(monitor.id)") }
-    }
-}
-
-struct DatadogMonitorsWidget: DashboardWidget {
-    struct Config: Codable, Equatable, Sendable {
-        /// Only monitors whose name or tags contain this.
-        var filter: String = ""
-        var showWarn: Bool = true
-        var showNoData: Bool = true
-    }
-
-    static var kind: String { "datadog.monitors" }
-    static var displayName: String { "Datadog Monitors" }
-    static var summary: String { "Datadog monitors in Alert, Warn or No Data, worst first." }
-    static var systemImage: String { "bell.badge" }
-    static var defaultConfig: Config { Config() }
-    static let sizeLimits = GridLimits(minW: 2, minH: 3, maxW: 12, maxH: 20)
-    static var configSchema: JSONValue {
-        ["type": "object", "properties": [
-            "filter": JSONSchema.string("Only monitors whose name or tags contain this, e.g. service:api."),
-            "showWarn": JSONSchema.boolean("Include monitors in Warn."),
-            "showNoData": JSONSchema.boolean("Include monitors in No Data."),
-        ]]
-    }
-
-    static let actions = [
-        WidgetAction(name: "filter", description: "Show only monitors whose name or tags contain a text (empty shows all). Temporary: the widget's saved filter stays.",
-                     properties: ["text": JSONSchema.string("Text, e.g. service:api or checkout.")], required: ["text"]),
-        WidgetAction(name: "select", description: "Select a monitor so its detail shows (wide sizes); linked widgets follow the selection.",
-                     properties: ["id": JSONSchema.integer("Monitor id.")], required: ["id"]),
-        WidgetAction(name: "clear_selection", description: "Unselect the selected monitor."),
-        WidgetAction(name: "refresh", description: "Check Datadog now."),
-    ]
-
-    static let queryFields = DatadogMonitor.queryFields
-
-    static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        MonitorsView(settings: config, host: context.host, query: context.query(fields: DatadogMonitor.queryFields), queryText: context.queryText)
-    }
-
-    static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
-        TextField("Filter", text: config.filter, prompt: Text("service:api"))
-        Toggle("Show Warn", isOn: config.showWarn)
-        Toggle("Show No Data", isOn: config.showNoData)
-    }
-
-    static func preview(config: Config) -> some View {
-        MonitorsList(monitors: [
-            DatadogMonitor(id: 1, name: "API p99 latency above 800 ms", status: "Alert", type: "metric alert", tags: ["service:api"], lastTriggered: .now.addingTimeInterval(-600)),
-            DatadogMonitor(id: 2, name: "Checkout error rate", status: "Warn", type: "query alert", tags: ["service:checkout"], lastTriggered: .now.addingTimeInterval(-3_600)),
-            DatadogMonitor(id: 3, name: "Worker heartbeat", status: "No Data", type: "service check", tags: ["service:worker"], lastTriggered: nil),
-        ], selected: .constant(nil), open: { _ in })
-    }
-
-    static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
-        guard let feature = context.host.ext(DatadogMonitorsFeature.self) else { return .null }
-        return ["monitors": .array(shown(feature.monitors, config).map(\.json)), "error": feature.error.map { .string($0) } ?? .null,
-                "updated": feature.lastUpdated.map { .string($0.ISO8601Format()) } ?? .null]
-    }
-
-    static func shown(_ monitors: [DatadogMonitor], _ config: Config) -> [DatadogMonitor] {
-        let filter = config.filter.trimmingCharacters(in: .whitespaces).lowercased()
-        return monitors.filter { monitor in
-            (config.showWarn || monitor.severity != 1) && (config.showNoData || monitor.severity != 2)
-                && (filter.isEmpty || monitor.name.lowercased().contains(filter) || monitor.tags.contains { $0.lowercased().contains(filter) })
-        }
-    }
-}
-
-private struct MonitorsView: View {
+/// The Monitors widget: observes `DatadogMonitorsFeature` (its poller), applies the settings,
+/// Dashii's temporary filter and the query bar, and publishes the selection.
+struct MonitorsView: View {
     /// The widget's saved settings.
     @Binding var settings: DatadogMonitorsWidget.Config
     /// What Dashii's filter action changed for now; the saved filter stays, and this resets when
@@ -250,7 +110,7 @@ private struct MonitorCounts: View {
     }
 }
 
-private struct MonitorsList: View {
+struct MonitorsList: View {
     let monitors: [DatadogMonitor]
     @Binding var selected: Int?
     let open: (DatadogMonitor) -> Void
