@@ -71,100 +71,13 @@ struct MonitorsView: View {
             StateView(.loading("Checking monitors…"))
         } else if shown.isEmpty {
             StateView(.empty(title: "All clear", systemImage: "checkmark.seal", message: config.filter.isEmpty ? "No monitor is alerting." : "Nothing matches “\(config.filter)”."))
-        } else if layout.family == .narrow {
-            VStack(alignment: .leading, spacing: 4) {
-                QueryCount(shown: shown.count, total: filtered.count, query: queryText)
-                MonitorCounts(monitors: shown)
-            }
-        } else if layout.family == .large || layout.family == .wide, let monitor = shown.first(where: { $0.id == selected }) {
-            HStack(alignment: .top, spacing: 12) {
-                MonitorsList(monitors: shown, selected: $selected, open: open(feature))
-                MonitorDetail(monitor: monitor, url: feature.monitorURL(monitor))
-                    .frame(width: min(320, layout.size.width * 0.4))
-            }
         } else {
-            MonitorsList(monitors: shown, selected: $selected, open: open(feature))
+            MonitorsContent(monitors: shown, total: filtered.count, queryText: queryText, selected: $selected,
+                            url: { feature.monitorURL($0) }, open: open(feature))
         }
     }
 
     private func open(_ feature: DatadogMonitorsFeature) -> (DatadogMonitor) -> Void {
         { monitor in if let url = feature.monitorURL(monitor) { NSWorkspace.shared.open(url) } }
-    }
-}
-
-private struct MonitorCounts: View {
-    let monitors: [DatadogMonitor]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                MetricView("\(monitors.count { $0.severity == 0 })", label: "Alert", tone: .danger)
-                MetricView("\(monitors.count { $0.severity == 1 })", label: "Warn", tone: .warning)
-                MetricView("\(monitors.count { $0.severity == 2 })", label: "No data", tone: .neutral)
-            }
-            if let worst = monitors.first {
-                Text(worst.name).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-struct MonitorsList: View {
-    let monitors: [DatadogMonitor]
-    @Binding var selected: Int?
-    let open: (DatadogMonitor) -> Void
-
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 6) {
-                ForEach(monitors) { monitor in
-                    ItemRow(monitor.name, subtitle: subtitle(monitor),
-                            leading: { StatusDot(tone(monitor)) },
-                            trailing: { Badge(monitor.status, tone: tone(monitor)) })
-                        .padding(4)
-                        .background(selected == monitor.id ? AnyShapeStyle(.tint.opacity(0.12)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 6))
-                        .contentShape(.rect)
-                        .onTapGesture { selected = selected == monitor.id ? nil : monitor.id }
-                        .onTapGesture(count: 2) { open(monitor) }
-                        .contextMenu { Button("Open in Datadog", systemImage: "safari") { open(monitor) } }
-                }
-            }
-        }
-    }
-
-    private func subtitle(_ monitor: DatadogMonitor) -> String {
-        ([monitor.type] + monitor.tags.prefix(2) + [monitor.lastTriggered.map { "since \($0.relative)" }].compactMap { $0 })
-            .filter { !$0.isEmpty }.joined(separator: " · ")
-    }
-}
-
-private struct MonitorDetail: View {
-    let monitor: DatadogMonitor
-    let url: URL?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(monitor.name).font(.headline)
-            Badge(monitor.status, tone: tone(monitor))
-            LabeledContent("Type", value: monitor.type)
-            if let since = monitor.lastTriggered { LabeledContent("Triggered") { RelativeTime(since) } }
-            if !monitor.tags.isEmpty {
-                Text(monitor.tags.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
-            }
-            if let url { Link("Open in Datadog", destination: url).font(.callout) }
-            Spacer()
-        }
-        .padding(10)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 10))
-    }
-}
-
-private func tone(_ monitor: DatadogMonitor) -> Tone {
-    switch monitor.severity {
-    case 0: .danger
-    case 1: .warning
-    case 2: .neutral
-    default: .success
     }
 }

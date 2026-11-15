@@ -47,7 +47,7 @@ struct DatadogMonitorsWidget: DashboardWidget {
     }
 
     static func preview(config: Config) -> some View {
-        MonitorsList(monitors: DatadogMonitor.sample, selected: .constant(nil), open: { _ in })
+        MonitorsPreview(monitors: shown(DatadogMonitor.sample, config))
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
@@ -62,5 +62,15 @@ struct DatadogMonitorsWidget: DashboardWidget {
             (config.showWarn || monitor.severity != 1) && (config.showNoData || monitor.severity != 2)
                 && (filter.isEmpty || monitor.name.lowercased().contains(filter) || monitor.tags.contains { $0.lowercased().contains(filter) })
         }
+    }
+}
+
+/// The sample monitors in the live widget's responsive layout; clicking selects, as on the dashboard.
+private struct MonitorsPreview: View {
+    let monitors: [DatadogMonitor]
+    @State private var selected: Int?
+
+    var body: some View {
+        MonitorsContent(monitors: monitors, total: monitors.count, selected: $selected)
     }
 }
