@@ -334,14 +334,24 @@ private struct StatusSummaryStrip: View {
     }
 }
 
-/// The on-call SRE's latest report.
+/// The on-call SRE's latest report. Click it for the whole report.
 private struct ReportPanel: View {
     let report: StatusSnapshot.Report
     /// nil shows the whole summary.
     let summaryLines: Int?
     let showsFindings: Bool
+    @State private var showsReport = false
 
     var body: some View {
+        panel
+            .contentShape(.rect)
+            .onTapGesture { showsReport = true }
+            .help("Show the whole report")
+            .accessibilityAddTraits(.isButton)
+            .sheet(isPresented: $showsReport) { ReportSheet(report: report) }
+    }
+
+    private var panel: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Label("On-call SRE", systemImage: "stethoscope").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -362,6 +372,66 @@ private struct ReportPanel: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+    }
+}
+
+/// The on-call SRE's report in full: the summary, then every finding with its evidence, target
+/// and suggestion.
+struct ReportSheet: View {
+    let report: StatusSnapshot.Report
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.sreAsk) private var ask
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Label("On-call SRE", systemImage: "stethoscope").font(.title3.weight(.semibold))
+                if report.critical { Badge("critical", tone: .danger) }
+                Spacer()
+                Text(report.at.formatted(date: .abbreviated, time: .shortened)).font(.callout).foregroundStyle(.secondary)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(Self.markdown(report.summary)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    if !report.items.isEmpty {
+                        Text("Findings").font(.headline)
+                        ForEach(Array(report.items.enumerated()), id: \.offset) { _, finding in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Badge(finding.severity.rawValue, tone: finding.severity == .critical ? .danger : finding.severity == .warning ? .warning : .info)
+                                    Text(finding.title).font(.callout.weight(.semibold))
+                                }
+                                if !finding.target.isEmpty { Text(finding.target).font(.caption.monospaced()).foregroundStyle(.secondary) }
+                                if !finding.detail.isEmpty { Text(Self.markdown(finding.detail)).font(.callout).textSelection(.enabled) }
+                                if !finding.suggestion.isEmpty {
+                                    Label(finding.suggestion, systemImage: "arrow.turn.down.right").font(.callout).foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                if let ask {
+                    Button("Ask the SRE About This Report", systemImage: "stethoscope") {
+                        ask("Ask the on-call SRE (agent sre.oncall ask): about your latest report (\(report.at.formatted(date: .omitted, time: .shortened))): what's the evidence, and what should I do first?")
+                        dismiss()
+                    }
+                }
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 560, idealWidth: 680, minHeight: 420, idealHeight: 560)
+    }
+
+    static func markdown(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
     }
 }
 

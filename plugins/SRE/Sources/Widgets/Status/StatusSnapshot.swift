@@ -6,8 +6,11 @@ struct StatusSnapshot: Sendable, Equatable {
     struct Report: Sendable, Equatable {
         var summary: String
         var at: Date
+        /// The three most severe findings' titles, for the panel.
         var findings: [String]
         var critical: Bool
+        /// Every finding in full, for the report sheet.
+        var items: [AgentFinding] = []
     }
 
     var signals: Signals
