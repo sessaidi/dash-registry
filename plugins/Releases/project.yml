@@ -1,0 +1,52 @@
+# A Dash plugin. Build, test, zip and index it with: TEST=1 scripts/build-plugins.sh Releases
+name: ReleasesPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  ReleasesPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json       # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false            # Dash provides DashKit at runtime
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        NSPrincipalClass: ReleasesDashPlugin
+        DashPluginID: releases
+        DashPluginVersion: "1.0.0"
+        DashKitMinimumVersion: "1.3.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.releases
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+    scheme: {}
+  ReleasesPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Sources, Tests]
+    dependencies:
+      - package: DashKit
+        product: DashKit      # includes DashKitTesting
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.releases.tests
+    scheme:
+      testTargets: [ReleasesPluginTests]

@@ -1,0 +1,12 @@
+{
+  "name": "Releases",
+  "kind": "feature",
+  "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
+  "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
+  "provides": [
+    "releases"
+  ],
+  "author": {
+    "name": "Dash"
+  }
+}
