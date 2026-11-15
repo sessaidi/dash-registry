@@ -196,3 +196,13 @@ struct JiraBoardFeatureTests {
         #expect(!JiraTicket.visible(samples, config: JiraBoardWidget.Config(mode: "followed", hideDone: false)).isEmpty)
     }
 }
+
+/// Followed tickets are let go once done and merged.
+struct JiraAutoUnfollowTests {
+    @Test func finishedMeansNoOpenPullRequest() {
+        #expect(JiraBoardFeature.isFinished((count: 0, state: nil)))
+        #expect(JiraBoardFeature.isFinished((count: 2, state: "MERGED")))
+        #expect(JiraBoardFeature.isFinished((count: 1, state: "DECLINED")))
+        #expect(!JiraBoardFeature.isFinished((count: 1, state: "OPEN")))
+    }
+}

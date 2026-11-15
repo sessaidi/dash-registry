@@ -13,6 +13,8 @@ struct JiraClient: Sendable {
     static let issueFields = ["summary", "status", "assignee", "reporter", "priority", "issuetype", "updated", "labels", "parent"]
 
     struct Issue: Sendable, Equatable {
+        /// Jira's numeric id (the development panel is looked up by it).
+        var id: String = ""
         let key: String
         let summary: String
         let statusID: String
@@ -26,6 +28,7 @@ struct JiraClient: Sendable {
 
         init(json: JSONValue) {
             let fields = json["fields"] ?? .null
+            id = json["id"]?.string ?? ""
             key = json["key"]?.string ?? ""
             summary = fields["summary"]?.string ?? ""
             statusID = fields["status"]?["id"]?.string ?? ""
@@ -54,6 +57,14 @@ struct JiraClient: Sendable {
         let request = try HTTP.request(url(path, query: query), method: method, body: body, headers: ["Accept": "application/json"])
         let (data, _) = try await connection.send(request, service: "Jira")
         return data.isEmpty ? .null : try JSONValue.parse(data)
+    }
+
+    /// The issue's linked pull requests from Jira's development panel (GitHub/GitLab apps):
+    /// how many, and the overall state (OPEN, MERGED, DECLINED). Read-only.
+    func pullRequests(issueID: String) async throws -> (count: Int, state: String?) {
+        let summary = try await send("rest/dev-status/latest/issue/summary", query: [URLQueryItem(name: "issueId", value: issueID)])
+        let overall = summary["summary"]?["pullrequest"]?["overall"]
+        return (overall?["count"]?.int ?? 0, overall?["state"]?.string)
     }
 
     func browseURL(_ key: String) -> URL { site.appending(path: "browse/\(key)") }

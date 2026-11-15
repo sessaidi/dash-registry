@@ -87,6 +87,8 @@ final class JiraBoardFeature: DashExtension {
     var boards: [Board] { didSet { defaults.set(try? JSONEncoder().encode(boards), forKey: "jira-board.boards") } }
     /// Tickets followed one by one, e.g. "PROJ-123".
     var followedKeys: [String] { didSet { defaults.set(followedKeys, forKey: "jira-board.keys") } }
+    /// Stop following a ticket once it's done and its PRs are merged.
+    var autoUnfollow: Bool { didSet { defaults.set(autoUnfollow, forKey: "jira-board.autoUnfollow") } }
     /// The first board's id, as text (the setting before several boards could be followed).
     var boardID: String {
         get { boards.first.map { String($0.id) } ?? "" }
@@ -121,6 +123,7 @@ final class JiraBoardFeature: DashExtension {
             boards = []
         }
         followedKeys = defaults.stringArray(forKey: "jira-board.keys") ?? []
+        autoUnfollow = defaults.object(forKey: "jira-board.autoUnfollow") as? Bool ?? true
         followJQL = defaults.string(forKey: "jira-board.jql") ?? Self.defaultJQL
         pollMinutes = defaults.object(forKey: "jira-board.poll") as? Int ?? 5
     }
@@ -175,13 +178,37 @@ final class JiraBoardFeature: DashExtension {
             }
             if refreshed != boards { boards = refreshed }
             let followed = followJQL.isEmpty ? [] : try await client.search(followJQL)
-            let pinned = try await pinnedIssues(client)
+            var pinned = try await pinnedIssues(client)
+            pinned = await unfollowFinished(pinned, client: client)
             upsert(boards: onBoards, followed: followed, pinned: pinned, client: client, context: host.context)
             lastSync = .now
             lastError = nil
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Stops following tickets that are done and whose pull requests are merged (or that have
+    /// none linked); a ticket done with a PR still open stays. Returns the ones still followed.
+    func unfollowFinished(_ pinned: [JiraClient.Issue], client: JiraClient) async -> [JiraClient.Issue] {
+        guard autoUnfollow else { return pinned }
+        var kept: [JiraClient.Issue] = []
+        for issue in pinned {
+            guard issue.statusCategory == "done", !issue.id.isEmpty,
+                  let pulls = try? await client.pullRequests(issueID: issue.id), Self.isFinished(pulls) else {
+                kept.append(issue)
+                continue
+            }
+            followedKeys.removeAll { $0 == issue.key }
+            _ = host?.emit("jira.unfollowed", from: self, title: "Stopped following \(issue.key)",
+                       detail: pulls.count == 0 ? "Done" : "Done and its PR merged", link: client.browseURL(issue.key).absoluteString, importance: .info)
+        }
+        return kept
+    }
+
+    /// No open pull request: all merged (or declined), or none linked.
+    nonisolated static func isFinished(_ pulls: (count: Int, state: String?)) -> Bool {
+        pulls.count == 0 || pulls.state?.uppercased() != "OPEN"
     }
 
     /// The tickets followed by key. One query for all of them; if Jira rejects it (a key that
@@ -410,6 +437,10 @@ private struct JiraBoardSettings: View {
                 HStack {
                     TextField("Follow a ticket", text: $newKey, prompt: Text("PROJ-123")).onSubmit(addKey)
                     Button("Follow", action: addKey).disabled(!JiraBoardFeature.isIssueKey(newKey.trimmingCharacters(in: .whitespaces).uppercased()))
+                }
+                Toggle(isOn: $jira.autoUnfollow) {
+                    Text("Stop following a ticket once it's done and its PRs are merged")
+                    Text("Checked at each sync from Jira's development panel; a done ticket with an open PR stays.")
                 }
             } header: {
                 Text("Tickets")
