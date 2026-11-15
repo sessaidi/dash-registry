@@ -30,7 +30,7 @@ final class GitLabIntegration: Integration {
 
     var instanceURL: String { didSet { defaults.set(instanceURL, forKey: Self.urlKey) } }
     /// Watched projects, "group/subgroup/project", one per line.
-    var projectsText: String { didSet { defaults.set(projectsText, forKey: Self.projectsKey) } }
+    var projectsText: String { didSet { defaults.set(projectsText, forKey: Self.projectsKey); publishProjects() } }
     private(set) var hasToken: Bool
     private(set) var username = ""
     private(set) var lastError: String?
@@ -76,7 +76,15 @@ final class GitLabIntegration: Integration {
 
     func start(host: any ExtensionContext) {
         self.host = host
+        publishProjects()
         Task { await verify() }
+    }
+
+    /// The watched projects, in Dash's database for other extensions (Knowledge indexes them).
+    func publishProjects() {
+        guard let host else { return }
+        let site = instanceURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        WatchedRepositories.publish(projects, provider: "gitlab", web: site.isEmpty ? "https://gitlab.com" : site, in: host.synced)
     }
 
     /// GET a REST path under /api/v4.

@@ -33,7 +33,7 @@ final class GitHubIntegration: Integration {
     /// https://api.github.com, or https://<host>/api/v3 for GitHub Enterprise Server.
     var apiURL: String { didSet { defaults.set(apiURL, forKey: Self.apiKey) } }
     /// Watched repositories, "owner/name", one per line. Shared by every GitHub feature.
-    var reposText: String { didSet { defaults.set(reposText, forKey: Self.reposKey) } }
+    var reposText: String { didSet { defaults.set(reposText, forKey: Self.reposKey); publishRepos() } }
     private(set) var hasToken: Bool
     private(set) var viewer = ""
     private(set) var lastError: String?
@@ -211,7 +211,14 @@ final class GitHubIntegration: Integration {
 
     func start(host: any ExtensionContext) {
         self.host = host
+        publishRepos()
         Task { await verify() }
+    }
+
+    /// The watched repositories, in Dash's database for other extensions (Knowledge indexes them).
+    func publishRepos() {
+        guard let host else { return }
+        WatchedRepositories.publish(repos, provider: "github", web: webURL, in: host.synced)
     }
 
     /// Checks the token and learns the signed-in login.
