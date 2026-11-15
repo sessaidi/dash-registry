@@ -14,7 +14,7 @@ final class AtlassianIntegration: Integration {
     let name = "Atlassian"
     let systemImage = "building.columns"
     let metadata = ExtensionMetadata(
-        version: "1.1.0", author: .dash, summary: "Jira and Confluence Cloud with one site, email and API token.",
+        version: "1.3.0", author: .dash, summary: "Jira and Confluence Cloud with one site, email and API token.",
         category: .projectManagement, tags: ["jira", "confluence"], homepage: "https://github.com/sessaidi/dash")
     let secretKeys = [SecretKey("token", "API token")]
     @ObservationIgnored let secrets: SecretStore?
@@ -24,6 +24,12 @@ final class AtlassianIntegration: Integration {
     private(set) var hasToken: Bool
     private(set) var accountName: String?
     private(set) var lastError: String?
+    /// How long a page or issue read for Claude is reused before it's fetched again.
+    var cacheMinutes: Int { didSet { defaults.set(cacheMinutes, forKey: "atlassian.cacheMinutes") } }
+    /// The host's mirror of online data (Dash's database); nil until started, and in some tests.
+    @ObservationIgnored var mirror: (any SyncedStore)?
+    /// The clock, for cache ages (tests move it).
+    @ObservationIgnored var now: () -> Date = { .now }
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let legacyTokenAccount: String
@@ -44,6 +50,7 @@ final class AtlassianIntegration: Integration {
         site = defaults.string(forKey: "atlassian.site") ?? defaults.string(forKey: "jira.site") ?? ""
         email = defaults.string(forKey: "atlassian.email") ?? defaults.string(forKey: "jira.email") ?? ""
         hasToken = (secrets.read("token") ?? Keychain.read(legacyTokenAccount)) != nil
+        cacheMinutes = (defaults.object(forKey: "atlassian.cacheMinutes") as? Int) ?? 15
     }
 
     /// The stored API token: this extension's item, its legacy "atlassian" item, then the old "jira" item.
@@ -77,6 +84,7 @@ final class AtlassianIntegration: Integration {
     }
 
     func start(host: any ExtensionContext) {
+        mirror = host.synced
         Task { await verify() }
     }
 
@@ -99,14 +107,14 @@ final class AtlassianIntegration: Integration {
 
     // MARK: Requests
 
-    private func requireConnection() throws -> IntegrationConnection {
+    func requireConnection() throws -> IntegrationConnection {
         guard siteURL != nil else { throw ToolError("Set your Atlassian site (https://your-team.atlassian.net) in Settings › Atlassian.") }
         guard let connection else { throw ToolError("Add your Atlassian email and API token in Settings › Atlassian.") }
         return connection
     }
 
     /// GET `path` with a query string and parse JSON.
-    private func get(_ path: String, query: [URLQueryItem], service: String) async throws -> JSONValue {
+    func get(_ path: String, query: [URLQueryItem], service: String) async throws -> JSONValue {
         let connection = try requireConnection()
         guard let base = connection.url(path), var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw ToolError("Bad path \(path)")
@@ -120,7 +128,7 @@ final class AtlassianIntegration: Integration {
     }
 
     /// POST a JSON body to `path` and parse JSON.
-    private func post(_ path: String, body: JSONValue, service: String) async throws -> JSONValue {
+    func post(_ path: String, body: JSONValue, service: String) async throws -> JSONValue {
         let connection = try requireConnection()
         guard let url = connection.url(path) else { throw ToolError("Bad path \(path)") }
         let (data, _) = try await connection.send(try HTTP.request(url, method: "POST", body: body), service: service)
@@ -147,63 +155,6 @@ final class AtlassianIntegration: Integration {
     static var myIssuesBody: JSONValue {
         ["jql": .string(myIssuesJQL), "fields": ["summary", "status", "priority", "updated"], "maxResults": 50]
     }
-
-    private struct SearchInput: Decodable { let query: String; let space: String? }
-    private struct PageInput: Decodable { let id: String }
-
-    var tools: [ClaudeTool] {
-        [
-            ClaudeTool(
-                name: "confluence_search",
-                description: "Search Confluence pages by text (CQL siteSearch). Call when the user asks about docs, runbooks, designs or decisions that might be written down.",
-                properties: ["query": JSONSchema.string("Words to search for."), "space": JSONSchema.string("Optional space key to search in.")],
-                required: ["query"]
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(SearchInput.self)
-                var cql = "siteSearch ~ \"\(request.query.replacingOccurrences(of: "\"", with: "\\\""))\" AND type = page"
-                if let space = request.space, !space.isEmpty { cql += " AND space = \"\(space.replacingOccurrences(of: "\"", with: ""))\"" }
-                let result = try await get(
-                    "/wiki/rest/api/search", query: [URLQueryItem(name: "cql", value: cql), URLQueryItem(name: "limit", value: "15")],
-                    service: "Confluence")
-                let site = siteURL?.absoluteString ?? ""
-                return .array((result["results"]?.array ?? []).map { item in
-                    ["id": item["content"]?["id"] ?? .null, "title": item["content"]?["title"] ?? item["title"] ?? .null,
-                     "space": item["resultGlobalContainer"]?["title"] ?? .null, "excerpt": item["excerpt"] ?? .null,
-                     "url": .string(site + "/wiki" + (item["url"]?.string ?? ""))]
-                })
-            },
-            ClaudeTool(
-                name: "confluence_get_page",
-                description: "Read a Confluence page's text by id (from confluence_search). Long pages are cut at 60,000 characters.",
-                properties: ["id": JSONSchema.string("Page id.")], required: ["id"]
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let id = try input.toolInput(PageInput.self).id
-                guard !id.isEmpty, id.allSatisfy({ $0.isLetter || $0.isNumber }) else { throw ToolError("Page id should be letters and digits, like 123456.") }
-                let page = try await get("/wiki/rest/api/content/\(id)", query: [URLQueryItem(name: "expand", value: "body.storage,version,space")], service: "Confluence")
-                let text = Self.text(fromStorage: page["body"]?["storage"]?["value"]?.string ?? "")
-                return ["title": page["title"] ?? .null, "space": page["space"]?["name"] ?? .null,
-                        "version": page["version"]?["number"] ?? .null,
-                        "text": .string(text.count > 60_000 ? String(text.prefix(60_000)) + "\n[truncated]" : text)]
-            },
-            ClaudeTool(
-                name: "jira_myself_issues",
-                description: "List the open Jira issues assigned to the signed-in user (not Done), most recently updated first, up to 50. Returns key, summary, status and url.",
-                properties: [:]
-            ) { [weak self] _ in
-                guard let self else { return nil }
-                let result = try await post("/rest/api/3/search/jql", body: Self.myIssuesBody, service: "Jira")
-                let site = siteURL?.absoluteString ?? ""
-                return .array((result["issues"]?.array ?? []).map { issue in
-                    let key = issue["key"]?.string ?? ""
-                    return ["key": .string(key), "summary": issue["fields"]?["summary"] ?? .null,
-                            "status": issue["fields"]?["status"]?["name"] ?? .null,
-                            "url": .string(site + "/browse/" + key)]
-                })
-            },
-        ]
-    }
 }
 
 private struct AtlassianSettings: View {
@@ -229,6 +180,7 @@ private struct AtlassianSettings: View {
             } footer: {
                 Link("Create an API token (used for Jira and Confluence)", destination: URL(string: "https://id.atlassian.com/manage-profile/security/api-tokens")!)
             }
+            AtlassianCacheSection(atlassian: atlassian)
         }
         .formStyle(.grouped)
     }

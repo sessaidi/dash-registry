@@ -103,12 +103,17 @@ struct AtlassianIntegrationTests {
         let atlassian = sandbox.integration()
         #expect(atlassian.id == "atlassian")
         #expect(atlassian.layer == .integration)
-        #expect(atlassian.metadata.version == "1.1.0")
+        #expect(atlassian.metadata.version == "1.3.0")
         #expect(atlassian.metadata.category == .projectManagement)
         #expect(atlassian.metadata.author == .dash)
         #expect(atlassian.metadata.homepage == "https://github.com/sessaidi/dash")
-        #expect(atlassian.tools.map(\.name) == ["confluence_search", "confluence_get_page", "jira_myself_issues"])
-        #expect(atlassian.tools.allSatisfy { !$0.requiresApproval })
+        #expect(atlassian.tools.map(\.name) == [
+            "confluence_search", "confluence_get_page", "confluence_page_children", "confluence_page_attachments", "confluence_spaces",
+            "jira_myself_issues", "jira_jql_search", "jira_issue", "jira_issue_comments", "jira_issue_changelog", "jira_projects",
+            "atlassian_cached",
+        ])
+        // Every tool only reads.
+        #expect(atlassian.tools.allSatisfy { !$0.requiresApproval && !$0.writesRemotely })
         #expect(AtlassianPlugin.makeExtensions().map(\.id) == ["atlassian"])
     }
 
@@ -235,15 +240,17 @@ struct AtlassianIntegrationTests {
         defer { sandbox.cleanUp() }
         sandbox.configure()
         StubURLProtocol.reset { _ in
-            .init(body: Data(#"{"title":"Runbook","space":{"name":"Ops"},"version":{"number":7},"body":{"storage":{"value":"<p>Hello &amp; bye</p>"}}}"#.utf8))
+            .init(body: Data(#"{"id":"12345","title":"Runbook","space":{"key":"OPS","name":"Ops"},"version":{"number":7,"when":"2026-11-01T10:00:00Z","by":{"displayName":"Ada"}},"_links":{"webui":"/spaces/OPS/pages/12345"},"metadata":{"labels":{"results":[{"name":"oncall"}]}},"ancestors":[{"id":"1","title":"Ops home"}],"body":{"storage":{"value":"<p>Hello &amp; bye</p>"}}}"#.utf8))
         }
         let atlassian = sandbox.integration()
         let tool = try #require(atlassian.tools.first { $0.name == "confluence_get_page" })
         let result = try await tool.run(["id": "12345"])
-        #expect(result == ["title": "Runbook", "space": "Ops", "version": 7, "text": "Hello & bye"])
+        #expect(result["title"] == "Runbook" && result["space"]?["name"] == "Ops" && result["version"] == 7)
+        #expect(result["markdown"] == "Hello & bye" && result["labels"] == ["oncall"] && result["ancestors"]?[0]?["title"] == "Ops home")
+        #expect(result["url"] == "https://acme.atlassian.net/wiki/spaces/OPS/pages/12345" && result["from_cache"] == false)
         let url = try #require(StubURLProtocol.requests.first?.request.url)
         #expect(url.path() == "/wiki/rest/api/content/12345")
-        #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems == [URLQueryItem(name: "expand", value: "body.storage,version,space")])
+        #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems == [URLQueryItem(name: "expand", value: "body.storage,version,space,ancestors,metadata.labels")])
         await #expect(throws: ToolError.self) { try await tool.run(["id": "../../x"]) }
     }
 
