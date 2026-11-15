@@ -178,7 +178,9 @@ struct JiraBoardFeatureTests {
     }
 
     @Test func dashiiSearchesFiltersAndOpensIssues() throws {
-        #expect(JiraBoardWidget.actions.map(\.name) == ["search", "filter_status", "set_mode", "set_board", "hide_done", "select_issue", "clear"])
+        #expect(JiraBoardWidget.actions.map(\.name) == ["search", "filter_status", "set_mode", "set_board", "hide_done", "select_issue", "clear_selection", "clear"])
+        // Actions that would change settings say they're temporary; the view applies them on a copy.
+        #expect(JiraBoardWidget.actions.filter { ["set_mode", "set_board", "hide_done"].contains($0.name) }.allSatisfy { $0.description.contains("Temporary") })
         let tickets = JiraTicket.samples
         let columns = JiraClient.Column.samples
         let boards = [(id: 7, name: "Web"), (id: 9, name: "Ops board")]

@@ -157,7 +157,14 @@ private struct JiraBoardView: View {
     let queryText: String
     @State private var queryKeys: [String]?
     @Query(sort: \JiraIssue.updated, order: .reverse) private var issues: [JiraIssue]
-    @State private var selected: JiraTicket?
+    /// The issue whose detail sheet is open.
+    @State private var opened: JiraTicket?
+    /// The issue the user picked: highlighted, and published for linked widgets until another is
+    /// picked or it's clicked again.
+    @State private var selectedKey: String?
+    /// What Dashii's actions changed for now (mode, board, hide done). Not saved: it resets when
+    /// the widget's settings change; the settings keep their values.
+    @State private var override: JiraBoardWidget.Config?
     /// What Dashii narrowed the board to (not saved): text, and a column or status.
     @State private var search = ""
     @State private var status = ""
@@ -165,9 +172,12 @@ private struct JiraBoardView: View {
 
     private var jira: JiraBoardFeature? { host.ext(JiraBoardFeature.self) }
 
+    /// The settings with Dashii's temporary changes on top.
+    private var effective: JiraBoardWidget.Config { override ?? config }
+
     /// No board chosen: the first followed board.
     private var resolvedConfig: JiraBoardWidget.Config {
-        var config = config
+        var config = effective
         if config.board == nil { config.board = jira?.boards.first?.id }
         return config
     }
@@ -192,9 +202,10 @@ private struct JiraBoardView: View {
                 if let jira, (try? jira.client) != nil {
                     HStack(spacing: 8) {
                         QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
-                        Picker("Show", selection: $config.mode) {
+                        // The user's own switch is saved (and drops Dashii's temporary mode).
+                        Picker("Show", selection: Binding(get: { effective.mode }, set: { config.mode = $0; override = nil })) {
                             Text("Board").tag("board")
-                            Text("Following \(issues.filter { $0.followed && !(config.hideDone && $0.statusCategory == "done") }.count)").tag("followed")
+                            Text("Following \(issues.filter { $0.followed && !(effective.hideDone && $0.statusCategory == "done") }.count)").tag("followed")
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
@@ -211,12 +222,26 @@ private struct JiraBoardView: View {
                 }
             }
             .handlesWidgetActions { name, input in
+                if name == "clear_selection" {
+                    selectedKey = nil
+                    return "cleared"
+                }
                 let columns = jira?.columns(board: resolvedConfig.board) ?? []
-                let outcome = try JiraBoardActions.perform(name, input, config: &config, search: &search, status: &status,
+                // Actions change what's shown for now, never the saved settings.
+                var view = effective
+                let outcome = try JiraBoardActions.perform(name, input, config: &view, search: &search, status: &status,
                                                            tickets: visible, boards: (jira?.boards ?? []).map { ($0.id, $0.name) }, columns: columns)
-                if let ticket = outcome.select { selected = ticket }
+                // `clear` also drops Dashii's temporary mode, board and hide-done.
+                override = name == "clear" || view == config ? nil : view
+                if let ticket = outcome.select {
+                    selectedKey = ticket.key
+                    opened = ticket
+                }
                 return outcome.reply
             }
+            .onChange(of: config) { override = nil }
+            .onExitCommand { selectedKey = nil }
+            .reportsSelection(selectedKey.flatMap { key in issues.first { $0.key == key }?.queryRow })
             .reportsWidgetState(state)
             .task(id: QueryRows.key(queryText, narrowed, row: row)) {
                 queryKeys = await QueryRows.ids(query, narrowed, row: row)
@@ -231,7 +256,9 @@ private struct JiraBoardView: View {
             "board": jira?.boards.first { $0.id == config.board }.map { .string($0.name) } ?? .null,
             "search": search.isEmpty ? .null : .string(search), "status": status.isEmpty ? .null : .string(status),
             "shown": .array(visible.prefix(40).map { .string("\($0.key) [\($0.statusName)] \($0.summary)") }),
-            "open_issue": selected.map { .string($0.key) } ?? .null,
+            "open_issue": opened.map { .string($0.key) } ?? .null,
+            "selected": selectedKey.map(JSONValue.string) ?? .null,
+            "temporary_changes": .bool(override != nil),
         ]
     }
 
@@ -266,10 +293,21 @@ private struct JiraBoardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 JiraBoardLayout(config: config, tickets: visible,
-                                columns: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : JiraBoardLayout.statusColumns(visible)) { selected = $0 }
+                                columns: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : JiraBoardLayout.statusColumns(visible)) { pick($0) }
+                    .environment(\.jiraSelectedKey, selectedKey)
             }
         }
-        .sheet(item: $selected) { JiraIssueSheet(issue: $0, host: host) }
+        .sheet(item: $opened) { JiraIssueSheet(issue: $0, host: host) }
+    }
+
+    /// Clicking an issue selects it and opens its detail; clicking the selected one again unselects it.
+    private func pick(_ ticket: JiraTicket) {
+        if selectedKey == ticket.key {
+            selectedKey = nil
+        } else {
+            selectedKey = ticket.key
+            opened = ticket
+        }
     }
 
     private var setupPrompt: some View {
@@ -379,10 +417,17 @@ private struct BoardColumn: View {
     }
 }
 
+extension EnvironmentValues {
+    /// The issue picked on the board, drawn as selected.
+    @Entry var jiraSelectedKey: String? = nil
+}
+
 private struct IssueCard: View {
     let issue: JiraTicket
     var accent: Color = .accentColor
     @State private var hovering = false
+    @Environment(\.jiraSelectedKey) private var selectedKey
+    private var isSelected: Bool { selectedKey == issue.key }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -401,11 +446,12 @@ private struct IssueCard: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 9))
+        .background(isSelected ? AnyShapeStyle(accent.opacity(0.18)) : AnyShapeStyle(.background.secondary), in: .rect(cornerRadius: 9))
         .overlay(alignment: .leading) {
             UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 9).fill(accent.opacity(0.8)).frame(width: 3)
         }
-        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(hovering ? AnyShapeStyle(accent.opacity(0.6)) : AnyShapeStyle(.separator.opacity(0.6))))
+        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(isSelected ? AnyShapeStyle(accent) : hovering ? AnyShapeStyle(accent.opacity(0.6)) : AnyShapeStyle(.separator.opacity(0.6)),
+                                                                lineWidth: isSelected ? 2 : 1))
         .shadow(color: .black.opacity(hovering ? 0.25 : 0.12), radius: hovering ? 6 : 2, y: 1)
         .contentShape(.rect)
         .onHover { hovering = $0 }
@@ -415,6 +461,7 @@ private struct IssueCard: View {
 
 private struct IssueRow: View {
     let issue: JiraTicket
+    @Environment(\.jiraSelectedKey) private var selectedKey
 
     var body: some View {
         HStack {
@@ -424,6 +471,7 @@ private struct IssueRow: View {
                 Text("\(issue.key) · \(issue.assignee ?? "Unassigned")").font(.caption).foregroundStyle(.secondary)
             }
         }
+        .listRowBackground(selectedKey == issue.key ? Color.accentColor.opacity(0.18) : Color.clear)
     }
 }
 
@@ -538,23 +586,24 @@ struct JiraIssueSheet: View {
     }
 }
 
-/// What Dashii can do with the Jira board widget. Only what it shows changes: nothing is
-/// commented or moved in Jira.
+/// What Dashii can do with the Jira board widget. Only what it shows changes, and only for now:
+/// the widget's saved settings and Jira itself are untouched.
 enum JiraBoardActions {
     static let actions = [
         WidgetAction(name: "search", description: "Narrow the board to issues whose key, summary, assignee or status contains the text. Empty clears it.",
                      properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
         WidgetAction(name: "filter_status", description: "Only one column or status (e.g. In Progress, Code Review); empty shows every column.",
                      properties: ["status": JSONSchema.string("Column or status name.")], required: ["status"]),
-        WidgetAction(name: "set_mode", description: "Show the board's columns, or the issues the user follows.",
+        WidgetAction(name: "set_mode", description: "Show the board's columns, or the issues the user follows. Temporary: the widget's saved setting stays.",
                      properties: ["mode": JSONSchema.string("board or followed.", enum: ["board", "followed"])], required: ["mode"]),
-        WidgetAction(name: "set_board", description: "Show another followed board, by name or id.",
+        WidgetAction(name: "set_board", description: "Show another followed board, by name or id. Temporary: the widget's saved board stays.",
                      properties: ["board": JSONSchema.string("Board name or id.")], required: ["board"]),
-        WidgetAction(name: "hide_done", description: "Hide (on) or show (off) finished issues.",
+        WidgetAction(name: "hide_done", description: "Hide (on) or show (off) finished issues. Temporary: the widget's saved setting stays.",
                      properties: ["on": JSONSchema.boolean("true to hide done issues.")], required: ["on"]),
-        WidgetAction(name: "select_issue", description: "Open an issue's detail (description, comments, transitions) by key.",
+        WidgetAction(name: "select_issue", description: "Select an issue by key and open its detail; linked widgets follow the selection.",
                      properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234.")], required: ["key"]),
-        WidgetAction(name: "clear", description: "Clear the search and status filter."),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected issue."),
+        WidgetAction(name: "clear", description: "Clear the search, status filter and Dashii's temporary mode, board and hide-done (back to the widget's settings)."),
     ]
 
     struct Outcome {
