@@ -28,7 +28,7 @@ struct PullRequestsWidget: DashboardWidget {
     ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        PullRequestList(config: config, host: context.host)
+        PullRequestList(config: config, host: context.host, query: context.query(fields: PullRequest.queryFields), queryText: context.queryText)
     }
 
     /// Sample PRs and a sample review; no network, no store.
@@ -55,6 +55,7 @@ struct PullRequestsWidget: DashboardWidget {
     }
 
     static let actions = PullRequestsWidgetActions.actions
+    static let queryFields = PullRequest.queryFields
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
         guard let github = context.host.ext(PullRequestsFeature.self),
@@ -75,15 +76,24 @@ struct PullRequestsWidget: DashboardWidget {
 private struct PullRequestList: View {
     @Binding var config: PullRequestsWidget.Config
     let host: any ExtensionContext
+    /// The widget's DashQL query (its query bar), applied after the repo, filter and search.
+    let query: WidgetQuery?
+    let queryText: String
+    @State private var queryIDs: [PullRequest.ID]?
     @Query(sort: \PullRequest.updatedAt, order: .reverse) private var pulls: [PullRequest]
     @Query(sort: \PRReview.createdAt, order: .reverse) private var reviews: [PRReview]
     @State private var selected: PullRequest?
     /// A search Dashii typed (title, author, branch, repo or #number); not saved.
     @State private var search = ""
 
-    private var visible: [PullRequest] {
+    private var narrowed: [PullRequest] {
         pulls.filter { PullRequestsWidget.matches($0, config) && PullRequestsWidgetActions.matches($0, search: search) }
     }
+
+    /// What the widget lists: the repo, filter and search, then the DashQL query.
+    private var visible: [PullRequest] { QueryRows.ordered(narrowed, by: queryIDs) }
+
+    private func row(_ pr: PullRequest) -> JSONValue { pr.queryRow(review: reviews.first { $0.prUID == pr.uid }) }
 
     var body: some View {
         list
@@ -98,6 +108,9 @@ private struct PullRequestList: View {
                 "shown": .array(visible.prefix(30).map { .string("\($0.repo)#\($0.number) \($0.title)") }),
                 "open_pr": selected.map { .string("\($0.repo)#\($0.number)") } ?? .null,
             ])
+            .task(id: QueryRows.key(queryText, narrowed, row: row)) {
+                queryIDs = await QueryRows.ids(query, narrowed, row: row)
+            }
     }
 
     private var list: some View {
@@ -120,7 +133,10 @@ private struct PullRequestList: View {
                     description: Text(github?.lastError ?? (github?.repos.isEmpty == true ? "Add repositories in Settings › GitHub." : "")))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                PullRequestRows(pulls: visible, reviews: latest) { selected = $0 }
+                VStack(alignment: .leading, spacing: 4) {
+                    QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
+                    PullRequestRows(pulls: visible, reviews: latest) { selected = $0 }
+                }
             }
         }
         .sheet(item: $selected) { PullRequestSheet(pr: $0, host: host) }
