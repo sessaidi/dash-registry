@@ -103,7 +103,10 @@ struct AgentsExtensionTests {
         #expect(options.permissionMode == .plan)
         #expect(options.cwd?.path == "/w/laf-1")
         #expect(options.allowedTools == ["Bash(make:*)", "Bash(go test:*)"])
-        #expect(options.disallowedTools == ["Bash(git push:*)", "Bash(gh pr:*)"])
+        // Agents can't write remotely: no push, no forge CLIs, no raw HTTP clients.
+        #expect(options.disallowedTools == AgentsExtension.remoteWriteRules)
+        for rule in ["Bash(git push:*)", "Bash(gh:*)", "Bash(glab:*)", "Bash(curl:*)"] { #expect(options.disallowedTools.contains(rule)) }
+        #expect(AgentsExtension.tddPrompt.contains("Never write anything remotely"))
         #expect(options.systemPrompt == .append(AgentsExtension.tddPrompt))
         // No free-text model: the AI tab's choice (Opus by default, high effort).
         #expect(options.resume == "abc" && options.model == ClaudeModel.opus.rawValue && options.effort == "high")

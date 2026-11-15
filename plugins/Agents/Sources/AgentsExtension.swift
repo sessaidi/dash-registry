@@ -45,7 +45,9 @@ final class AgentsExtension: DashExtension {
 
     static let tddPrompt = """
         Dash runs you on a Jira ticket in a dedicated git worktree. The user is the sole author of every commit: \
-        never add Co-Authored-By or other attribution trailers, nor "Generated with" lines, and don't change the author.
+        never add Co-Authored-By or other attribution trailers, nor "Generated with" lines, and don't change the author. \
+        Never write anything remotely: no pushes, no comments or reviews on pull requests or issues, no API calls that change \
+        GitHub or GitLab. Everything you produce stays in this worktree for the user to review.
         Follow extreme TDD strictly:
         1. Red: write one small failing test for the next behaviour. Run it and confirm it fails for the expected reason before writing any production code.
         2. Green: write the minimum production code that makes that test pass. Run the tests.
@@ -307,6 +309,13 @@ final class AgentsExtension: DashExtension {
         Task { try? await process?.interrupt() }
     }
 
+    /// Shell commands an agent may never run: pushing, and the tools that can write to a forge.
+    static let remoteWriteRules = [
+        "Bash(git push:*)", "Bash(git send-email:*)",
+        "Bash(gh:*)", "Bash(glab:*)", "Bash(tea:*)", "Bash(hub:*)",
+        "Bash(curl:*)", "Bash(wget:*)", "Bash(http:*)", "Bash(https:*)", "Bash(xh:*)",
+    ]
+
     /// The Claude Code options for a session's process.
     func options(for session: AgentSession) -> ClaudeCodeOptions {
         var options = ClaudeCodeOptions()
@@ -314,8 +323,9 @@ final class AgentsExtension: DashExtension {
         options.cwd = URL(filePath: session.worktreePath)
         options.permissionMode = session.phase == "planning" ? .plan : permissionMode
         options.allowedTools = Self.toolRules(allowedToolsText)
-        // Pushing and PRs go through Dash so you review the branch first.
-        options.disallowedTools = ["Bash(git push:*)", "Bash(gh pr:*)"]
+        // Nothing leaves this Mac from an agent: no pushes, and no comments, reviews or other
+        // writes on GitHub or GitLab (their CLIs and raw HTTP clients are blocked outright).
+        options.disallowedTools = Self.remoteWriteRules
         // The user is the sole author of the agent's commits: Claude Code adds no co-author trailer.
         options.settings = #"{"includeCoAuthoredBy": false}"#
         options.systemPrompt = .append(Self.tddPrompt)
