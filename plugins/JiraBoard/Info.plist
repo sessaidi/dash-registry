@@ -23,7 +23,7 @@
 	<key>DashPluginID</key>
 	<string>jira-board</string>
 	<key>DashPluginVersion</key>
-	<string>1.7.1</string>
+	<string>1.8.0</string>
 	<key>NSPrincipalClass</key>
 	<string>JiraBoardDashPlugin</string>
 </dict>

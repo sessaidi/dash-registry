@@ -31,7 +31,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         NSPrincipalClass: JiraBoardDashPlugin
         DashPluginID: jira-board
-        DashPluginVersion: "1.7.1"
+        DashPluginVersion: "1.8.0"
         DashKitMinimumVersion: "1.5.0"
     settings:
       base:

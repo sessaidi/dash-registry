@@ -29,7 +29,7 @@ struct JiraBoardWidget: DashboardWidget {
     ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        JiraBoardView(config: config, host: context.host)
+        JiraBoardView(config: config, host: context.host, query: context.query(fields: JiraIssue.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -53,6 +53,7 @@ struct JiraBoardWidget: DashboardWidget {
     }
 
     static let actions = JiraBoardActions.actions
+    static let queryFields = JiraIssue.queryFields
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
         let issues = (try? context.host.context.fetch(FetchDescriptor<JiraIssue>())) ?? []
@@ -151,6 +152,10 @@ extension JiraClient.Column {
 private struct JiraBoardView: View {
     @Binding var config: JiraBoardWidget.Config
     let host: any ExtensionContext
+    /// The widget's DashQL query (its query bar), applied after the mode and Dashii's narrowing.
+    let query: WidgetQuery?
+    let queryText: String
+    @State private var queryKeys: [String]?
     @Query(sort: \JiraIssue.updated, order: .reverse) private var issues: [JiraIssue]
     @State private var selected: JiraTicket?
     /// What Dashii narrowed the board to (not saved): text, and a column or status.
@@ -167,7 +172,14 @@ private struct JiraBoardView: View {
         return config
     }
 
-    private var visible: [JiraTicket] {
+    /// What the board shows: the mode and Dashii's narrowing, then the DashQL query.
+    private var visible: [JiraTicket] { QueryRows.ordered(narrowed, by: queryKeys) }
+
+    private func row(_ ticket: JiraTicket) -> JSONValue {
+        issues.first { $0.key == ticket.key }?.queryRow ?? ["key": .string(ticket.key), "summary": .string(ticket.summary)]
+    }
+
+    private var narrowed: [JiraTicket] {
         let config = resolvedConfig
         return JiraBoardActions.filter(JiraTicket.visible(issues.map(JiraTicket.init), config: config), search: search, status: status,
                                        columns: jira?.columns(board: config.board) ?? [])
@@ -179,6 +191,7 @@ private struct JiraBoardView: View {
             .overlay(alignment: .topTrailing) {
                 if let jira, (try? jira.client) != nil {
                     HStack(spacing: 8) {
+                        QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
                         Picker("Show", selection: $config.mode) {
                             Text("Board").tag("board")
                             Text("Following \(issues.filter { $0.followed && !(config.hideDone && $0.statusCategory == "done") }.count)").tag("followed")
@@ -205,6 +218,9 @@ private struct JiraBoardView: View {
                 return outcome.reply
             }
             .reportsWidgetState(state)
+            .task(id: QueryRows.key(queryText, narrowed, row: row)) {
+                queryKeys = await QueryRows.ids(query, narrowed, row: row)
+            }
     }
 
     private var state: JSONValue {
