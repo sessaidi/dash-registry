@@ -51,10 +51,12 @@ private struct StandupWidgetView: View {
                 // Short labels so the tabs fit a narrow widget; the Zoom note is in the help.
                 Picker("View", selection: $tab) {
                     Text("Me").tag("me")
-                    Text(standup.isZoomDay() ? "Meeting" : "Meeting (not on Zoom today)").tag("meeting")
+                    Text("Meeting").tag("meeting")
                     Text("Blockers").tag("blockers")
                 }
                 .pickerStyle(.segmented).labelsHidden()
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .help(standup.isZoomDay() ? "Today's standup is on Zoom" : "The standup isn't on Zoom today")
                 switch tab {
                 case "meeting": MeetingView(standup: standup)
                 case "blockers": BlockersView(standup: standup)
@@ -79,7 +81,7 @@ private struct MeView: View {
                 StandupUpdateView(update: update, preparedAt: day?.preparedAt) { refresh() }
             } else {
                 ContentUnavailableView {
-                    Label(standup.isWorkday() ? "Not prepared yet" : "No standup today", systemImage: "person.3.sequence")
+                    Label(standup.isWorkday() ? "Not prepared yet" : standup.calendar.skip(on: .now)?.reason ?? "No standup today", systemImage: "person.3.sequence")
                 } description: {
                     Text("Prepared \(standup.prepareMinutesBefore) min before \(standup.time) from your commits, PRs, tickets, agents and deploys since the last standup.")
                 } actions: {
@@ -262,6 +264,27 @@ struct StandupSettings: View {
     @Bindable var standup: DailyStandupFeature
     private let days = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"), (6, "Fri"), (7, "Sat"), (1, "Sun")]
 
+    /// The coming two weeks at a glance: which days have a Zoom daily, and why others don't.
+    private var nextZoomDays: String {
+        let calendar = Calendar.current
+        let format = Date.FormatStyle().weekday(.abbreviated).day()
+        return (0..<14).compactMap { calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: .now)) }
+            .filter { standup.workdays.contains(calendar.component(.weekday, from: $0)) }
+            .prefix(8)
+            .map { day in
+                if standup.isZoomDay(day) { return day.formatted(format) }
+                if let skip = standup.calendar.skip(on: day) {
+                    switch skip {
+                    case .holiday: return "\(day.formatted(format)) holiday"
+                    case .ceremony: return "\(day.formatted(format)) ceremony"
+                    case .chapter: return "\(day.formatted(format)) chapter"
+                    }
+                }
+                return "\(day.formatted(format)) no Zoom"
+            }
+            .joined(separator: " · ")
+    }
+
     var body: some View {
         Form {
             Section {
@@ -273,6 +296,44 @@ struct StandupSettings: View {
                 Text("When")
             } footer: {
                 Text("Every working day you get your update: since the last standup, next steps, blockers. On Zoom days the meeting is also followed live and reported at the end.")
+            }
+            Section {
+                Picker("Sprint length", selection: $standup.calendar.sprintWeeks) {
+                    Text("No sprints").tag(0)
+                    ForEach(1...6, id: \.self) { Text("\($0) week\($0 == 1 ? "" : "s")").tag($0) }
+                }
+                if standup.calendar.sprintWeeks > 0 {
+                    DatePicker("A day in the first week of a sprint", selection: $standup.calendar.sprintStart, displayedComponents: .date)
+                    Picker("Ceremony day (no daily)", selection: $standup.calendar.ceremonyWeekday) {
+                        Text("None").tag(0)
+                        ForEach(days, id: \.0) { Text($0.1).tag($0.0) }
+                    }
+                    if standup.calendar.ceremonyWeekday != 0, standup.calendar.sprintWeeks > 1 {
+                        Picker("In week", selection: $standup.calendar.ceremonyWeek) {
+                            ForEach(1...standup.calendar.sprintWeeks, id: \.self) { week in
+                                Text(week == standup.calendar.sprintWeeks ? "\(week) (last)" : "\(week)").tag(week)
+                            }
+                        }
+                    }
+                    if let sprint = standup.calendar.sprint(on: .now) {
+                        LabeledContent("Today", value: "Sprint week \(sprint.week) of \(standup.calendar.sprintWeeks)")
+                    }
+                }
+                Picker("Chapter day (no daily)", selection: $standup.calendar.chapterWeekday) {
+                    Text("None").tag(0)
+                    ForEach(days, id: \.0) { Text($0.1).tag($0.0) }
+                }
+                if standup.calendar.chapterWeekday != 0 {
+                    Stepper("Every \(standup.calendar.chapterEveryWeeks) week\(standup.calendar.chapterEveryWeeks == 1 ? "" : "s")",
+                            value: $standup.calendar.chapterEveryWeeks, in: 1...12)
+                    DatePicker("A week with a chapter day", selection: $standup.calendar.chapterAnchor, displayedComponents: .date)
+                }
+                Toggle("French public holidays (no standup)", isOn: $standup.calendar.frenchHolidays)
+                LabeledContent("Next dailies on Zoom") { Text(nextZoomDays).foregroundStyle(.secondary) }
+            } header: {
+                Text("Team calendar")
+            } footer: {
+                Text("On ceremony and chapter days the Zoom daily is cancelled; you still get your update. On public holidays there's no standup at all.")
             }
             Section("You") {
                 TextField("Your name in Zoom", text: $standup.myName)

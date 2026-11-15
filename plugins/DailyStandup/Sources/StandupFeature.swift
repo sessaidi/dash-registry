@@ -38,6 +38,19 @@ final class DailyStandupFeature: DashExtension {
     var codeRoot: String { didSet { defaults.set(codeRoot, forKey: "daily-standup.codeRoot") } }
     /// Prepare your update this many minutes before the standup.
     var prepareMinutesBefore: Int { didSet { defaults.set(prepareMinutesBefore, forKey: "daily-standup.prepareBefore") } }
+    /// Sprints, ceremony and chapter days, and French holidays.
+    var calendar: StandupCalendar {
+        didSet {
+            defaults.set(calendar.sprintWeeks, forKey: "daily-standup.sprintWeeks")
+            defaults.set(calendar.sprintStart, forKey: "daily-standup.sprintStart")
+            defaults.set(calendar.ceremonyWeekday, forKey: "daily-standup.ceremonyWeekday")
+            defaults.set(calendar.ceremonyWeek, forKey: "daily-standup.ceremonyWeek")
+            defaults.set(calendar.chapterWeekday, forKey: "daily-standup.chapterWeekday")
+            defaults.set(calendar.chapterEveryWeeks, forKey: "daily-standup.chapterEveryWeeks")
+            defaults.set(calendar.chapterAnchor, forKey: "daily-standup.chapterAnchor")
+            defaults.set(calendar.frenchHolidays, forKey: "daily-standup.frenchHolidays")
+        }
+    }
 
     private(set) var isPreparing = false
     private(set) var isReporting = false
@@ -56,6 +69,16 @@ final class DailyStandupFeature: DashExtension {
         time = defaults.string(forKey: "daily-standup.time") ?? "10:00"
         workdays = Set(defaults.array(forKey: "daily-standup.workdays") as? [Int] ?? [2, 3, 4, 5, 6])
         zoomDays = Set(defaults.array(forKey: "daily-standup.zoomDays") as? [Int] ?? [2, 3, 4, 5, 6])
+        var calendar = StandupCalendar()
+        calendar.sprintWeeks = defaults.object(forKey: "daily-standup.sprintWeeks") as? Int ?? 2
+        calendar.sprintStart = defaults.object(forKey: "daily-standup.sprintStart") as? Date ?? StandupCalendar.defaultAnchor
+        calendar.ceremonyWeekday = defaults.object(forKey: "daily-standup.ceremonyWeekday") as? Int ?? 0
+        calendar.ceremonyWeek = defaults.object(forKey: "daily-standup.ceremonyWeek") as? Int ?? 2
+        calendar.chapterWeekday = defaults.object(forKey: "daily-standup.chapterWeekday") as? Int ?? 0
+        calendar.chapterEveryWeeks = defaults.object(forKey: "daily-standup.chapterEveryWeeks") as? Int ?? 4
+        calendar.chapterAnchor = defaults.object(forKey: "daily-standup.chapterAnchor") as? Date ?? StandupCalendar.defaultAnchor
+        calendar.frenchHolidays = defaults.object(forKey: "daily-standup.frenchHolidays") as? Bool ?? true
+        self.calendar = calendar
         keywords = defaults.string(forKey: "daily-standup.keywords") ?? "standup, stand-up, daily, scrum"
         myName = defaults.string(forKey: "daily-standup.myName") ?? NSFullUserName()
         gitEmail = defaults.string(forKey: "daily-standup.gitEmail") ?? ""
@@ -90,8 +113,17 @@ final class DailyStandupFeature: DashExtension {
 
     // MARK: Days
 
-    func isWorkday(_ date: Date = .now) -> Bool { workdays.contains(Calendar.current.component(.weekday, from: date)) }
-    func isZoomDay(_ date: Date = .now) -> Bool { isWorkday(date) && zoomDays.contains(Calendar.current.component(.weekday, from: date)) }
+    /// A working day that isn't a public holiday: an update is prepared.
+    func isWorkday(_ date: Date = .now) -> Bool {
+        guard workdays.contains(Calendar.current.component(.weekday, from: date)) else { return false }
+        if case .holiday = calendar.skip(on: date) { return false }
+        return true
+    }
+
+    /// The daily happens on Zoom: a Zoom weekday that isn't a holiday, ceremony or chapter day.
+    func isZoomDay(_ date: Date = .now) -> Bool {
+        isWorkday(date) && zoomDays.contains(Calendar.current.component(.weekday, from: date)) && calendar.skip(on: date) == nil
+    }
 
     /// Today's standup time.
     func standupDate(on day: Date = .now) -> Date {
