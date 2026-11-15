@@ -29,7 +29,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         NSPrincipalClass: BackendMeetingDashPlugin
         DashPluginID: backend-meeting
-        DashPluginVersion: "1.1.0"
+        DashPluginVersion: "1.2.0"
         DashKitMinimumVersion: "1.5.0"
     settings:
       base:
