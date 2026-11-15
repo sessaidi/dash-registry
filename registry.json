@@ -27,14 +27,14 @@
       "id": "agents",
       "name": "Agents",
       "kind": "feature",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "plugin": {
-        "download": "dist/agents-1.9.0.dashplugin.zip",
+        "download": "dist/agents-1.10.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "agents"
         ],
-        "sha256": "99aa331be0091a196950066ee92d3161109265450d60226e7a1dbbb76a7530f1"
+        "sha256": "470bb866446d9946af786f78cb249a1f5d79617404cf394e6e8ba2213cd0a4b9"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
@@ -127,14 +127,14 @@
       "id": "datadog",
       "name": "Datadog",
       "kind": "integration",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "plugin": {
-        "download": "dist/datadog-1.1.0.dashplugin.zip",
+        "download": "dist/datadog-1.2.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "datadog"
         ],
-        "sha256": "647d7d86fb67f3110d5b6c0dd7bf39db43a2b6240fed15b3d24cd4615e324204"
+        "sha256": "71a84c704c068b95a13f4cb1326d95cb4d8cd8323861e23c4a7399a2f34c03b8"
       },
       "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
       "icon": "dog",
@@ -233,14 +233,14 @@
       "id": "jira-board",
       "name": "Jira Board",
       "kind": "feature",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "plugin": {
-        "download": "dist/jira-board-1.8.0.dashplugin.zip",
+        "download": "dist/jira-board-1.9.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "jira-board"
         ],
-        "sha256": "4c209a3cd51a21c2b1e61631b7403a8ae9621e1d1f7025fc54ef572ee607d5c1"
+        "sha256": "d5dbed1ae409c81e29903ad4ad10e56fdcd3ac9e4e1509849f0316bde82f16ec"
       },
       "description": "Your Jira board's columns and the issues you follow, with Claude tools to search, comment and move tickets.",
       "icon": "checklist",
@@ -257,15 +257,15 @@
       "id": "kubernetes",
       "name": "Kubernetes",
       "kind": "integration",
-      "version": "1.8.1",
+      "version": "1.9.0",
       "plugin": {
-        "download": "dist/kubernetes-1.8.1.dashplugin.zip",
+        "download": "dist/kubernetes-1.9.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "282c8a5953e9ddbb7bac99ff2dd1e09ab830d4ab55d993eb30b880e0e63d47e2"
+        "sha256": "eefe5cde72ab679be35e89c35c54faa7014124827d814eeacbf18195419fa709"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
@@ -279,14 +279,14 @@
       "id": "pull-requests",
       "name": "Pull Requests",
       "kind": "feature",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "plugin": {
-        "download": "dist/pull-requests-1.8.0.dashplugin.zip",
+        "download": "dist/pull-requests-1.9.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "pull-requests"
         ],
-        "sha256": "df9391f5305a17b3d72cfdfb715b7bb1ae55f864f836876194cff7886c5fa6a4"
+        "sha256": "53dd4a7962328d884a571561911210556259125e28abb4b6f215300d5f973e09"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
@@ -303,14 +303,14 @@
       "id": "releases",
       "name": "Releases",
       "kind": "feature",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/releases-1.4.0.dashplugin.zip",
+        "download": "dist/releases-1.5.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "releases"
         ],
-        "sha256": "09daadd9c63f70af60fdcdc84166cf09ae43d8b00defbc01b9ebf7d7b2659f26"
+        "sha256": "ab705317a5306d9ed41a305e2dac1d78280d2b0b49bb6dfd2e125598450a6de7"
       },
       "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
       "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
@@ -322,14 +322,14 @@
       "id": "workspaces",
       "name": "Workspaces",
       "kind": "feature",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "plugin": {
-        "download": "dist/workspaces-2.4.0.dashplugin.zip",
+        "download": "dist/workspaces-2.5.0.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "workspaces"
         ],
-        "sha256": "c91dfcedb10dc0c728a844795dbd9a199e27dc8385cca0db2674cffe795e3be5"
+        "sha256": "9cceaa34f6bf5d8f4c69e482a9a2dba8d5e34ec64cf1b552a7e37c909f4abb9e"
       },
       "description": "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis.",
       "icon": "shippingbox",
