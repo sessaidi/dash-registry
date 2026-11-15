@@ -110,6 +110,10 @@ final class PRReview {
         postedToGitHub = false
     }
 
+    /// `model` of a review saved from a chat with Dashii (`pull_request_save_review`).
+    static let chatModel = "chat"
+    var isFromChat: Bool { model == Self.chatModel }
+
     struct Finding: Codable, Hashable, Sendable {
         let file: String
         let line: Int

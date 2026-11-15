@@ -1,6 +1,7 @@
 import DashKit
 import DashKitUI
 import Foundation
+import SwiftData
 import Testing
 
 /// Claude tools and the widget, on a fake host with a stubbed GitHub.
@@ -81,6 +82,25 @@ struct ToolTests {
         let names = harness.feature.tools.map(\.name)
         #expect(!names.contains("github_comment") && !names.contains("github_submit_review"))
         #expect(!names.contains { $0.contains("comment") || $0.contains("submit") })
+    }
+
+    @Test func aChatReviewIsStoredOnThePRBesideTheAutomaticOne() async throws {
+        let harness = try await seeded()
+        let before = harness.requests.count
+        let saved = try await harness.tool("pull_request_save_review").run([
+            "repo": "acme/api", "number": 2, "verdict": "approve", "risk": "low", "summary": "Looks right.",
+            "findings": [["file": "a.swift", "line": 3, "severity": "nit", "title": "Name", "detail": "Unclear.", "suggestion": ""]],
+        ])
+        #expect(saved["posted_to_github"] == false)
+        let latest = try #require(harness.feature.latestReview("acme/api#2"))
+        #expect(latest.isFromChat && latest.verdict == "approve" && latest.findings.first?.title == "Name")
+        // The automatic review of the same commit is kept, and nothing went to GitHub.
+        let all = try harness.host.context.fetch(FetchDescriptor<PRReview>(predicate: #Predicate { $0.prUID == "acme/api#2" }))
+        #expect(all.count == 2 && all.contains { !$0.isFromChat && $0.verdict == "request_changes" })
+        #expect(harness.requests.count == before)
+        await #expect(throws: ToolError.self) {
+            _ = try await harness.tool("pull_request_save_review").run(["repo": "acme/api", "number": 99, "verdict": "comment", "risk": "low", "summary": "x"])
+        }
     }
 
     @Test func createPRDefaultsToTheDefaultBranchAndDraft() async throws {

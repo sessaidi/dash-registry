@@ -197,6 +197,24 @@ final class PullRequestsFeature: DashExtension {
         try? host?.context.fetch(FetchDescriptor<PullRequest>(predicate: #Predicate { $0.uid == uid })).first
     }
 
+    /// A review Dashii did in a chat about the PR, stored next to the automatic ones. Its own
+    /// uid (time-stamped), so it never replaces the automatic review of the same commit.
+    @discardableResult
+    func saveChatReview(_ pr: PullRequest, verdict: String, risk: String, summary: String, findings: [PRReview.Finding], testing: String) -> PRReview {
+        let review = PRReview(prUID: pr.uid, headSHA: pr.headSHA, model: PRReview.chatModel)
+        review.uid = "\(pr.uid)@\(pr.headSHA)#chat-\(Int(Date.now.timeIntervalSince1970))"
+        review.status = "done"
+        review.verdict = verdict
+        review.risk = risk
+        review.summary = summary
+        review.findings = findings
+        review.testing = testing
+        host?.context.insert(review)
+        try? host?.context.save()
+        host?.emit("pr.reviewed", from: self, title: "Review saved on \(pr.repo)#\(pr.number)", detail: "\(verdict) · risk \(risk)", importance: .info)
+        return review
+    }
+
     func latestReview(_ prUID: String) -> PRReview? {
         var descriptor = FetchDescriptor<PRReview>(predicate: #Predicate { $0.prUID == prUID }, sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
         descriptor.fetchLimit = 1
