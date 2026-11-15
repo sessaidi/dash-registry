@@ -14,7 +14,7 @@ final class JiraBoardFeature: DashExtension {
     let name = "Jira Board"
     let systemImage = "checklist"
     let metadata = ExtensionMetadata(
-        version: "1.2.0", author: .dash, summary: "Your Jira board and the issues you follow.", category: .projectManagement,
+        version: "1.13.3", author: .dash, summary: "The Jira issues you follow, in your board's columns or by status.", category: .projectManagement,
         tags: ["jira", "board"], homepage: "https://github.com/sessaidi/dash-extensions", minimumDashKit: "2.0.0")
     let requires = ["atlassian"]
 
@@ -49,7 +49,9 @@ final class JiraBoardFeature: DashExtension {
     @ObservationIgnored private var poller: Task<Void, Never>?
     @ObservationIgnored private let defaults: UserDefaults
 
-    static let defaultJQL = "(assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done ORDER BY updated DESC"
+    /// Empty: only the tickets followed by hand show. Assignees change while a ticket is still
+    /// yours to track, so the board doesn't follow by assignee unless the user sets a query.
+    static let defaultJQL = ""
 
     /// `defaults` is injectable for tests; Dash uses the standard suite (the built-in feature's keys).
     init(defaults: UserDefaults = DashStorage.defaults) {

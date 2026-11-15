@@ -212,7 +212,7 @@ struct JiraBoardFeatureTests {
         await feature.sync()
         let context = WidgetContext(widgetID: UUID(), host: host)
         let board = await JiraBoardWidget.snapshot(config: JiraBoardWidget.Config(mode: "board", hideDone: false), context: context)
-        #expect(board["issues"]?.array?.map { $0["key"] } == ["WEB-1"])
+        #expect(board["issues"]?.array?.map { $0["key"] } == ["OPS-2"])
         #expect(board["mode"] == "board" && board["explanation"]?.string?.contains("status_category") == true)
         let followed = await JiraBoardWidget.snapshot(config: JiraBoardWidget.Config(mode: "followed", hideDone: false), context: context)
         #expect(followed["issues"]?.array?.map { $0["key"] } == ["OPS-2"])

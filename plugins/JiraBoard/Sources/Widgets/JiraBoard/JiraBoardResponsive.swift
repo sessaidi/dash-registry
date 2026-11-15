@@ -67,7 +67,7 @@ private struct JiraGlance: View {
                 Text("\(progress.tickets.count)")
                     .font(.title.weight(.semibold).monospacedDigit())
                     .foregroundStyle(progress.tickets.isEmpty ? Color.secondary : Tone.info.color)
-                Text(progress.mine ? "of yours in progress" : "in progress")
+                Text("in progress")
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -123,10 +123,6 @@ private struct JiraStatusList: View {
                     ForEach(group.tickets) { ticket in
                         ItemRow(ticket.summary, subtitle: "\(ticket.key) · \(ticket.assignee ?? "Unassigned")") {
                             Circle().fill(group.color).frame(width: 8, height: 8)
-                        } trailing: {
-                            if ticket.followed {
-                                Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).help("You follow it")
-                            }
                         }
                         .onTapGesture { onSelect?(ticket) }
                         .listRowBackground(selectedKey == ticket.key ? Color.accentColor.opacity(0.18) : Color.clear)
@@ -175,12 +171,12 @@ private struct JiraOverview: View {
     }
 
     private var summary: some View {
-        let progress = JiraBoardContent.inProgress(tickets)
+        // Every ticket shown is followed, so the fourth tile is what nobody has picked up.
         let tiles: [(String, String, Tone)] = [
             ("\(tickets.filter { $0.statusCategory == "new" }.count)", "To do", .neutral),
             ("\(tickets.filter { $0.statusCategory == "indeterminate" }.count)", "In progress", .info),
             ("\(tickets.filter { $0.statusCategory == "done" }.count)", "Done", .success),
-            ("\(progress.mine ? progress.tickets.count : 0)", "Yours in progress", .accent),
+            ("\(tickets.filter { $0.assignee == nil && $0.statusCategory != "done" }.count)", "Unassigned", .warning),
         ]
         return HStack(spacing: 8) {
             ForEach(tiles, id: \.1) { value, label, tone in
@@ -205,7 +201,6 @@ private struct JiraTicketPanel: View {
                     Text(ticket.key).font(.caption.monospaced()).foregroundStyle(.secondary)
                     if let type = ticket.issueType { Text("· \(type)").font(.caption).foregroundStyle(.secondary) }
                     Spacer(minLength: 0)
-                    if ticket.followed { Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).help("You follow it") }
                 }
                 Text(ticket.summary).font(.headline).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 4) {

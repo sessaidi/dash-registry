@@ -34,7 +34,7 @@ extension JiraBoardFeature {
             },
             DashiiTool(
                 name: "jira_follow",
-                description: "Follow or unfollow a Jira ticket in Dash (local only; nothing changes in Jira). Followed tickets sync into the cache and show in \"Issues I follow\".",
+                description: "Follow or unfollow a Jira ticket in Dash (local only; nothing changes in Jira). Followed tickets sync into the cache and show on the Jira Board widget.",
                 properties: ["key": JSONSchema.string("Issue key, e.g. KAN-1234."),
                              "follow": JSONSchema.boolean("true to follow (default), false to unfollow.")],
                 required: ["key"]

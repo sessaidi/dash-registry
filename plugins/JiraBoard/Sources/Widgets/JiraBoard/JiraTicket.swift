@@ -47,12 +47,10 @@ struct JiraTicket: Identifiable, Hashable, Sendable {
     }
 
     /// The tickets a widget with `config` shows.
+    /// Only the tickets the user follows, whatever their assignee or board: the mode changes the
+    /// columns they sit in (the board's, or one per status), not which tickets show.
     static func visible(_ tickets: [JiraTicket], config: JiraBoardWidget.Config) -> [JiraTicket] {
-        tickets.filter { ticket in
-            let shown = config.mode != "board" ? ticket.followed
-                : config.board.map { ticket.boardIDs.contains($0) } ?? ticket.onBoard
-            return shown && !(config.hideDone && ticket.statusCategory == "done")
-        }
+        tickets.filter { $0.followed && !(config.hideDone && $0.statusCategory == "done") }
     }
 
     /// A sprint's worth of tickets: every column filled, several in progress for "you" (followed),
@@ -72,7 +70,7 @@ struct JiraTicket: Identifiable, Hashable, Sendable {
                type: "Bug", priority: "Low", hoursAgo: 8),
         sample("WEB-466", "Dark mode colours for the account settings page", "10002", "Code Review", "indeterminate", "Maya Chen", followed: true,
                type: "Story", priority: "Medium", labels: ["design"], hoursAgo: 2),
-        sample("WEB-460", "Upgrade the image CDN client to v4", "10001", "Done", "done", "Leo Martin",
+        sample("WEB-460", "Upgrade the image CDN client to v4", "10001", "Done", "done", "Leo Martin", followed: true,
                type: "Task", priority: "Low", hoursAgo: 30),
         sample("OPS-212", "Rotate the staging database credentials", "3", "In Progress", "indeterminate", "Maya Chen", onBoard: false, followed: true,
                type: "Task", priority: "Highest", labels: ["security"], hoursAgo: 4),

@@ -61,7 +61,7 @@ struct JiraBoardView: View {
                         // The user's own switch is saved (and drops Dashii's temporary mode).
                         Picker("Show", selection: Binding(get: { effective.mode }, set: { config.mode = $0; override = nil })) {
                             Text("Board").tag("board")
-                            Text("Following \(issues.filter { $0.followed && !(effective.hideDone && $0.statusCategory == "done") }.count)").tag("followed")
+                            Text("By status").tag("followed")
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
@@ -71,8 +71,7 @@ struct JiraBoardView: View {
                             .labelStyle(.iconOnly)
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .help("Follow a ticket: paste its key or link, or search")
-                            .popover(isPresented: $following, arrowEdge: .bottom) { FollowTicketPopover(jira: jira) }
+                            .help("Follow a ticket: pick a recent one, paste its key or link, or search")
                     }
                 }
             }
@@ -124,7 +123,7 @@ struct JiraBoardView: View {
             if let jira, (try? jira.client) == nil {
                 setupPrompt
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if config.mode == "followed", visible.isEmpty, jira?.isSyncing != true {
+            } else if visible.isEmpty, jira?.isSyncing != true, jira?.lastError == nil {
                 // Following nothing yet (or nothing left after hiding done): say so and offer to follow.
                 ContentUnavailableView {
                     Label(jira?.followedKeys.isEmpty == false ? "Nothing to show" : "You don't follow any ticket", systemImage: "star")
@@ -147,12 +146,20 @@ struct JiraBoardView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                JiraBoardContent(config: config, tickets: visible,
-                                columns: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : JiraBoardLayout.statusColumns(visible)) { pick($0) }
+                JiraBoardContent(config: config, tickets: visible, columns: columns(for: visible, config: config)) { pick($0) }
                     .environment(\.jiraSelectedKey, selectedKey)
             }
         }
         .sheet(item: $opened) { JiraIssueSheet(issue: $0, host: host) }
+        // A sheet on the board, not a popover on the header button: the header is rebuilt on
+        // every sync, which closed the popover while the user was still typing.
+        .sheet(isPresented: $following) { if let jira { FollowTicketPopover(jira: jira) } }
+    }
+
+    /// The board's columns, plus one per status for followed tickets in no board column (a ticket
+    /// that moved to another project's workflow still shows); one per status in "followed" mode.
+    private func columns(for tickets: [JiraTicket], config: JiraBoardWidget.Config) -> [JiraClient.Column] {
+        JiraBoardLayout.columns(board: config.mode == "board" ? jira?.columns(board: config.board) ?? [] : [], tickets: tickets)
     }
 
     /// Clicking an issue selects it and opens its detail; clicking the selected one again unselects it.
@@ -197,6 +204,30 @@ struct JiraBoardLayout: View {
             .map { JiraClient.Column(name: $0.key, statusIDs: Array($0.value.ids)) }
     }
 
+    /// The board's columns, plus one per status for tickets in no board column (a ticket that
+    /// moved to another project's workflow still shows). A status named like a board column
+    /// ("In Progress" in another workflow) joins that column: one column per name.
+    static func columns(board: [JiraClient.Column], tickets: [JiraTicket]) -> [JiraClient.Column] {
+        guard !board.isEmpty else { return statusColumns(tickets) }
+        var columns: [JiraClient.Column] = []
+        for column in board {
+            if let index = columns.firstIndex(where: { $0.name.caseInsensitiveCompare(column.name) == .orderedSame }) {
+                columns[index] = JiraClient.Column(name: columns[index].name, statusIDs: columns[index].statusIDs + column.statusIDs)
+            } else {
+                columns.append(column)
+            }
+        }
+        let outside = tickets.filter { ticket in !columns.contains { $0.statusIDs.contains(ticket.statusID) } }
+        for extra in statusColumns(outside) {
+            if let index = columns.firstIndex(where: { $0.name.caseInsensitiveCompare(extra.name) == .orderedSame }) {
+                columns[index] = JiraClient.Column(name: columns[index].name, statusIDs: columns[index].statusIDs + extra.statusIDs)
+            } else {
+                columns.append(extra)
+            }
+        }
+        return columns
+    }
+
     let config: JiraBoardWidget.Config
     let tickets: [JiraTicket]
     let columns: [JiraClient.Column]
@@ -211,7 +242,7 @@ struct JiraBoardLayout: View {
                 let width = max(240, (geometry.size.width - spacing * Double(columns.count - 1)) / Double(columns.count))
                 ScrollView(.horizontal) {
                     HStack(alignment: .top, spacing: spacing) {
-                        ForEach(Array(columns.enumerated()), id: \.element.name) { index, column in
+                        ForEach(Array(columns.enumerated()), id: \.offset) { index, column in
                             let cards = tickets.filter { column.statusIDs.contains($0.statusID) }
                             BoardColumn(name: column.name, color: Self.color(index, of: columns.count), cards: cards, onSelect: onSelect)
                                 .frame(width: width)

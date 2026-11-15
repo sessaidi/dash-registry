@@ -1,6 +1,6 @@
 # Jira Board
 
-Shows your Jira boards and the tickets you follow in Dash. Issues are synced from Jira into
+Shows the Jira tickets you follow in Dash, in your board's columns or by status. Issues are synced from Jira into
 Dash's local database. From the widget you can open a ticket to comment on it, move it, ask
 Claude about it, or start an agent on it. Claude gets tools to list the cached issues, search
 Jira live, follow tickets, comment and transition. It is meant for anyone who works from a Jira
@@ -9,8 +9,8 @@ board.
 | | |
 |---|---|
 | Plugin id | `jira-board` (folder `JiraBoard`) |
-| Version | 1.2.0 |
-| Minimum DashKit | 1.2.0 |
+| Version | 1.13.3 |
+| Minimum DashKit | 2.0.0 |
 | Layer | feature (provides `jira-board`) |
 | Requires | `atlassian` |
 
@@ -26,9 +26,10 @@ Settings › Jira Board:
   unfollowed. For each board Dash syncs the active sprint (scrum) or its open issues (kanban).
 - **Tickets**: follow individual tickets by key (for example `PROJ-123`). This is local to
   Dash: nothing changes in Jira. Claude can follow tickets for you with `jira_follow`.
-- **Query**: **Also follow issues matching (JQL)**. The default is
-  `(assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done ORDER BY updated DESC`.
-  Empty disables it.
+- **Query**: **Also follow issues matching (JQL)**. Empty by default, so the widget shows only
+  the tickets you follow by hand. For example
+  `(assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done` also follows
+  your assigned and watched issues.
 - **Refresh every N min**: 1 to 60. Default: 5.
 - **Sync Now**, and the last sync time or error.
 
@@ -51,7 +52,7 @@ query Jira live.
 
 | Kind | Shows | Options |
 |---|---|---|
-| `jira.board` (Jira Board) | Either a board's columns with their tickets, or the list of issues you follow. Opening a ticket lets you post a comment, run one of its transitions, Ask Claude, or Start Agent (when the Agents feature is enabled). Default size: wide. | **Show**: Board columns (`mode: "board"`, default) or Issues I follow (`"followed"`). **Board**: which followed board to show (`board`, a board id; the first board when unset); the picker appears when you follow more than one board. **Hide done** (`hideDone`, default off). |
+| `jira.board` (Jira Board) | The issues you follow (by key, or through the follow JQL), in a board's columns or one column per status. Other issues of a followed board are synced but not shown. Opening a ticket shows it like Jira's issue view: comment, reply, react, edit or delete your plain-text comments, run a transition, Ask Claude, or Start Agent (when the Agents feature is enabled). Default size: wide. | **Show**: By status (`mode: "followed"`, default) or In board columns (`"board"`). **Board**: which followed board's columns to use (`board`, a board id; the first board when unset); the picker appears when you follow more than one board. **Hide done** (`hideDone`, default off). |
 
 ## Claude tools
 
@@ -97,7 +98,7 @@ TEST=1 scripts/build-plugins.sh JiraBoard   # generate the project, run JiraBoar
 scripts/build-plugins.sh JiraBoard          # build and zip without the tests
 ```
 
-The script writes `dist/jira-board-1.2.0.dashplugin.zip` and regenerates `registry.json`. To
+The script writes `dist/jira-board-<version>.dashplugin.zip` and regenerates `registry.json`. To
 try a build in a running Dash, copy
 `build/JiraBoard/Build/Products/Release/JiraBoardPlugin.dashplugin` into
 `~/Library/Application Support/Dash/Plugins`.

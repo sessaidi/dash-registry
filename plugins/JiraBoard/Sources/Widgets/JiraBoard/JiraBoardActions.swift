@@ -9,7 +9,7 @@ enum JiraBoardActions {
                      properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
         WidgetAction(name: "filter_status", description: "Only one column or status (e.g. In Progress, Code Review); empty shows every column.",
                      properties: ["status": JSONSchema.string("Column or status name.")], required: ["status"]),
-        WidgetAction(name: "set_mode", description: "Show the board's columns, or the issues the user follows. Temporary: the widget's saved setting stays.",
+        WidgetAction(name: "set_mode", description: "Arrange the followed issues in the board's columns (board) or one column per status (followed). Temporary: the widget's saved setting stays.",
                      properties: ["mode": JSONSchema.string("board or followed.", enum: ["board", "followed"])], required: ["mode"]),
         WidgetAction(name: "set_board", description: "Show another followed board, by name or id. Temporary: the widget's saved board stays.",
                      properties: ["board": JSONSchema.string("Board name or id.")], required: ["board"]),

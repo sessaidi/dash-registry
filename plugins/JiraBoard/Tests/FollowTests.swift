@@ -54,10 +54,10 @@ struct FollowTests {
         #expect(issues["WEB-2"]?.boardIDs == [7, 8] && issues["OPS-1"]?.boardIDs == [8])
         #expect(issues["KAN-9"]?.pinned == true && issues["KAN-9"]?.followed == true && issues["KAN-9"]?.onBoard == false)
 
-        // The widget shows one board at a time.
+        // The widget shows only followed tickets, even in a board's columns.
         let tickets = try host.context.fetch(FetchDescriptor<JiraIssue>()).map(JiraTicket.init)
         let ops = JiraTicket.visible(tickets, config: .init(mode: "board", hideDone: false, board: 8))
-        #expect(Set(ops.map(\.key)) == ["OPS-1", "WEB-2"])
+        #expect(ops.map(\.key) == ["KAN-9"])
 
         await feature.unfollow("KAN-9")
         #expect(try host.context.fetch(FetchDescriptor<JiraIssue>()).contains { $0.key == "KAN-9" } == false)
