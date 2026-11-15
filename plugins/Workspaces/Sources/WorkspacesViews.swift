@@ -23,8 +23,11 @@ struct WorkspacesWidget: DashboardWidget {
         "properties": ["onlyMine": ["type": "boolean", "description": "Only workspaces deployed by the user."]],
     ]
 
+    static let queryFields = WorkspaceItem.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        WorkspaceList(feature: context.host.ext(WorkspacesFeature.self), host: context.host, onlyMine: config.wrappedValue.onlyMine)
+        WorkspaceList(feature: context.host.ext(WorkspacesFeature.self), host: context.host, onlyMine: config.wrappedValue.onlyMine,
+                      query: context.query(fields: WorkspaceItem.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -99,20 +102,32 @@ private struct WorkspaceList: View {
     let feature: WorkspacesFeature?
     let host: any ExtensionContext
     let onlyMine: Bool
+    /// The widget's DashQL query (its query bar), applied after "only mine".
+    let query: WidgetQuery?
+    let queryText: String
     @State private var selected: String?
     @State private var creating = false
+    @State private var queryNames: [String]?
 
     var body: some View {
         if let feature {
-            WorkspaceListContent(
-                scope: "\(feature.env.rawValue)/\(feature.region.rawValue)",
-                items: feature.visible(onlyMine: onlyMine).map { WorkspaceItem($0) },
-                busy: feature.busy, isLoading: feature.isLoading, error: feature.lastError,
-                refresh: { Task { await feature.refresh() } }, select: { selected = $0 }, create: { creating = true })
-                .sheet(item: Binding(get: { selected.map(SheetID.init) }, set: { selected = $0?.id })) {
-                    WorkspaceSheet(name: $0.id, feature: feature, host: host)
-                }
-                .sheet(isPresented: $creating) { CreateWorkspaceSheet(feature: feature) }
+            let all = feature.visible(onlyMine: onlyMine).map { WorkspaceItem($0) }
+            let items = QueryRows.ordered(all, by: queryNames)
+            VStack(alignment: .leading, spacing: 2) {
+                QueryCount(shown: items.count, total: all.count, query: queryText)
+                WorkspaceListContent(
+                    scope: "\(feature.env.rawValue)/\(feature.region.rawValue)",
+                    items: items,
+                    busy: feature.busy, isLoading: feature.isLoading, error: feature.lastError,
+                    refresh: { Task { await feature.refresh() } }, select: { selected = $0 }, create: { creating = true })
+                    .sheet(item: Binding(get: { selected.map(SheetID.init) }, set: { selected = $0?.id })) {
+                        WorkspaceSheet(name: $0.id, feature: feature, host: host)
+                    }
+                    .sheet(isPresented: $creating) { CreateWorkspaceSheet(feature: feature) }
+            }
+            .task(id: QueryRows.key(queryText, all, row: \.queryRow)) {
+                queryNames = await QueryRows.ids(query, all, row: \.queryRow)
+            }
         } else {
             StateView(.failed(message: "The Workspaces feature isn't loaded."))
         }

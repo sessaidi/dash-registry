@@ -24,8 +24,10 @@ struct DeploymentTrainWidget: DashboardWidget {
         "properties": ["onlyMine": ["type": "boolean"], "workspace": ["type": "string", "description": "Workspace name, or empty for all."]],
     ]
 
+    static let queryFields = TrainCar.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        TrainView(config: config.wrappedValue)
+        TrainView(config: config.wrappedValue, query: context.query(fields: TrainCar.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -70,20 +72,37 @@ struct TrainCar: Identifiable, Hashable {
 
 private struct TrainView: View {
     let config: DeploymentTrainWidget.Config
+    /// The widget's DashQL query (its query bar), applied after the settings.
+    let query: WidgetQuery?
+    let queryText: String
+    @State private var queryIDs: [String]?
     @Query(sort: \WorkspaceDeployment.startedAt, order: .reverse) private var deployments: [WorkspaceDeployment]
 
-    var body: some View {
-        let cars = deployments.filter { car in
+    private var all: [TrainCar] {
+        deployments.filter { car in
             (config.workspace.isEmpty || car.workspace == config.workspace) && (!config.onlyMine || car.by == (DashStorage.defaults.string(forKey: "workspaces.username") ?? NSUserName()))
-        }.prefix(100).map { car in
-            TrainCar(id: car.id.uuidString, workspace: car.workspace, kind: car.kind, app: car.app, version: car.commit.isEmpty ? car.tag : car.commit,
-                     branch: car.branch, by: car.by, at: car.startedAt, duration: car.duration, status: car.status, error: car.error)
-        }
+        }.prefix(100).map(TrainCar.init)
+    }
+
+    var body: some View {
+        let all = all
+        let cars = QueryRows.ordered(all, by: queryIDs)
+        content(cars, total: all.count)
+            .task(id: QueryRows.key(queryText, all, row: \.queryRow)) {
+                queryIDs = await QueryRows.ids(query, all, row: \.queryRow)
+            }
+    }
+
+    @ViewBuilder
+    private func content(_ cars: [TrainCar], total: Int) -> some View {
         if cars.isEmpty {
             ContentUnavailableView("No deployments yet", systemImage: "tram", description: Text("Deploy a worktree to a workspace to start the train."))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            TrainList(cars: Array(cars))
+            VStack(alignment: .leading, spacing: 2) {
+                QueryCount(shown: cars.count, total: total, query: queryText)
+                TrainList(cars: cars)
+            }
         }
     }
 }
