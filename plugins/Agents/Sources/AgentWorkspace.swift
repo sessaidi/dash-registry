@@ -378,6 +378,7 @@ struct ChangesView: View {
         if state.diffs.isEmpty {
             ContentUnavailableView(state.loading ? "Loading…" : "No changes yet", systemImage: "plusminus",
                                    description: Text("Changes against \(state.base) show here as the agent works."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollViewReader { proxy in
                 ScrollView {

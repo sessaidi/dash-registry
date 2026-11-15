@@ -84,6 +84,7 @@ private struct MeView: View {
                 } actions: {
                     Button("Prepare Now") { refresh() }.disabled(standup.isPreparing)
                 }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if standup.isPreparing { ProgressView("Preparing…").controlSize(.small) }
             if let error = error ?? standup.lastError { Text(error).font(.caption).foregroundStyle(.red) }
@@ -239,6 +240,7 @@ private struct BlockersView: View {
         let blockers = standup.openBlockers()
         if blockers.isEmpty {
             ContentUnavailableView("No open blockers", systemImage: "checkmark.seal")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(blockers) { blocker in
                 HStack {

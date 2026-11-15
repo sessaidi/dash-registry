@@ -147,8 +147,10 @@ struct WorkspaceListContent: View {
             }
             if let error, items.isEmpty {
                 ContentUnavailableView("Couldn't load workspaces", systemImage: "exclamationmark.triangle", description: Text(error))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 ContentUnavailableView(isLoading ? "Loading…" : "No workspaces", systemImage: "shippingbox")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(items) { item in
                     WorkspaceRow(item: item, busy: busy.contains(item.name))

@@ -77,6 +77,7 @@ private struct MeetingPanel: View {
                 LiveTranscript(meetingID: meetingID)
             } else if meetings.isEmpty {
                 ContentUnavailableView("No meetings yet", systemImage: "waveform", description: Text("Join a Zoom meeting and press Transcribe."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(meetings.prefix(recentCount)) { meeting in
                     VStack(alignment: .leading, spacing: 2) {

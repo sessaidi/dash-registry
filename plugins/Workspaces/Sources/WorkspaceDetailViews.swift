@@ -376,6 +376,7 @@ struct WorkspaceCommandsView: View {
         let steps = feature.commands(for: name)
         if steps.isEmpty {
             ContentUnavailableView("Nothing yet", systemImage: "terminal", description: Text("Each thing Dash does here shows up with the command that does the same thing."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(steps) { step in
                 DisclosureGroup {
@@ -410,6 +411,7 @@ struct WorkspaceTrainView: View {
         }
         if cars.isEmpty {
             ContentUnavailableView("No deployments yet", systemImage: "tram")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             TrainList(cars: cars)
         }

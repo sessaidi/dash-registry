@@ -54,6 +54,7 @@ private struct AgentRows: View {
     var body: some View {
         if rows.isEmpty {
             ContentUnavailableView("No agents", systemImage: "hammer", description: Text("Open a Jira ticket and choose Start Agent."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(rows) { row in
                 HStack {
@@ -157,6 +158,7 @@ struct AgentChatWindow: View {
             .frame(minWidth: 560, minHeight: 480)
         } else {
             ContentUnavailableView("Agent not found", systemImage: "hammer")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -323,6 +325,7 @@ struct AgentWorkspaceWindow: View {
                             FileContentView(state: state, path: path)
                         } else {
                             ContentUnavailableView("Pick a file", systemImage: "doc.text", description: Text("In the tree, or click a changed line."))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     default:
                         AgentChatWindow(sessionID: sessionID, agents: agents)

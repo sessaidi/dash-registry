@@ -81,6 +81,7 @@ private struct TrainView: View {
         }
         if cars.isEmpty {
             ContentUnavailableView("No deployments yet", systemImage: "tram", description: Text("Deploy a worktree to a workspace to start the train."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             TrainList(cars: Array(cars))
         }
