@@ -396,6 +396,8 @@ struct ReleaseTimelineView: View {
     @State private var eventSelection: ReleaseEvent?
     @State private var searching = false
     @State private var query = ""
+    /// The widget's size family from the dashboard: narrow widgets get the compact layout.
+    @Environment(\.widgetLayout) private var widgetLayout
 
     private var repositories: [RepositoryConfig] {
         feature.repositories.filter { config.repository == nil || $0.id == config.repository }
@@ -429,7 +431,7 @@ struct ReleaseTimelineView: View {
         let full = fullDomain(model, now: now)
         let shown = domain ?? initialDomain(full, now: now)
         return GeometryReader { geometry in
-            let compact = geometry.size.width < 420
+            let compact = widgetLayout.family == .narrow
             let layout = TimelineLayout(size: CGSize(width: geometry.size.width, height: 0), domain: shown, compact: compact, lanes: model.lanes)
             VStack(alignment: .leading, spacing: 6) {
                 header(model, compact: compact, now: now, zoomed: domain != nil)
