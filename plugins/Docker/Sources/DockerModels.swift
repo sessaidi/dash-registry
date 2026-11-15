@@ -59,6 +59,23 @@ enum DockerSocket {
         return candidates(home: home, environment: environment).first(where: exists)
     }
 
+    /// What to say when nothing answers on a socket: which runtime it belongs to and how to start it.
+    static func unreachable(_ path: String, error: Error) -> String {
+        let refused = "\(error)".contains("61") || "\(error)".localizedCaseInsensitiveContains("refused")
+            || "\(error)".contains("ENOENT") || "\(error)".contains("No such file")
+        guard refused else { return "Can't connect to \(path): \(error.localizedDescription)" }
+        return "Docker isn't running: nothing answers on \(path). " + startHint(path) + " Then check the connection again."
+    }
+
+    /// How to start the runtime a socket belongs to.
+    static func startHint(_ path: String) -> String {
+        if path.contains("colima") { return "Colima is stopped; start it with `colima start`." }
+        if path.contains(".orbstack") { return "Open OrbStack." }
+        if path.contains(".rd/") { return "Open Rancher Desktop." }
+        if path.contains("podman") { return "Start Podman (`podman machine start`)." }
+        return "Open Docker Desktop."
+    }
+
     static func detected(home: String = NSHomeDirectory(), environment: [String: String] = DockerSocket.environment,
                          exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String] {
         candidates(home: home, environment: environment).filter(exists)

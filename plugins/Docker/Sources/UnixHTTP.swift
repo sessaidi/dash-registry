@@ -131,6 +131,12 @@ enum HTTPWire {
 
 /// Sends HTTP requests to a unix-domain socket with the Network framework.
 enum UnixHTTP {
+    /// Whether Docker answers on this socket (GET /_ping within two seconds).
+    static func answers(_ socketPath: String) async -> Bool {
+        guard let url = URL(string: "http://docker/_ping") else { return false }
+        return (try? await send(URLRequest(url: url), socketPath: socketPath, timeout: 2).1.statusCode) == 200
+    }
+
     static func send(_ request: URLRequest, socketPath: String, timeout: TimeInterval? = nil) async throws -> (Data, HTTPURLResponse) {
         let started = Date()
         let limit = timeout ?? (request.timeoutInterval > 0 && request.timeoutInterval < 600 ? request.timeoutInterval : 60)
@@ -184,7 +190,7 @@ private final class UnixHTTPExchange: @unchecked Sendable {
                 })
                 receive()
             case .waiting(let error), .failed(let error):
-                finish(.failure(DockerSocketError("Can't connect to \(socketPath): \(error.localizedDescription)")))
+                finish(.failure(DockerSocketError(DockerSocket.unreachable(socketPath, error: error))))
             default:
                 break
             }

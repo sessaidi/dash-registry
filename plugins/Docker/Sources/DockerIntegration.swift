@@ -210,6 +210,8 @@ struct DockerSettingsView: View {
     let integration: DockerIntegration
     @State private var socket = ""
     @State private var detected: [String] = []
+    /// Which detected sockets Docker actually answers on (a socket file can outlive its runtime).
+    @State private var alive: [String: Bool] = [:]
 
     var body: some View {
         Form {
@@ -232,8 +234,12 @@ struct DockerSettingsView: View {
                 }
                 ForEach(detected, id: \.self) { path in
                     ItemRow(path, monospacedTitle: true, leading: {
-                        StatusDot(path == integration.socketPath ? .success : .neutral)
+                        StatusDot(alive[path] == false ? .danger : alive[path] == true ? .success : .neutral)
+                            .help(alive[path] == false ? "Not running: \(DockerSocket.startHint(path))" : alive[path] == true ? "Docker answers here" : "Checking…")
                     }, trailing: {
+                        if alive[path] == false {
+                            Text(path.contains("colima") ? "stopped · colima start" : "not running").font(.caption).foregroundStyle(.secondary)
+                        }
                         if path != integration.socketPath {
                             Button("Use") {
                                 socket = path
@@ -248,6 +254,9 @@ struct DockerSettingsView: View {
         .onAppear {
             socket = integration.socketPreference
             detected = DockerSocket.detected()
+            Task {
+                for path in detected { alive[path] = await UnixHTTP.answers(path) }
+            }
         }
     }
 
