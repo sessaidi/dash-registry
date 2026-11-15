@@ -470,7 +470,7 @@ final class PullRequestsFeature: DashExtension {
                     "title": JSONSchema.string("PR title."), "body": JSONSchema.string("Markdown description."),
                     "draft": JSONSchema.boolean("Open as draft (default true)."),
                 ],
-                required: ["repo", "head", "title", "body"], requiresApproval: true
+                required: ["repo", "head", "title", "body"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(CreateInput.self)

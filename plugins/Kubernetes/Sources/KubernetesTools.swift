@@ -193,7 +193,7 @@ extension KubernetesIntegration {
                         "ready": status?["readyReplicas"] ?? 0, "available": status?["availableReplicas"] ?? 0, "conditions": status?["conditions"] ?? []]
             },
             ClaudeTool(name: "k8s_rollout_restart", description: "Restart a deployment's pods (kubectl rollout restart).",
-                       properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"], requiresApproval: true) { [weak self] input in
+                       properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(DeploymentInput.self)
                 try await patch("/apis/apps/v1/namespaces/\(ns(request.namespace))/deployments/\(request.name)",
@@ -203,7 +203,7 @@ extension KubernetesIntegration {
             },
             ClaudeTool(name: "k8s_scale", description: "Set a deployment's replica count (kubectl scale).",
                        properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty, "replicas": JSONSchema.integer("Replicas, 0-50.")],
-                       required: ["name", "replicas"], requiresApproval: true) { [weak self] input in
+                       required: ["name", "replicas"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(ScaleInput.self)
                 guard (0...50).contains(request.replicas) else { throw ToolError("Replicas must be between 0 and 50.") }

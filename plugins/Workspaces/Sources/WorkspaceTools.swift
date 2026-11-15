@@ -55,7 +55,7 @@ extension WorkspacesFeature {
                              "profile": JSONSchema.string("Profile name (see workspace_profiles); default \"default\"."),
                              "services": JSONSchema.object("Instead of a profile: list of services or shortcuts (capig, papi, vapi…)."),
                              "worktree": JSONSchema.string("Worktree path to link (see workspace_profiles).")],
-                required: ["name"], requiresApproval: true
+                required: ["name"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(CreateInput.self)
@@ -67,7 +67,7 @@ extension WorkspacesFeature {
                 name: "workspace_deploy_worktree",
                 description: "Build the linked worktree's service and deploy it to the workspace (like up-toolbox workspace run): go test, go build, docker build, push, patch, wait for the rollout.",
                 properties: ["name": JSONSchema.string("Workspace name."), "runTests": JSONSchema.boolean("Run go test first (default true).")],
-                required: ["name"], requiresApproval: true
+                required: ["name"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(DeployInput.self)
@@ -85,7 +85,7 @@ extension WorkspacesFeature {
             ClaudeTool(
                 name: "workspace_apply_config",
                 description: "Apply the local configuration files to the workspace and restart the deployments whose ConfigMaps changed.",
-                properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"], requiresApproval: true
+                properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let changes = try await applyConfig(try input.toolInput(NameInput.self).name)

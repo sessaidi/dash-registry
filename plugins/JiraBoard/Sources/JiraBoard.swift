@@ -334,7 +334,7 @@ final class JiraBoardFeature: DashExtension {
                 name: "jira_add_comment",
                 description: "Post a comment on a Jira issue.",
                 properties: ["key": JSONSchema.string("Issue key."), "text": JSONSchema.string("Comment text. Blank lines separate paragraphs.")],
-                required: ["key", "text"], requiresApproval: true
+                required: ["key", "text"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(CommentInput.self)
@@ -345,7 +345,7 @@ final class JiraBoardFeature: DashExtension {
                 name: "jira_transition_issue",
                 description: "Move a Jira issue to another status using one of its workflow transitions (for example \"In Progress\" or \"Code Review\").",
                 properties: ["key": JSONSchema.string("Issue key."), "status": JSONSchema.string("Transition or status name.")],
-                required: ["key", "status"], requiresApproval: true
+                required: ["key", "status"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(TransitionInput.self)

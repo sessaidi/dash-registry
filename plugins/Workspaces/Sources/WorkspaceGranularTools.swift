@@ -118,7 +118,7 @@ extension WorkspacesFeature {
                        properties: ["name": name, "app": JSONSchema.string("Deployment/container name."),
                                     "set": JSONSchema.object("Variables to set: {\"NAME\": \"value\"}."),
                                     "remove": JSONSchema.object("Names to remove: [\"NAME\"].")],
-                       required: ["name", "app"], requiresApproval: true) { [weak self] input in
+                       required: ["name", "app"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(EnvInput.self)
                 let car = startDeployment(request.name, kind: "config", app: request.app, summary: "env " + (request.set ?? [:]).keys.sorted().joined(separator: ", "))
@@ -128,7 +128,7 @@ extension WorkspacesFeature {
                 return "updated"
             },
             ClaudeTool(name: "workspace_restart", description: "Restart an app in a workspace (new pods, same spec), like kubectl rollout restart.",
-                       properties: ["name": name, "app": JSONSchema.string("Deployment name.")], required: ["name", "app"], requiresApproval: true) { [weak self] input in
+                       properties: ["name": name, "app": JSONSchema.string("Deployment name.")], required: ["name", "app"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(AppInput.self)
                 try await client().restart(workspace: request.name, app: request.app)

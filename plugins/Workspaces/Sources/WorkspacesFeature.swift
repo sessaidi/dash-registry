@@ -258,7 +258,7 @@ final class WorkspacesFeature: DashExtension {
                 name: "workspace_set_persist",
                 description: "Mark a workspace as persisted (never cleaned) or not.",
                 properties: ["name": JSONSchema.string("Workspace name."), "persist": JSONSchema.boolean("true to protect it from clean.")],
-                required: ["name", "persist"], requiresApproval: true
+                required: ["name", "persist"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(PersistInput.self)
@@ -268,7 +268,7 @@ final class WorkspacesFeature: DashExtension {
             ClaudeTool(
                 name: "workspace_delete",
                 description: "Delete a workspace (its whole namespace). The user confirms in a dialog.",
-                properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]
+                properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"], writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 try await delete(try input.toolInput(NameInput.self).name)
@@ -281,7 +281,7 @@ final class WorkspacesFeature: DashExtension {
                     "name": JSONSchema.string("Workspace name."), "app": JSONSchema.string("Deployment/container name, e.g. common-api-gateway."),
                     "image": JSONSchema.string("Full image reference with tag."),
                 ],
-                required: ["name", "app", "image"], requiresApproval: true
+                required: ["name", "app", "image"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(DeployInput.self)

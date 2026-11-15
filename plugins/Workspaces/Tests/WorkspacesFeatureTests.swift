@@ -30,9 +30,9 @@ struct WorkspacesFeatureTests {
             "workspace_deployments", "workspace_pods", "workspace_containers", "workspace_events", "workspace_findings", "workspace_nodes",
             "workspace_metrics", "workspace_config", "workspace_env", "workspace_set_env", "workspace_restart", "workspace_link_worktree", "workspace_train",
         ])
-        // Writes ask first; delete asks in its own dialog.
-        #expect(feature.tools.filter(\.requiresApproval).map(\.name) == [
-            "workspace_set_persist", "workspace_deploy_image", "workspace_create", "workspace_deploy_worktree", "workspace_apply_config",
+        // Changes to the cluster are remote writes: Dash never gives them to Claude.
+        #expect(feature.tools.filter(\.writesRemotely).map(\.name) == [
+            "workspace_set_persist", "workspace_delete", "workspace_deploy_image", "workspace_create", "workspace_deploy_worktree", "workspace_apply_config",
             "workspace_set_env", "workspace_restart",
         ])
         #expect(feature.agents.map(\.id) == ["doctor"] && feature.agents[0].access == .readOnly)
