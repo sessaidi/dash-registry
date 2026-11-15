@@ -1,0 +1,3 @@
+- Acme tickets: `acme_board_tickets`, or dashql `from acme_tickets` (id, title, status, priority, assignee).
+- Summaries go through `acme_board_summarize`; say they come from a smaller model.
+- For "what should I work on" questions, hand them to the triage agent (`agent acme-board.triage ask "…"`).

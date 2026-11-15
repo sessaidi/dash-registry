@@ -1,0 +1,2 @@
+- Acme is read through `acme_tickets` (the ticket list) and `acme_get` (any GET path); say which you read.
+- Never paste the API token or any credential.

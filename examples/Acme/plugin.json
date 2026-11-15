@@ -1,0 +1,12 @@
+{
+  "name": "Acme",
+  "kind": "integration",
+  "icon": "link",
+  "description": "Connects an Acme account. The example from the Dash tutorials.",
+  "provides": [
+    "acme"
+  ],
+  "author": {
+    "name": "Dash"
+  }
+}
