@@ -23,7 +23,7 @@
 	<key>DashPluginID</key>
 	<string>kubernetes</string>
 	<key>DashPluginVersion</key>
-	<string>1.8.0</string>
+	<string>1.8.1</string>
 	<key>NSPrincipalClass</key>
 	<string>KubernetesDashPlugin</string>
 </dict>

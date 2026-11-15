@@ -715,10 +715,12 @@ private struct PodTable: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            columns(dot: AnyView(Color.clear), name: Text("Name"), namespace: Text("Namespace"), ready: Text("Ready"),
+            // The header's dot slot is empty but sized: a bare Color.clear would grow the row.
+            columns(dot: AnyView(Color.clear.frame(width: 8, height: 8)), name: Text("Name"), namespace: Text("Namespace"), ready: Text("Ready"),
                     status: AnyView(Text("Status")), restarts: Text("Restarts"), age: Text("Age"), node: Text("Node"))
                 .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 .padding(.vertical, 5)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -755,13 +757,14 @@ private struct PodTable: View {
     private func columns(dot: AnyView, name: Text, namespace: Text, ready: Text, status: AnyView, restarts: Text, age: Text, node: Text) -> some View {
         HStack(spacing: 12) {
             dot.frame(width: 10)
-            name.lineLimit(1).truncationMode(.middle).frame(maxWidth: .infinity, alignment: .leading)
+            // The name gets the room first; the node shares what's left.
+            name.lineLimit(1).truncationMode(.middle).frame(minWidth: 120, maxWidth: .infinity, alignment: .leading).layoutPriority(1)
             if showNamespace { namespace.lineLimit(1).truncationMode(.tail).frame(width: 130, alignment: .leading) }
             ready.frame(width: 44, alignment: .leading)
-            status.lineLimit(1).frame(width: 150, alignment: .leading)
-            restarts.frame(width: 60, alignment: .trailing)
+            status.lineLimit(1).frame(width: 136, alignment: .leading)
+            restarts.frame(width: 56, alignment: .trailing)
             age.frame(width: 40, alignment: .trailing)
-            if showNode { node.lineLimit(1).truncationMode(.middle).frame(width: 220, alignment: .leading) }
+            if showNode { node.lineLimit(1).truncationMode(.middle).frame(minWidth: 100, maxWidth: 240, alignment: .leading) }
         }
         .padding(.horizontal, 8)
     }
