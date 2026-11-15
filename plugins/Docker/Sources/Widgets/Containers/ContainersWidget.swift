@@ -30,19 +30,13 @@ struct ContainersWidget: DashboardWidget {
 
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 20)
 
-    /// Sample containers for the widget gallery (never the Docker socket).
+    /// Sample containers for the widget gallery (never the Docker socket), in the same
+    /// responsive layout as the live widget.
     static func preview(config: Config) -> some View {
-        let samples: [(String, String, Tone, String)] = [
-            ("api", "ghcr.io/acme/api:1.42 · Up 3 hours", .success, "healthy"),
-            ("postgres", "postgres:16 · Up 3 hours", .success, "healthy"),
-            ("worker", "ghcr.io/acme/worker:1.42 · Restarting (1)", .warning, "restarting"),
-            ("migrations", "ghcr.io/acme/api:1.42 · Exited (1) 2 minutes ago", .danger, "exited 1"),
-        ]
-        return VStack(alignment: .leading, spacing: 8) {
-            ForEach(samples, id: \.0) { name, subtitle, tone, badge in
-                ItemRow(name, subtitle: subtitle, leading: { StatusDot(tone) }, trailing: { Badge(badge, tone: tone) })
-            }
-        }
+        let samples = DockerContainer.samples
+            .filter { config.showStopped || $0.state == "running" }
+            .sorted { ($0.stateRank, $0.name) < ($1.stateRank, $1.name) }
+        return ContainersContent(containers: samples, total: samples.count)
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {

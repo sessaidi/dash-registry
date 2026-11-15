@@ -3,7 +3,7 @@ import DashKitUI
 import SwiftUI
 
 /// The Containers widget: observes `DockerContainersFeature` (its 15 s poller) and applies
-/// "show stopped" and the query bar.
+/// "show stopped" and the query bar, then hands the containers to `ContainersContent`.
 struct ContainersView: View {
     let showStopped: Bool
     let host: any ExtensionContext
@@ -36,20 +36,7 @@ struct ContainersView: View {
             } else if shown.isEmpty {
                 StateView(.empty(title: "No containers", systemImage: "shippingbox", message: showStopped ? nil : "Nothing is running."))
             } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    QueryCount(shown: shown.count, total: all.count, query: queryText)
-                    List(shown) { container in
-                        ItemRow(container.name, subtitle: "\(container.image) · \(container.status)", leading: {
-                            StatusDot(container.tone, help: container.state)
-                        }, trailing: {
-                            Badge(container.badgeText, tone: container.tone)
-                        })
-                    }
-                    .listStyle(.plain)
-                    if let error = feature.error {
-                        Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).lineLimit(2)
-                    }
-                }
+                ContainersContent(containers: shown, total: all.count, queryText: queryText, error: feature.error)
             }
         }
         .task(id: QueryRows.key(queryText, all, row: \.queryRow)) {
