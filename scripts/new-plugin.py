@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Creates a new Dash plugin under plugins/<Name>: a buildable, tested starting point.
+"""Creates a new Dash plugin under plugins/<Name>: a buildable, tested starting point on DashKit 2,
+laid out like docs/PLUGINS.md describes (Tools/, Query/, Widgets/<Name>/, Rules/).
 
     scripts/new-plugin.py Weather --feature
     scripts/new-plugin.py Linear --integration --author "Ada <ada@example.com>"
     scripts/new-plugin.py Standup --feature --requires atlassian,github
 
-An integration holds an account (token in the Keychain, an authenticated connection, a status).
-A feature adds a widget (with a sample-data preview), a Claude tool and an AI task, and uses
-integrations only through DashKit. Build and test it with:
+An integration holds an account (token in the Keychain, an authenticated connection, a status)
+and a read tool. A feature adds a widget (provider, snapshot, view, sample preview), a tool, a
+Dashii function, a DashQL dataset and statements, hook presets and rules, and uses integrations
+only through DashKit. Build and test it with:
 
     TEST=1 scripts/build-plugins.sh <Name>
 """
@@ -41,16 +43,31 @@ folder = root / "plugins" / name
 if folder.exists():
     sys.exit(f"{folder} already exists")
 
-swift_author = f'ExtensionAuthor(name: "{author_name}"' + (f', email: "{author_email}")' if author_email else ")")
-widget_kind = f"{plugin_id}.main"
+tokens = {
+    "__NAME__": name,
+    "__ID__": plugin_id,
+    "__IDU__": plugin_id.replace("-", "_"),
+    "__AUTHOR__": f'ExtensionAuthor(name: "{author_name}"' + (f', email: "{author_email}")' if author_email else ")"),
+    "__REQUIRES__": ", ".join(f'"{r}"' for r in requires),
+    "__USES__": f" Uses {', '.join(requires)} through DashKit only." if requires else "",
+    "__BUNDLE__": f"{args.bundle_prefix}.{plugin_id}",
+    "__MAIN__": "Integration" if args.integration else "Feature",
+}
 
-project = f"""# A Dash plugin. Build, test, zip and index it with: TEST=1 scripts/build-plugins.sh {name}
-name: {name}Plugin
+
+def fill(text):
+    for token, value in tokens.items():
+        text = text.replace(token, value)
+    return text
+
+
+project = """# A Dash plugin. Build, test, zip and index it with: TEST=1 scripts/build-plugins.sh __NAME__
+name: __NAME__Plugin
 options:
-  deploymentTarget: {{ macOS: "26.0" }}
+  deploymentTarget: { macOS: "26.0" }
   createIntermediateGroups: true
 packages:
-  DashKit: {{ path: ../../../perso/dash/Packages/DashKit }}
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -58,12 +75,15 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
 targets:
-  {name}Plugin:
+  __NAME__Plugin:
     type: bundle
     platform: macOS
     sources:
       - Sources
       - path: plugin.json       # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+      - path: Rules             # default rules for Dashii, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
         buildPhase: resources
     dependencies:
       - package: DashKit
@@ -73,65 +93,69 @@ targets:
       path: Info.plist
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSPrincipalClass: {name}DashPlugin
-        DashPluginID: {plugin_id}
+        DashPluginID: __ID__
         DashPluginVersion: "1.0.0"
-        DashKitMinimumVersion: "1.0.0"
+        DashKitMinimumVersion: "2.0.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin
-        PRODUCT_BUNDLE_IDENTIFIER: {args.bundle_prefix}.{plugin_id}
+        PRODUCT_BUNDLE_IDENTIFIER: __BUNDLE__
         LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
-    scheme: {{}}
-  {name}PluginTests:
+    scheme: {}
+  __NAME__PluginTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [Sources, Tests]
+    sources:
+      - Sources
+      - Tests
+      - path: Rules             # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: DashKit
-        product: DashKit      # includes DashKitTesting
+        product: DashKit        # includes DashKitTesting
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: {args.bundle_prefix}.{plugin_id}.tests
+        PRODUCT_BUNDLE_IDENTIFIER: __BUNDLE__.tests
     scheme:
-      testTargets: [{name}PluginTests]
+      testTargets: [__NAME__PluginTests]
 """
 
-entry = f"""import DashKit
-import Foundation
+entry = """import DashKit
 
-/// The plugin's principal class (informational; Dash calls `dash_plugin_entry`).
-@objc({name}DashPlugin)
-final class {name}Plugin: DashPlugin {{
-    override class func makeExtensions() -> [any DashExtension] {{ [{name}{"Integration" if args.integration else "Feature"}()] }}
-}}
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum __NAME__Plugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [__NAME____MAIN__()] }
+}
 
-/// The entry point Dash loads: hands over this plugin's integrations and features.
+/// The C entry point Dash loads (see docs/PLUGINS.md).
 @_cdecl("dash_plugin_entry")
-public func dashPluginEntry() -> UnsafeMutableRawPointer {{
-    DashPluginFactory.export {{ {name}Plugin.makeExtensions() }}
-}}
+public func dashPluginEntry() -> UnsafeMutableRawPointer {
+    DashPluginFactory.export { __NAME__Plugin.makeExtensions() }
+}
 """
 
-integration = f"""import DashKit
+# MARK: Integration
+
+integration = """import DashKit
 import DashKitUI
 import Foundation
 import Observation
 import SwiftUI
 
-/// The {name} account: an API token in the Keychain and an authenticated connection that
+/// The __NAME__ account: an API token in the Keychain and an authenticated connection that
 /// features use without seeing the token.
 @MainActor
 @Observable
-final class {name}Integration: Integration {{
-    let id = "{plugin_id}"
-    let name = "{name}"
+final class __NAME__Integration: Integration {
+    let id = "__ID__"
+    let name = "__NAME__"
     let systemImage = "link"
-    let metadata = ExtensionMetadata(version: "1.0.0", author: {swift_author},
-                                     summary: "Connects your {name} account.", category: .other, minimumDashKit: "1.0.0")
+    let metadata = ExtensionMetadata(version: "1.0.0", author: __AUTHOR__,
+                                     summary: "Connects your __NAME__ account.", category: .other, minimumDashKit: "2.0.0")
     let secretKeys = [SecretKey("token", "API token")]
-    let secrets: SecretStore? = SecretStore(extensionID: "{plugin_id}")
+    let secrets: SecretStore? = SecretStore(extensionID: "__ID__")
 
     /// The API every request goes to. Change it to the service's.
     static let apiURL = URL(string: "https://api.example.com")!
@@ -142,266 +166,393 @@ final class {name}Integration: Integration {{
     private(set) var lastError: String?
 
     /// `token` and `session` are for tests; Dash uses the Keychain and the shared session.
-    init(token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {{
-        let store = SecretStore(extensionID: "{plugin_id}")
-        readToken = token ?? {{ store.read("token") }}
+    init(token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
+        let store = SecretStore(extensionID: "__ID__")
+        readToken = token ?? { store.read("token") }
         self.session = session
-    }}
+    }
 
-    private var token: String? {{ readToken().flatMap {{ $0.isEmpty ? nil : $0 }} }}
-    var isConnected: Bool {{ token != nil }}
-    var connectionState: ConnectionState {{ state(error: lastError, configured: isConnected, account: account) }}
+    private var token: String? { readToken().flatMap { $0.isEmpty ? nil : $0 } }
+    var isConnected: Bool { token != nil }
+    var connectionState: ConnectionState { state(error: lastError, configured: isConnected, account: account) }
 
-    var connection: IntegrationConnection? {{
-        guard let token else {{ return nil }}
+    var connection: IntegrationConnection? {
+        guard let token else { return nil }
         return IntegrationConnection(baseURL: Self.apiURL, headers: ["Authorization": "Bearer \\(token)"], session: session)
-    }}
+    }
 
     /// What features may read without the secret (e.g. the signed-in account).
-    var exports: JSONValue {{ ["account": account.map {{ .string($0) }} ?? .null] }}
+    var exports: JSONValue { ["account": account.map { .string($0) } ?? .null] }
 
-    func start(host: any ExtensionContext) {{
-        Task {{ await verify() }}
-    }}
+    var tools: [DashiiTool] { __NAME__Tools.tools(integration: self) }
+
+    func start(host: any ExtensionContext) {
+        Task { await verify() }
+    }
 
     /// Checks the token once at launch, while the splash screen shows progress.
-    func prepare(host: any ExtensionContext) async throws {{
+    func prepare(host: any ExtensionContext) async throws {
         await verify()
-        if let lastError {{ throw ToolError(lastError) }}
-    }}
+        if let lastError { throw ToolError(lastError) }
+    }
 
-    func setToken(_ token: String) {{
+    func setToken(_ token: String) {
         secrets?.write("token", token)
         account = nil
-        Task {{ await verify() }}
-    }}
+        Task { await verify() }
+    }
 
     /// Asks the API who the token belongs to. Adjust the path and field to the service's.
-    func verify() async {{
-        guard let connection else {{ lastError = nil; return }}
-        do {{
+    func verify() async {
+        guard let connection else { lastError = nil; return }
+        do {
             account = try await connection.get("/me", service: name)["name"]?.string
             lastError = nil
-        }} catch {{
+        } catch {
             lastError = error.localizedDescription
-        }}
-    }}
+        }
+    }
 
-    func settingsView() -> AnyView {{ AnyView({name}Settings(integration: self)) }}
+    func settingsView() -> AnyView { AnyView(__NAME__Settings(integration: self)) }
+}
 
-    var tools: [ClaudeTool] {{
-        [ClaudeTool(name: "{plugin_id.replace("-", "_")}_get", description: "GET a {name} API path and return the JSON.",
-                    properties: ["path": JSONSchema.string("API path, e.g. /me.")], required: ["path"]) {{ [weak self] input in
-            guard let connection = self?.connection else {{ throw ToolError("Connect {name} in Settings.") }}
-            return try await connection.get(input["path"]?.string ?? "/", service: "{name}")
-        }}]
-    }}
-}}
+private struct __NAME__Settings: View {
+    let integration: __NAME__Integration
 
-private struct {name}Settings: View {{
-    let integration: {name}Integration
-
-    var body: some View {{
-        Form {{
-            Section {{
-                SecretField("API token", isStored: integration.isConnected, onSave: {{ integration.setToken($0) }},
-                            onRemove: {{ integration.setToken("") }})
-                LabeledContent("Status") {{ ConnectionStatusLabel(integration.connectionState) }}
-            }} footer: {{
+    var body: some View {
+        Form {
+            Section {
+                SecretField("API token", isStored: integration.isConnected, onSave: { integration.setToken($0) },
+                            onRemove: { integration.setToken("") })
+                LabeledContent("Status") { ConnectionStatusLabel(integration.connectionState) }
+            } footer: {
                 Text("Stored in your Keychain. Features use the connection; they never see the token.")
-            }}
-        }}
-    }}
-}}
+            }
+        }
+    }
+}
 """
 
-requires_swift = ", ".join(f'"{r}"' for r in requires)
-feature = f"""import DashKit
-import DashKitUI
-import Foundation
-import Observation
-import SwiftUI
+integration_tools = """import DashKit
 
-/// {name}: a widget, a Claude tool and an AI task.{" Uses " + ", ".join(requires) + " through DashKit only." if requires else ""}
+/// __NAME__'s tools: reads only, so Dashii and read-only agents may use them.
 @MainActor
-@Observable
-final class {name}Feature: DashExtension {{
-    let id = "{plugin_id}"
-    let name = "{name}"
-    let systemImage = "sparkles"
-    let metadata = ExtensionMetadata(version: "1.0.0", author: {swift_author},
-                                     summary: "Describe what {name} does.", category: .productivity, minimumDashKit: "1.0.0")
-    let requires: [String] = [{requires_swift}]
-
-    @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
-    private(set) var items: [{name}Item] = []
-    private(set) var lastError: String?
-
-    var widgets: [WidgetType] {{ [WidgetType({name}Widget.self)] }}
-
-    /// What the feature asks Claude; the user picks model, effort and the prompt in its AI tab.
-    static let summarizeTask = AITask(
-        id: "summarize", title: "Summaries", summary: "Summarizes the items for the dashboard.",
-        models: [.haiku, .sonnet, .opus], efforts: [.low, .medium, .high],
-        templates: [AITemplate(id: "prompt", title: "Prompt", defaultText: "Summarize these {{{{count}}}} items in two sentences.",
-                               variables: ["count": "How many items"], multiline: true)])
-
-    var aiTasks: [AITask] {{ [Self.summarizeTask] }}
-
-    func start(host: any ExtensionContext) {{
-        self.host = host
-        Task {{ await refresh() }}
-    }}
-
-    /// Loads the items. Replace with real work (an integration's connection, a local API…).
-    func refresh() async {{
-        items = [{name}Item(title: "First item", detail: "Replace with real data"), {name}Item(title: "Second item", detail: "Up to date")]
-        lastError = nil
-        host?.activity.emit("{plugin_id}.refreshed", source: id, title: "{name} refreshed", importance: .info)
-    }}
-
-    func summarize() async throws -> String {{
-        guard let host else {{ throw ToolError("{name} isn't running.") }}
-        let settings = host.aiSettings(.extension(id), tasks: aiTasks)
-        let prompt = settings.render(Self.summarizeTask.id, "prompt", ["count": String(items.count)])
-        return try await host.claude.complete(task: Self.summarizeTask.id, settings: settings, system: "You are concise.",
-                                              prompt: prompt + "\\n\\n" + items.map(\\.title).joined(separator: "\\n"))
-    }}
-
-    var tools: [ClaudeTool] {{
-        [ClaudeTool(name: "{plugin_id.replace("-", "_")}_items", description: "List {name}'s items.") {{ [weak self] _ in
-            .array((self?.items ?? []).map {{ ["title": .string($0.title), "detail": .string($0.detail)] }})
-        }}]
-    }}
-}}
-
-struct {name}Item: Identifiable, Hashable, Sendable {{
-    var id: String {{ title }}
-    let title: String
-    let detail: String
-}}
-
-struct {name}Widget: DashboardWidget {{
-    struct Config: Codable, Equatable, Sendable {{
-        var limit: Int = 10
-    }}
-
-    static let kind = "{widget_kind}"
-    static let displayName = "{name}"
-    static let summary = "Describe what the widget shows."
-    static let systemImage = "sparkles"
-    static let defaultSize = WidgetSize.medium
-    static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 20)
-    static let defaultConfig = Config()
-    static let configSchema: JSONValue = [
-        "type": "object",
-        "properties": ["limit": ["type": "integer", "description": "How many items to show."]],
-    ]
-
-    static func content(config: Binding<Config>, context: WidgetContext) -> some View {{
-        if let feature = context.host.ext({name}Feature.self) {{
-            {name}List(items: Array(feature.items.prefix(config.wrappedValue.limit)))
-        }} else {{
-            StateView(.failed(message: "{name} isn't loaded."))
-        }}
-    }}
-
-    static func settings(config: Binding<Config>, context: WidgetContext) -> some View {{
-        Stepper("Show \\(config.wrappedValue.limit) items", value: config.limit, in: 1...50)
-    }}
-
-    /// Sample data for the widget gallery: no network, no accounts.
-    static func preview(config: Config) -> some View {{
-        {name}List(items: [{name}Item(title: "Sample item", detail: "Shown in the gallery"), {name}Item(title: "Another", detail: "Sample data")])
-    }}
-
-    static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {{
-        .array((context.host.ext({name}Feature.self)?.items ?? []).prefix(config.limit).map {{ ["title": .string($0.title)] }})
-    }}
-}}
-
-private struct {name}List: View {{
-    let items: [{name}Item]
-
-    var body: some View {{
-        if items.isEmpty {{
-            StateView(.empty(title: "Nothing yet", systemImage: "tray", message: nil))
-        }} else {{
-            VStack(alignment: .leading, spacing: 8) {{
-                ForEach(items) {{ item in
-                    ItemRow(item.title, subtitle: item.detail, leading: {{ StatusDot(.success) }})
-                }}
-                Spacer(minLength: 0)
-            }}
-        }}
-    }}
-}}
+enum __NAME__Tools {
+    static func tools(integration: __NAME__Integration) -> [DashiiTool] {
+        [DashiiTool(name: "__IDU___get", description: "GET a __NAME__ API path and return the JSON. Read-only.",
+                    properties: ["path": JSONSchema.string("API path, e.g. /me.")], required: ["path"]) { [weak integration] input in
+            guard let connection = integration?.connection else { throw ToolError("Connect __NAME__ in Settings.") }
+            return try await connection.get(input["path"]?.string ?? "/", service: "__NAME__")
+        }]
+    }
+}
 """
 
-integration_tests = f"""import DashKit
+integration_rules = """- __NAME__ is read through `__IDU___get` (GET only); say which path you read.
+- Never paste the API token or any credential.
+"""
+
+integration_tests = """import DashKit
 import DashKitTesting
 import Foundation
 import Testing
 
 @MainActor
-struct {name}IntegrationTests {{
-    @Test func connectsWithATokenAndVerifiesTheAccount() async throws {{
+struct __NAME__IntegrationTests {
+    @Test func connectsWithATokenAndVerifiesTheAccount() async throws {
         let host = "api-\\(UUID().uuidString.prefix(8)).test"
-        StubHTTP.serve(host, routes: ["/me": #"{{"name": "ada"}}"#])
-        let integration = {name}Integration(token: {{ "secret" }}, session: StubHTTP.session)
+        StubHTTP.serve(host, routes: ["/me": #"{"name": "ada"}"#])
+        let integration = __NAME__Integration(token: { "secret" }, session: StubHTTP.session)
         #expect(integration.isConnected)
         // Point the connection at the stub (the real one uses apiURL).
         var connection = try #require(integration.connection)
         connection = IntegrationConnection(baseURL: URL(string: "https://\\(host)")!, headers: connection.headers, session: StubHTTP.session)
         #expect(try await connection.get("/me", service: "test")["name"] == "ada")
         #expect(StubHTTP.requests(host).first?.value(forHTTPHeaderField: "Authorization") == "Bearer secret")
-    }}
+    }
 
-    @Test func noTokenMeansNotConnected() {{
-        let integration = {name}Integration(token: {{ nil }})
+    @Test func noTokenMeansNotConnected() {
+        let integration = __NAME__Integration(token: { nil })
         #expect(!integration.isConnected && integration.connection == nil)
         #expect(integration.connectionState == .notConfigured)
-    }}
-}}
+        #expect(integration.tools.allSatisfy { !$0.requiresApproval && !$0.writesRemotely })
+    }
+}
 """
 
-feature_tests = f"""import DashKit
+# MARK: Feature
+
+feature = """import DashKit
+import Foundation
+import Observation
+import SwiftUI
+
+/// __NAME__: a widget, a tool, a Dashii function, a DashQL dataset and statements.__USES__
+@MainActor
+@Observable
+final class __NAME__Feature: DashExtension {
+    let id = "__ID__"
+    let name = "__NAME__"
+    let systemImage = "sparkles"
+    let metadata = ExtensionMetadata(version: "1.0.0", author: __AUTHOR__,
+                                     summary: "Describe what __NAME__ does.", category: .productivity, minimumDashKit: "2.0.0")
+    let layer = ExtensionLayer.feature
+    let requires: [String] = [__REQUIRES__]
+
+    @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    private(set) var items: [__NAME__Item] = []
+
+    var widgets: [WidgetType] { [WidgetType(MainWidget.self)] }
+    var tools: [DashiiTool] { __NAME__Tools.tools(feature: self) }
+    /// Offered to other extensions, Dashii and agents (`host.runFunction("__ID__.summary", …)`).
+    var functions: [AnyDashiiFunction] { [__NAME__Tools.summary.erased] }
+    /// The user picks the model and effort for the summary in the extension's AI tab.
+    var aiTasks: [AITask] {
+        [AITask(id: "summary", title: "Summaries", summary: "Summarizes the items.", models: [.fast, .balanced], defaultModel: .fast)]
+    }
+
+    func start(host: any ExtensionContext) {
+        self.host = host
+        Task { await refresh() }
+    }
+
+    /// Loads the items. Replace with real work (an integration's connection, a local API…).
+    func refresh() async {
+        items = [__NAME__Item(title: "First item", detail: "Replace with real data"), __NAME__Item(title: "Second item", detail: "Up to date")]
+        host?.activity.emit("__ID__.refreshed", source: id, title: "__NAME__ refreshed", importance: .info)
+    }
+
+    func requireHost() throws -> any ExtensionContext {
+        guard let host else { throw ToolError("__NAME__ isn't running.") }
+        return host
+    }
+}
+
+struct __NAME__Item: Identifiable, Hashable, Sendable, Codable {
+    var id: String { title }
+    let title: String
+    let detail: String
+}
+"""
+
+feature_tools = """import DashKit
+
+/// __NAME__'s tools and Dashii functions.
+@MainActor
+enum __NAME__Tools {
+    struct Summary: Codable, Sendable, Equatable {
+        var summary: String
+    }
+
+    /// One narrow job for a smaller model, typed: the answer is decoded and checked for you.
+    static let summary = DashiiFunction<[__NAME__Item], Summary>(
+        name: "__ID__.summary", summary: "Summarize __NAME__ items in two sentences.", task: "summary",
+        instructions: "Summarize the items in two plain sentences: what matters first.",
+        inputSchema: JSONSchema.array("Items.", of: JSONSchema.object(properties: ["title": JSONSchema.string(""), "detail": JSONSchema.string("")],
+                                                                      required: ["title", "detail"])),
+        outputSchema: JSONSchema.object(properties: ["summary": JSONSchema.string("")], required: ["summary"]),
+        model: .fast, effort: .low, inputFormat: .compact, cacheFor: .seconds(600))
+
+    static func tools(feature: __NAME__Feature) -> [DashiiTool] {
+        [
+            DashiiTool(name: "__IDU___items", description: "List __NAME__'s items.") { [weak feature] _ in
+                .array((feature?.items ?? []).map { ["title": .string($0.title), "detail": .string($0.detail)] })
+            },
+            DashiiTool(name: "__IDU___summarize", description: "Summarize __NAME__'s items (a smaller model reads them).") { [weak feature] _ in
+                guard let feature else { return nil }
+                let host = try feature.requireHost()
+                let result = try await summary.run(feature.items, dashii: host.dashii, settings: host.aiSettings(.extension(feature.id), tasks: feature.aiTasks))
+                return .string(result.summary)
+            },
+        ]
+    }
+}
+"""
+
+feature_query = """import DashKit
+
+/// __NAME__ in DashQL (`from __IDU__`, `__ID__ summarize`) and ready-made hooks.
+extension __NAME__Feature {
+    var datasets: [QueryDataset] {
+        [QueryDataset(name: "__IDU__", summary: "__NAME__'s items.",
+                      fields: [.init("title", .string, "Title"), .init("detail", .string, "Detail")]) { [weak self] _ in
+            (self?.items ?? []).map { ["title": .string($0.title), "detail": .string($0.detail)] }
+        }]
+    }
+
+    var verbs: [DashQLVerb] {
+        [DashQLVerb("__ID__", "items", tool: "__IDU___items", summary: "List the items."),
+         DashQLVerb("__ID__", "summarize", tool: "__IDU___summarize", summary: "Summarize the items.")]
+    }
+
+    var hookPresets: [HookPresetSpec] {
+        [.appears("__ID__.new-items", "New __NAME__ items", dataset: "__IDU__", where: "title != \\"\\"", key: "title",
+                  title: "{{count}} new: {{first.title}}", body: "{{first.detail}}")]
+    }
+}
+"""
+
+widget = """import DashKit
+import DashKitUI
+import SwiftUI
+
+/// The __NAME__ widget's manifest: what it is, its sizes and settings. Data comes from
+/// `MainProvider`, drawing from `MainView`.
+struct MainWidget: DashboardWidget {
+    struct Config: Codable, Equatable, Sendable {
+        var limit: Int = 10
+    }
+
+    static let kind = "__ID__.main"
+    static let displayName = "__NAME__"
+    static let summary = "Describe what the widget shows."
+    static let systemImage = "sparkles"
+    static let defaultSize = WidgetSize.medium
+    static let sizeLimits = GridLimits(minW: 3, minH: 3, maxW: 12, maxH: 20)
+    static let defaultConfig = Config()
+    static let configSchema: JSONValue = [
+        "type": "object",
+        "properties": ["limit": ["type": "integer", "description": "How many items to show."]],
+    ]
+
+    static func content(config: Binding<Config>, context: WidgetContext) -> some View {
+        ProvidedWidget(MainProvider(host: context.host), config: config.wrappedValue) { snapshot, size in
+            MainView(snapshot: snapshot, size: size)
+        }
+    }
+
+    static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
+        Stepper("Show \\(config.wrappedValue.limit) items", value: config.limit, in: 1...50)
+    }
+
+    /// Sample data for the gallery: no network, no accounts.
+    static func preview(config: Config) -> some View { MainView(snapshot: .sample, size: .regular) }
+
+    static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
+        (try? await MainProvider(host: context.host).snapshot(for: config)).map { snapshot in
+            .array(snapshot.items.map { ["title": .string($0.title), "detail": .string($0.detail)] })
+        } ?? .null
+    }
+}
+"""
+
+provider = """import DashKit
+
+/// Where the widget's data comes from. Views never fetch; they render what this returns.
+struct MainProvider: WidgetDataProvider {
+    let host: any ExtensionContext
+
+    var refresh: WidgetRefresh { .every(.seconds(120)) }
+
+    func snapshot(for config: MainWidget.Config) async throws -> MainSnapshot {
+        guard let feature = host.ext(__NAME__Feature.self) else { throw ToolError("__NAME__ isn't loaded.") }
+        return MainSnapshot(items: Array(feature.items.prefix(config.limit)))
+    }
+}
+"""
+
+snapshot = """/// What the widget shows: plain data, so previews and tests need no services.
+struct MainSnapshot: Sendable, Equatable {
+    var items: [__NAME__Item]
+
+    static let sample = MainSnapshot(items: [__NAME__Item(title: "Sample item", detail: "Shown in the gallery"),
+                                             __NAME__Item(title: "Another", detail: "Sample data")])
+}
+"""
+
+view = """import DashKit
+import DashKitUI
+import SwiftUI
+
+/// Renders a snapshot; picks how much to show from the room it has.
+struct MainView: View {
+    let snapshot: MainSnapshot
+    let size: WidgetSizeClass
+
+    var body: some View {
+        if snapshot.items.isEmpty {
+            StateView(.empty(title: "Nothing yet", systemImage: "tray", message: nil))
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(snapshot.items.prefix(size == .compact ? 3 : 20)) { item in
+                    ItemRow(item.title, subtitle: size == .compact ? nil : item.detail, leading: { StatusDot(.success) })
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(size == .compact ? 8 : 12)
+        }
+    }
+}
+"""
+
+feature_rules = """- __NAME__'s items: `__IDU___items`, or dashql `from __IDU__` (title, detail).
+- Summaries go through `__IDU___summarize`; say they come from a smaller model.
+"""
+
+feature_tests = """import DashKit
 import DashKitTesting
 import Foundation
 import SwiftUI
 import Testing
 
 @MainActor
-struct {name}FeatureTests {{
-    @Test func refreshesAndListsItems() async throws {{
-        let feature = {name}Feature()
+struct __NAME__FeatureTests {
+    func make() throws -> (__NAME__Feature, TestHost) {
+        let feature = __NAME__Feature()
         let host = try TestHost([feature])
         host.start([feature])
+        return (feature, host)
+    }
+
+    @Test func refreshesAndListsItems() async throws {
+        let (feature, host) = try make()
         await feature.refresh()
-        let items = try await host.runTool("{plugin_id.replace("-", "_")}_items")
+        let items = try await host.runTool("__IDU___items")
         #expect(items?.array?.count == 2)
-        #expect(host.activity.events.contains {{ $0.kind == "{plugin_id}.refreshed" }})
-    }}
+        #expect(host.activity.events.contains { $0.kind == "__ID__.refreshed" })
+    }
 
-    @Test func summariesUseTheAITabChoices() async throws {{
-        let feature = {name}Feature()
-        let host = try TestHost([feature])
-        host.start([feature])
+    @Test func summariesGoToASmallerModelWithTheAITabChoices() async throws {
+        let (feature, host) = try make()
         await feature.refresh()
-        host.aiChoices[.extension(feature.id)] = ["summarize": AITaskChoice(model: .sonnet, templates: ["prompt": "Count: {{{{count}}}}"])]
-        host.testClaude.reply = "All good."
-        #expect(try await feature.summarize() == "All good.")
-        let call = try #require(host.testClaude.calls.last)
-        #expect(call.model == ClaudeModel.sonnet.rawValue && call.prompt.hasPrefix("Count: 2"))
-    }}
+        host.aiChoices[.extension(feature.id)] = ["summary": AITaskChoice(model: .balanced)]
+        host.testDashii.reply = #"{"summary":"All good."}"#
+        #expect(try await host.runTool("__IDU___summarize") == "All good.")
+        let call = try #require(host.testDashii.calls.last)
+        #expect(call.model == DashiiModel.balanced.rawValue && call.prompt.contains("First item"))
+        #expect(host.function("__ID__.summary") != nil)
+    }
 
-    @Test func widgetContract() {{
-        #expect({name}Widget.kind == "{widget_kind}")
-        #expect({name}Widget.sizeLimits.minW == 3)
-        let type = WidgetType({name}Widget.self)
-        #expect(type.preview != nil)
-    }}
-}}
+    @Test func widgetLoadsThroughItsProvider() async throws {
+        let (feature, host) = try make()
+        await feature.refresh()
+        let loader = WidgetSnapshotLoader(provider: MainProvider(host: host))
+        await loader.load(.init(limit: 1))
+        #expect(loader.snapshot?.items.map(\\.title) == ["First item"])
+        #expect(MainWidget.kind == "__ID__.main" && WidgetType(MainWidget.self).preview != nil)
+    }
+
+    @Test func statementsMapToTools() {
+        let feature = __NAME__Feature()
+        #expect(Set(feature.verbs.map(\\.tool)).isSubset(of: Set(feature.tools.map(\\.name))))
+    }
+}
+"""
+
+rules_test = """import DashKit
+import Foundation
+import Testing
+
+/// Every extension of the plugin gives Dashii default rules, shipped as Rules/<id>.md.
+@MainActor
+struct DefaultRulesTests {
+    @Test func everyExtensionHasRules() {
+        for item in __NAME__Plugin.makeExtensions() {
+            #expect(item.defaultRules?.isEmpty == false, "\\(item.id) has no default rules")
+            #expect(RulesFile.load(id: item.id, bundle: Bundle(for: type(of: item))) == item.defaultRules)
+        }
+    }
+}
 """
 
 plugin_json = {
@@ -435,22 +586,47 @@ info_plist = """<?xml version="1.0" encoding="UTF-8"?>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>DashKitMinimumVersion</key>
+	<string>2.0.0</string>
+	<key>DashPluginID</key>
+	<string>__ID__</string>
+	<key>DashPluginVersion</key>
+	<string>1.0.0</string>
 </dict>
 </plist>
 """
 
-(folder / "Sources").mkdir(parents=True)
-(folder / "Tests").mkdir()
-(folder / "project.yml").write_text(project)
-(folder / "Info.plist").write_text(info_plist)
-(folder / "plugin.json").write_text(json.dumps(plugin_json, indent=2) + "\n")
-(folder / "Sources" / f"{name}Plugin.swift").write_text(entry)
+files = {
+    "project.yml": project,
+    "Info.plist": info_plist,
+    "plugin.json": json.dumps(plugin_json, indent=2) + "\n",
+    f"Sources/{name}Plugin.swift": entry,
+    "Tests/DefaultRulesTests.swift": rules_test,
+}
 if args.integration:
-    (folder / "Sources" / f"{name}Integration.swift").write_text(integration)
-    (folder / "Tests" / f"{name}IntegrationTests.swift").write_text(integration_tests)
+    files.update({
+        f"Sources/{name}Integration.swift": integration,
+        f"Sources/Tools/{name}Tools.swift": integration_tools,
+        f"Rules/{plugin_id}.md": integration_rules,
+        f"Tests/{name}IntegrationTests.swift": integration_tests,
+    })
 else:
-    (folder / "Sources" / f"{name}Feature.swift").write_text(feature)
-    (folder / "Tests" / f"{name}FeatureTests.swift").write_text(feature_tests)
+    files.update({
+        f"Sources/{name}Feature.swift": feature,
+        f"Sources/Tools/{name}Tools.swift": feature_tools,
+        f"Sources/Query/{name}Query.swift": feature_query,
+        "Sources/Widgets/Main/MainWidget.swift": widget,
+        "Sources/Widgets/Main/MainProvider.swift": provider,
+        "Sources/Widgets/Main/MainSnapshot.swift": snapshot,
+        "Sources/Widgets/Main/MainView.swift": view,
+        f"Rules/{plugin_id}.md": feature_rules,
+        f"Tests/{name}FeatureTests.swift": feature_tests,
+    })
+
+for path, text in files.items():
+    target = folder / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(fill(text))
 
 print(f"Created plugins/{name} ({plugin_json['kind']} \"{plugin_id}\").")
 print(f"Next: TEST=1 scripts/build-plugins.sh {name}")
