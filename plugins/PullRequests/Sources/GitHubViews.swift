@@ -15,7 +15,7 @@ struct PullRequestsWidget: DashboardWidget {
     static let kind = "github.pulls"
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 24)
     static let displayName = "Pull Requests"
-    static let summary = "Open PRs on watched repositories with Claude's review verdict and risk. Open one to read the review, comment, approve or merge."
+    static let summary = "Open PRs on watched repositories with Claude's review verdict and risk. Open one to read the review, diff and checks; merging stays your click."
     static let systemImage = "arrow.triangle.pull"
     static let defaultSize = WidgetSize.large
     static let defaultConfig = Config(repo: "", filter: "all")
