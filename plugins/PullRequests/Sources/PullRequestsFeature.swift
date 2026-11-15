@@ -140,9 +140,10 @@ final class PullRequestsFeature: DashExtension {
         do {
             if viewer.isEmpty { fetchedViewer = try await client.viewer() }
             let viewer = self.viewer
-            let context = host.context
             for repo in repos {
                 let response = try await client.openPulls(repo, etag: etags[repo])
+                // Read after the network call: a plugin installed meanwhile may have replaced the store.
+                let context = host.context
                 if response.notModified { continue }
                 etags[repo] = response.etag
                 let items = response.json.array ?? []
@@ -181,6 +182,7 @@ final class PullRequestsFeature: DashExtension {
                 }
             }
             // Repositories that were removed from the watch list.
+            let context = host.context
             let watched = Set(repos)
             for pr in (try? context.fetch(FetchDescriptor<PullRequest>())) ?? [] where !watched.contains(pr.repo) { context.delete(pr) }
             try? context.save()
