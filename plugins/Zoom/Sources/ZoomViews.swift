@@ -21,8 +21,11 @@ struct MeetingWidget: DashboardWidget {
         "properties": ["recentCount": ["type": "integer", "description": "How many past meetings to list."]],
     ]
 
+    static let queryFields = MeetingRecord.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        MeetingPanel(zoom: context.host.ext(ZoomExtension.self), host: context.host, recentCount: config.wrappedValue.recentCount)
+        MeetingPanel(zoom: context.host.ext(ZoomExtension.self), host: context.host, recentCount: config.wrappedValue.recentCount,
+                     query: context.query(fields: MeetingRecord.queryFields), queryText: context.queryText)
     }
 
     static func preview(config: Config) -> some View {
@@ -40,8 +43,17 @@ private struct MeetingPanel: View {
     let zoom: ZoomExtension?
     let host: any ExtensionContext
     let recentCount: Int
+    /// The widget's DashQL query (its query bar): which past meetings to list. Without one, the
+    /// most recent `recentCount`.
+    let query: WidgetQuery?
+    let queryText: String
     @Query(sort: \MeetingRecord.startedAt, order: .reverse) private var meetings: [MeetingRecord]
     @State private var selected: MeetingRecord?
+    @State private var queryIDs: [UUID]?
+
+    private var listed: [MeetingRecord] {
+        queryIDs == nil ? Array(meetings.prefix(recentCount)) : QueryRows.ordered(meetings, by: queryIDs)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -79,7 +91,8 @@ private struct MeetingPanel: View {
                 ContentUnavailableView("No meetings yet", systemImage: "waveform", description: Text("Join a Zoom meeting and press Transcribe."))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(meetings.prefix(recentCount)) { meeting in
+                QueryCount(shown: listed.count, total: meetings.count, query: queryText)
+                List(listed) { meeting in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(meeting.title).lineLimit(1)
                         Text(meeting.summary.isEmpty ? meeting.startedAt.formatted(date: .abbreviated, time: .shortened) : meeting.summary)
@@ -93,6 +106,9 @@ private struct MeetingPanel: View {
             }
         }
         .sheet(item: $selected) { MeetingSheet(meeting: $0, zoom: zoom, host: host) }
+        .task(id: QueryRows.key(queryText, meetings, row: \.queryRow)) {
+            queryIDs = await QueryRows.ids(query, meetings, row: \.queryRow)
+        }
     }
 }
 
