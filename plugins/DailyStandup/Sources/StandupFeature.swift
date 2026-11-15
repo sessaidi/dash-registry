@@ -62,6 +62,7 @@ final class DailyStandupFeature: DashExtension {
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var loop: Task<Void, Never>?
+    @ObservationIgnored private var meetings: ActivitySubscription?
     @ObservationIgnored private var reportedMeetings = Set<String>()
 
     init(defaults: UserDefaults = DashStorage.defaults) {
@@ -93,7 +94,8 @@ final class DailyStandupFeature: DashExtension {
     func start(host: any ExtensionContext) {
         self.host = host
         // The meeting's end on a Zoom day: report it.
-        host.activity.onEmit { [weak self] event in
+        meetings?.cancel()
+        meetings = host.activity.onEmit { [weak self] event in
             guard event.kind == "meeting.ended" else { return }
             Task { @MainActor in await self?.meetingEnded() }
         }
@@ -109,6 +111,8 @@ final class DailyStandupFeature: DashExtension {
     func stop() {
         loop?.cancel()
         loop = nil
+        meetings?.cancel()
+        meetings = nil
     }
 
     // MARK: Days
