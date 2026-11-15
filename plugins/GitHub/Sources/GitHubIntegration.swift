@@ -19,7 +19,7 @@ final class GitHubIntegration: Integration {
     let metadata = ExtensionMetadata(
         version: "1.1.0", author: .dash, summary: "GitHub account, API URL and the repositories you watch.",
         category: .sourceControl, tags: ["github", "git", "pull requests"], homepage: "https://github.com/sessaidi/dash",
-        minimumDashKit: "1.0.0")
+        minimumDashKit: "1.5.0")
     let secretKeys = [SecretKey("token", "Personal access token")]
     let secrets: SecretStore? = SecretStore(extensionID: "github", legacy: ["token": "github"])
 
@@ -27,6 +27,8 @@ final class GitHubIntegration: Integration {
     @ObservationIgnored private let readToken: @MainActor () -> String?
     /// URLSession for requests; nil uses the shared session. Tests inject a stubbed one.
     @ObservationIgnored private let session: URLSession?
+    /// Dash, once started: the sync tools write into its synced store.
+    @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
 
     /// https://api.github.com, or https://<host>/api/v3 for GitHub Enterprise Server.
     var apiURL: String { didSet { defaults.set(apiURL, forKey: Self.apiKey) } }
@@ -187,6 +189,7 @@ final class GitHubIntegration: Integration {
             "login": .string(viewer),
             "repos": .array(repos.map { .string($0) }),
             "apiURL": .string(apiURL),
+            "webURL": .string(webURL),
         ]
     }
 
@@ -207,6 +210,7 @@ final class GitHubIntegration: Integration {
     }
 
     func start(host: any ExtensionContext) {
+        self.host = host
         Task { await verify() }
     }
 
@@ -259,7 +263,7 @@ final class GitHubIntegration: Integration {
                 return text.count > Self.maxToolCharacters
                     ? ["truncated": true, "json": .string(String(text.prefix(Self.maxToolCharacters)))] : json
             },
-        ] + readTools
+        ] + readTools + syncTools
     }
 
     /// The API for the granular tools (throws when GitHub isn't connected).

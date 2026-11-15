@@ -90,7 +90,51 @@ struct GitHubIntegrationTests {
             "login": "octocat",
             "repos": ["acme/api", "acme/web"],
             "apiURL": "https://api.github.com",
+            "webURL": "https://github.com",
         ])
+    }
+
+    // MARK: Release sync
+
+    @Test func syncTagsMirrorsTagsWithTheirBranch() async throws {
+        StubURLProtocol.reset([
+            "/repos/acme/api": .json(#"{"default_branch":"main"}"#),
+            "/graphql": .json(#"""
+                {"data":{"repository":{"refs":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+                 {"name":"v1","target":{"__typename":"Commit","oid":"aaa","committedDate":"2026-10-01T10:00:00Z","messageHeadline":"Ship v1"}},
+                 {"name":"v1-hotfix","target":{"__typename":"Tag","oid":"t1","message":"Hotfix\nmore","tagger":{"date":"2026-10-03T09:00:00Z"},
+                   "target":{"oid":"bbb","committedDate":"2026-10-02T00:00:00Z","messageHeadline":"Fix"}}}]}}}}
+                """#),
+            "/repos/acme/api/compare/main...aaa": .json(#"{"status":"behind"}"#),
+            "/repos/acme/api/compare/main...bbb": .json(#"{"status":"diverged"}"#),
+        ])
+        let github = make()
+        let store = MemorySyncedStore()
+        #expect(try await github.syncTags("acme/api", store: store) == 2)
+        let tags = Dictionary(uniqueKeysWithValues: store.records(kind: "git.tag", scope: "github:acme/api").map { ($0.key, $0.value) })
+        #expect(tags["v1"] == ["commit": "aaa", "date": "2026-10-01T10:00:00Z", "subject": "Ship v1", "on_base": true])
+        #expect(tags["v1-hotfix"]?["on_base"] == false && tags["v1-hotfix"]?["date"] == "2026-10-03T09:00:00Z")
+        #expect(store.record(kind: "git.repo", scope: "github:acme/api", key: "info")?.value["default_branch"] == "main")
+        // A second sync reuses the branch answers: no compare requests.
+        let before = StubURLProtocol.requests.count
+        try await github.syncTags("acme/api", store: store)
+        #expect(!StubURLProtocol.requests.dropFirst(before).contains { $0.url?.path().contains("/compare/") == true })
+    }
+
+    @Test func syncRangeSkipsMergesAndIsCached() async throws {
+        StubURLProtocol.reset([
+            "/repos/acme/api/compare/aaa...bbb": .json(#"""
+                {"commits":[{"sha":"c1","parents":[{}],"commit":{"author":{"name":"Ann","date":"2026-10-02T00:00:00Z"},"message":"Fix bug\n\nbody"}},
+                            {"sha":"m1","parents":[{},{}],"commit":{"author":{"name":"Bot","date":"2026-10-02T01:00:00Z"},"message":"Merge"}}]}
+                """#),
+        ])
+        let github = make()
+        let store = MemorySyncedStore()
+        let commits = try await github.syncRange("acme/api", base: "aaa", head: "bbb", store: store)
+        #expect(commits == [["sha": "c1", "author": "Ann", "date": "2026-10-02T00:00:00Z", "subject": "Fix bug"]])
+        let before = StubURLProtocol.requests.count
+        _ = try await github.syncRange("acme/api", base: "aaa", head: "bbb", store: store)
+        #expect(StubURLProtocol.requests.count == before)
     }
 
     @Test func preferencesUseLegacyKeys() {
