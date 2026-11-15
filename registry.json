@@ -80,7 +80,7 @@
         "provides": [
           "backend-meeting"
         ],
-        "sha256": "7f83bb4fa468a451181b8e37bc048c32e9198765ada3769ca5ac0a029d09308c"
+        "sha256": "a319eab95c1940128c7a7e9fd60b288650d7f27fee8dc3488a5ca44e3291f0bf"
       },
       "description": "Your highlights for the backend meeting: PRs, tickets and activity since the last report (1\u201310 week cycles), grouped into themes.",
       "icon": "person.2.wave.2",
@@ -106,7 +106,7 @@
         "provides": [
           "daily-standup"
         ],
-        "sha256": "f777ee184bc61b273de44b9b5722766136243844730c329880051a484df80d8d"
+        "sha256": "bc7244575843d2fb03c353c3937c6b923c4d0c33fd9627abe84af346d87063d9"
       },
       "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
       "icon": "person.3.sequence",
@@ -178,7 +178,7 @@
         "provides": [
           "gcp"
         ],
-        "sha256": "8097863d66007596166416f72cdf3543c459b1dc3e2e97ae6083e05995e91870"
+        "sha256": "cbe047b7d09b3738103c7528f119044e88440b4e2a0fdbf27c7788e26b1e62dc"
       },
       "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
       "icon": "cloud",
@@ -220,7 +220,7 @@
         "provides": [
           "gitlab"
         ],
-        "sha256": "b9535ea9cab6a0b8dd3dbb5440d1daeb7599055580ec38cce5d6354742e42dda"
+        "sha256": "0842533031093dbb3554d326f6f3154769bd950518bf5f374c6d7685d3b9b969"
       },
       "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
       "icon": "point.3.connected.trianglepath.dotted",
@@ -266,7 +266,7 @@
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "2ff4a50c6293b4b90b6be3ed889a1325851e72bf13f0cb64aea44155bbf25dd6"
+        "sha256": "ab72d0a1100bf11ea59120609a1578925c3177c17afd66dadefa218ce78133cf"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
@@ -356,7 +356,7 @@
         "provides": [
           "zoom"
         ],
-        "sha256": "f5d4677957f325f2473fc257766e04fe33feb0676f66424ad17b7331b46001ae"
+        "sha256": "4c2c902cc36bc223da71448f9f02ebbd77aada4fc4c9c2723bddcb69ee2c30bc"
       },
       "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
