@@ -377,7 +377,7 @@ extension DockerIntegration {
                 }
                 noteAction(on: id)
                 _ = try await raw(path, method: "POST")
-                host?.emit("docker.container.\(action)", from: self, title: "Claude ran \(action) on container \(id)")
+                host?.emit("docker.container.\(action)", from: self, title: "Dashii ran \(action) on container \(id)")
                 return ["ok": true, "id": .string(id), "action": .string(action)]
             },
             DashiiTool(
@@ -391,7 +391,7 @@ extension DockerIntegration {
                 let path = try Self.containerPath(id, "").dropLast() + "?force=\(input["force"]?.bool == true ? 1 : 0)&v=\(input["volumes"]?.bool == true ? 1 : 0)"
                 noteAction(on: id)
                 _ = try await raw(String(path), method: "DELETE")
-                host?.emit("docker.container.removed", from: self, title: "Claude removed container \(id)")
+                host?.emit("docker.container.removed", from: self, title: "Dashii removed container \(id)")
                 return ["ok": true, "removed": .string(id)]
             },
             DashiiTool(
@@ -412,7 +412,7 @@ extension DockerIntegration {
                 let output = try await raw(try Self.objectPath("exec", execID, "start"), method: "POST", body: ["Detach": false, "Tty": false], timeout: 60)
                 let result = try await json(try Self.objectPath("exec", execID))
                 let (text, truncated) = DockerLogs.truncate(DockerLogs.text(output, markStderr: true))
-                host?.emit("docker.container.exec", from: self, title: "Claude ran \(command.joined(separator: " ")) in \(id)")
+                host?.emit("docker.container.exec", from: self, title: "Dashii ran \(command.joined(separator: " ")) in \(id)")
                 return ["exit_code": result["ExitCode"] ?? .null, "output": .string(text), "truncated": .bool(truncated)]
             },
             DashiiTool(
@@ -427,7 +427,7 @@ extension DockerIntegration {
                 let data = try await raw("/images/create?fromImage=\(encoded)" + (tagged ? "" : "&tag=latest"), method: "POST", timeout: 600)
                 let lines = String(decoding: data, as: UTF8.self).split(separator: "\n").compactMap { try? JSONValue.parse(Data($0.utf8)) }
                 if let failure = lines.first(where: { $0["error"] != nil }) { throw ToolError(failure["error"]?.string ?? "Pull failed") }
-                host?.emit("docker.image.pulled", from: self, title: "Claude pulled \(image)")
+                host?.emit("docker.image.pulled", from: self, title: "Dashii pulled \(image)")
                 return ["ok": true, "image": .string(image), "status": lines.last?["status"] ?? .null]
             },
             DashiiTool(
@@ -440,7 +440,7 @@ extension DockerIntegration {
                 guard let what = input["what"]?.string, let path = paths[what] else { throw ToolError("what must be containers, images, networks or build_cache") }
                 let result = try await json(path, method: "POST", timeout: 300)
                 let removed = (result["ContainersDeleted"] ?? result["ImagesDeleted"] ?? result["NetworksDeleted"] ?? result["CachesDeleted"])?.array?.count ?? 0
-                host?.emit("docker.pruned", from: self, title: "Claude pruned Docker \(what.replacingOccurrences(of: "_", with: " "))")
+                host?.emit("docker.pruned", from: self, title: "Dashii pruned Docker \(what.replacingOccurrences(of: "_", with: " "))")
                 return ["removed": .number(Double(removed)), "space_reclaimed": .string(Self.bytes(result["SpaceReclaimed"]?.double ?? 0))]
             },
         ]

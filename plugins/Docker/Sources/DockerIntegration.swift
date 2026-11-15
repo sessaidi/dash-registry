@@ -169,7 +169,7 @@ final class DockerIntegration: Integration {
                 guard let url = connection.url(try Self.containerPath(id, action)) else { throw ToolError("Bad id") }
                 noteAction(on: id)
                 let (_, response) = try await connection.send(try HTTP.request(url, method: "POST"), service: "Docker")
-                host?.emit("docker.container.\(action)", from: self, title: "Claude ran \(action) on container \(id)")
+                host?.emit("docker.container.\(action)", from: self, title: "Dashii ran \(action) on container \(id)")
                 return ["ok": true, "id": .string(id), "action": .string(action),
                         "note": response.statusCode == 304 ? "Container was already in that state." : nil]
             },

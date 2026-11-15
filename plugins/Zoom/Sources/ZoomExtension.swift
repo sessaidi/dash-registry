@@ -394,7 +394,7 @@ private struct ZoomSettingsView: View {
                 TextField("Your name", text: $zoom.myName)
                 TextField("Language", text: $zoom.localeIdentifier, prompt: Text("en_US"))
                 Toggle("Start transcribing when a Zoom meeting starts", isOn: $zoom.autoStart)
-                Toggle("Summarise with Claude when the meeting ends", isOn: $zoom.summarizeOnStop)
+                Toggle("Summarise with Dashii when the meeting ends", isOn: $zoom.summarizeOnStop)
             }
             Section {
                 Toggle("Save the meeting's audio", isOn: $zoom.saveAudio)
@@ -429,7 +429,7 @@ private struct ZoomSettingsView: View {
             } header: {
                 Text("Permissions")
             } footer: {
-                Text("Accessibility reads Zoom's meeting window and Participants panel. Screen recording permission lets Dash capture Zoom's audio and windows. Speech is transcribed on this Mac; the transcript goes to Claude only when summarising or when you ask about it.")
+                Text("Accessibility reads Zoom's meeting window and Participants panel. Screen recording permission lets Dash capture Zoom's audio and windows. Speech is transcribed on this Mac; the transcript goes to Dashii only when summarising or when you ask about it.")
             }
         }
     }

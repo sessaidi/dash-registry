@@ -27,7 +27,7 @@ struct DailyStandupWidget: DashboardWidget {
         StandupUpdateView(update: StandupUpdate(
             yesterday: [StandupItem(text: "Finished the renewal endpoint and its tests", ticket: "LAF-5680", refs: ["a1b2c3d", "api#88"]),
                         StandupItem(text: "Reviewed Sam's checkout PR", ticket: "WEB-412", refs: ["web#412"])],
-            today: [StandupItem(text: "Fix the flaky renewal test Claude flagged", ticket: "LAF-5680", refs: ["api#88"], kind: "fix"),
+            today: [StandupItem(text: "Fix the flaky renewal test Dashii flagged", ticket: "LAF-5680", refs: ["api#88"], kind: "fix"),
                     StandupItem(text: "Waiting for review on the renewal PR", ticket: "LAF-5680", refs: ["api#88"], kind: "waiting"),
                     StandupItem(text: "Proration on upgrade", ticket: "LAF-5702", refs: [], kind: "start")],
             blockers: [StandupItem(text: "QA workspace crash-loops (OOM)", ticket: "LAF-5680", refs: ["laf-5680"])]),

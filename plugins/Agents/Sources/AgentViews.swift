@@ -12,7 +12,7 @@ struct AgentsWidget: DashboardWidget {
     static let kind = "agents.sessions"
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 20)
     static let displayName = "Agents"
-    static let summary = "Claude Code agents working on Jira tickets in their own git worktrees. Open one to discuss the plan and follow its TDD progress."
+    static let summary = "Dashii agents working on Jira tickets in their own git worktrees. Open one to discuss the plan and follow its TDD progress."
     static let systemImage = "hammer"
     static let defaultConfig = Config(showFinished: true)
     static let configSchema: JSONValue = [

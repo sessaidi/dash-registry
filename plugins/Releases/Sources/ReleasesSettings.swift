@@ -85,7 +85,7 @@ struct ReleasesSettingsView: View {
             } header: {
                 Text("Events")
             } footer: {
-                Text("Launches, incidents and milestones on the timeline's events lane. Claude can add them too (with your approval).")
+                Text("Launches, incidents and milestones on the timeline's events lane. Dashii can add them too (with your approval).")
             }
         }
         .formStyle(.grouped)

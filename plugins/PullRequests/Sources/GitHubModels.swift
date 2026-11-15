@@ -132,7 +132,7 @@ final class PRReview {
 
     /// Markdown body for posting the review to GitHub.
     var markdown: String {
-        var lines = ["### Claude review — \(verdict.replacing("_", with: " ")) · risk \(risk)", "", summary, ""]
+        var lines = ["### Dashii review — \(verdict.replacing("_", with: " ")) · risk \(risk)", "", summary, ""]
         if !findings.isEmpty {
             lines.append("| Severity | Where | Finding |")
             lines.append("|---|---|---|")

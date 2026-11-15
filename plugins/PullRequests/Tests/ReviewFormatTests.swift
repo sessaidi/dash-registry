@@ -45,7 +45,7 @@ struct ReviewFormatTests {
         review.testing = result["testing"]?.string ?? ""
         review.findings = try result["findings"]?.decode([PRReview.Finding].self) ?? []
         #expect(review.markdown == """
-            ### Claude review — request changes · risk high
+            ### Dashii review — request changes · risk high
 
             Adds retries; 4xx responses are retried too.
 
@@ -65,7 +65,7 @@ struct ReviewFormatTests {
         review.verdict = "approve"
         review.risk = "low"
         review.summary = "Sound."
-        #expect(review.markdown == "### Claude review — approve · risk low\n\nSound.\n\n<sub>Reviewed at abc1234 with m from Dash.</sub>")
+        #expect(review.markdown == "### Dashii review — approve · risk low\n\nSound.\n\n<sub>Reviewed at abc1234 with m from Dash.</sub>")
     }
 
     @Test func pullRequestApplyTracksHeadChanges() {

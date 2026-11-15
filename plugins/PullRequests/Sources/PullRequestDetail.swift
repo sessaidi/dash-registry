@@ -269,8 +269,8 @@ struct PullRequestSheet: View {
             DetailSection("Description") {
                 if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { InlineMarkdown(pr.body) }
             }
-            DetailSection("Claude's review") {
-                if let review = reviews.first { ReviewView(review: review) } else { Text("No Claude review yet.").foregroundStyle(.secondary) }
+            DetailSection("Dashii's review") {
+                if let review = reviews.first { ReviewView(review: review) } else { Text("No Dashii review yet.").foregroundStyle(.secondary) }
             }
         }
     }
@@ -332,7 +332,7 @@ struct PullRequestSheet: View {
                     }
                 }
             }
-            DetailSection("Claude's reviews (\(reviews.count))") {
+            DetailSection("Dashii's reviews (\(reviews.count))") {
                 ForEach(reviews) { review in
                     DisclosureGroup("\(review.createdAt.formatted(date: .abbreviated, time: .shortened)) · \(review.verdict.isEmpty ? review.status : review.verdict)") {
                         ReviewView(review: review)

@@ -196,8 +196,8 @@ struct PullRequestsFeatureTests {
         await harness.feature.sync()
         await harness.feature.reviewsFinished()
         let review = try #require(harness.feature.latestReview("acme/api#1"))
-        #expect(review.status == "failed" && review.error == "Claude is overloaded")
-        #expect(harness.host.activity.events.contains { $0.kind == "review.failed" && $0.detail == "Claude is overloaded" })
+        #expect(review.status == "failed" && review.error == "Dashii is overloaded")
+        #expect(harness.host.activity.events.contains { $0.kind == "review.failed" && $0.detail == "Dashii is overloaded" })
     }
 
     @Test func malformedReviewOutputFails() async throws {

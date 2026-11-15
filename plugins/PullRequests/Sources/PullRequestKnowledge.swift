@@ -18,7 +18,7 @@ extension PullRequestsFeature {
             }
             var text = "Branch \(pr.headRef) into \(pr.baseRef). \(pr.isDraft ? "Draft. " : "")\(pr.body)"
             if let review = latestReview(pr.uid), review.status == "done" {
-                text += "\n\nClaude's review: \(review.verdict), \(review.risk) risk. \(review.summary)"
+                text += "\n\nDashii's review: \(review.verdict), \(review.risk) risk. \(review.summary)"
             }
             return KnowledgeEntity(id: "pr:\(pr.uid)", kind: "pr", title: "\(pr.uid) \(pr.title)", text: text,
                                    url: URL(string: pr.url), updated: pr.updatedAt, links: links)
@@ -31,7 +31,7 @@ extension PullRequestsFeature {
             let pulls = (try? self?.host?.context.fetch(FetchDescriptor<PullRequest>())) ?? []
             return ActivitySeries.countPerDay(pulls.map(\.createdAt), in: interval)
          },
-         ActivitySeries(id: "reviews", title: "Claude reviews", unit: "reviews", systemImage: "checkmark.seal") { [weak self] interval in
+         ActivitySeries(id: "reviews", title: "Dashii reviews", unit: "reviews", systemImage: "checkmark.seal") { [weak self] interval in
             let reviews = (try? self?.host?.context.fetch(FetchDescriptor<PRReview>())) ?? []
             return ActivitySeries.countPerDay(reviews.filter { $0.status == "done" }.map(\.createdAt), in: interval)
          }]

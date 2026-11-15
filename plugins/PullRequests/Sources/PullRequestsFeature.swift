@@ -13,7 +13,7 @@ final class PullRequestsFeature: DashExtension {
     let id = "pull-requests"
     let name = "Pull Requests"
     let systemImage = "arrow.triangle.pull"
-    let metadata = ExtensionMetadata(version: "1.3.0", summary: "Open PRs on watched repos with automatic Claude reviews.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.3.0", summary: "Open PRs on watched repos with automatic Dashii reviews.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash")
     let requires = ["github"]
 
     var pollMinutes: Int { didSet { defaults.set(pollMinutes, forKey: "pull-requests.poll") } }
@@ -366,7 +366,7 @@ final class PullRequestsFeature: DashExtension {
             review.testing = result["testing"]?.string ?? ""
             review.findings = (try? result["findings"]?.decode([PRReview.Finding].self)) ?? []
             review.status = "done"
-            host.emit("review.completed", from: self, title: "Claude reviewed \(pr.repo)#\(pr.number)",
+            host.emit("review.completed", from: self, title: "Dashii reviewed \(pr.repo)#\(pr.number)",
                       detail: "\(review.verdict.replacing("_", with: " ")), \(review.risk) risk, \(review.findings.count) findings",
                       link: pr.url, importance: review.risk == "high" || review.verdict == "request_changes" ? .critical : .notable)
         } catch {
@@ -392,7 +392,7 @@ final class PullRequestsFeature: DashExtension {
         return [
             DashiiTool(
                 name: "github_list_prs",
-                description: "List open pull requests on the watched repositories, each with its latest Claude review verdict and risk.",
+                description: "List open pull requests on the watched repositories, each with its latest Dashii review verdict and risk.",
                 properties: [
                     "repo": JSONSchema.string("Optional owner/name filter."),
                     "filter": JSONSchema.string("Optional: review_requested (your review is requested), mine (you authored), or all.", enum: ["review_requested", "mine", "all"]),
@@ -418,7 +418,7 @@ final class PullRequestsFeature: DashExtension {
             },
             DashiiTool(
                 name: "github_get_pr",
-                description: "Fetch a pull request live: description, changed files, human reviews, recent comments, and the latest Claude review with its findings.",
+                description: "Fetch a pull request live: description, changed files, human reviews, recent comments, and the latest Dashii review with its findings.",
                 properties: prProperties, required: ["repo", "number"]
             ) { [weak self] input in
                 guard let self else { return nil }
@@ -452,7 +452,7 @@ final class PullRequestsFeature: DashExtension {
             },
             DashiiTool(
                 name: "github_rerun_review",
-                description: "Queue a fresh automatic Claude review of a pull request's current head commit.",
+                description: "Queue a fresh automatic Dashii review of a pull request's current head commit.",
                 properties: prProperties, required: ["repo", "number"]
             ) { [weak self] input in
                 guard let self else { return nil }
@@ -541,7 +541,7 @@ private struct PullRequestsSettingsView: View {
                           prompt: Text("e.g. We use Go; flag missing context propagation and unchecked errors."), axis: .vertical)
                     .lineLimit(3...8)
             } header: {
-                Text("Claude reviews")
+                Text("Dashii reviews")
             } footer: {
                 Text("Reviews are for you only: they stay in Dash and are never posted to GitHub as comments or reviews.")
             }

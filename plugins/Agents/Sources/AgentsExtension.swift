@@ -13,7 +13,7 @@ final class AgentsExtension: DashExtension {
     let id = "agents"
     let name = "Agents"
     let systemImage = "hammer"
-    let metadata = ExtensionMetadata(version: "1.10.0", summary: "Claude Code agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.10.0", summary: "Dashii agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
     /// Tickets come from Jira; GitHub is only needed to open a PR, which the user confirms.
     let requires = ["atlassian"]
     let optional = ["github"]
@@ -530,7 +530,7 @@ final class AgentsExtension: DashExtension {
             },
             DashiiTool(
                 name: "agents_start",
-                description: "Start a Claude Code agent on a Jira ticket: creates a git worktree and branch, then the agent proposes a TDD plan.",
+                description: "Start a Dashii agent on a Jira ticket: creates a git worktree and branch, then the agent proposes a TDD plan.",
                 properties: [
                     "issue_key": JSONSchema.string("Jira issue key."),
                     "repo_path": JSONSchema.string("Local repository path; defaults to the project's mapping in settings."),
@@ -589,9 +589,9 @@ private struct AgentsSettingsView: View {
         Form {
             Section {
                 TextField("claude CLI", text: $agents.claudePath, prompt: Text(agents.claudeExecutable?.path ?? Shell.which("claude")?.path ?? "/opt/homebrew/bin/claude"))
-                TextField("Model", text: $agents.model, prompt: Text("Claude Code default"))
+                TextField("Model", text: $agents.model, prompt: Text("Dashii default"))
             } footer: {
-                Text("Agents run the Claude Code CLI with your Claude Code login.")
+                Text("Agents run on Dashii's engine (Claude Code) with your login.")
             }
             Section {
                 TextField("Code folder", text: $agents.codeRoot, prompt: Text("~/Codes"))

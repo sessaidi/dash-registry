@@ -11,7 +11,7 @@ extension MeetingRecord {
         .init("ended", "date", "When it ended"),
         .init("minutes", "number", "Duration in minutes", aliases: ["duration"]),
         .init("participants", "list", "Everyone seen in the participant list", aliases: ["people"]),
-        .init("summary", "string", "Claude's summary"),
+        .init("summary", "string", "Dashii's summary"),
         .init("decisions", "list", "Decisions"),
         .init("action_items", "list", "Action items as owner: task", aliases: ["actions"]),
         .init("owners", "list", "Who has action items"),

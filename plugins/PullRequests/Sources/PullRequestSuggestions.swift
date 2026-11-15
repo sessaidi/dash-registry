@@ -17,7 +17,7 @@ extension PullRequestsFeature {
                 title: waiting.count == 1 ? "\(first.repo)#\(first.number) waits for your review" : "\(waiting.count) PRs wait for your review",
                 detail: waiting.count == 1 ? first.title : names,
                 icon: "eye", priority: waiting.count >= 3 ? .urgent : .high,
-                prompt: "Summarise the PRs waiting for my review (\(names)) with Claude's verdict and risk for each, and tell me which to review first."))
+                prompt: "Summarise the PRs waiting for my review (\(names)) with Dashii's verdict and risk for each, and tell me which to review first."))
         }
 
         for pr in pulls where pr.isMine {
@@ -25,10 +25,10 @@ extension PullRequestsFeature {
                   review.verdict == "request_changes" || review.risk == "high" else { continue }
             result.append(Suggestion(
                 id: "pull-requests.mine.\(pr.uid)",
-                title: "Claude flagged your PR \(pr.repo)#\(pr.number)",
+                title: "Dashii flagged your PR \(pr.repo)#\(pr.number)",
                 detail: review.summary.isEmpty ? pr.title : review.summary,
                 icon: "exclamationmark.bubble", priority: review.risk == "high" ? .high : .normal,
-                prompt: "Walk me through the findings of Claude's review of \(pr.repo)#\(pr.number) and how to fix each one."))
+                prompt: "Walk me through the findings of Dashii's review of \(pr.repo)#\(pr.number) and how to fix each one."))
         }
 
         for pr in pulls where pr.isMine && pr.changesRequested > 0 {
@@ -76,7 +76,7 @@ extension PullRequestsFeature {
          EventDefinition("pr.updated", "A PR got new commits or changes."),
          EventDefinition("pr.closed", "A PR was merged or closed."),
          EventDefinition("pr.feedback", "Someone approved, requested changes on or commented on one of your PRs."),
-         EventDefinition("review.completed", "Claude finished reviewing a PR."),
-         EventDefinition("review.failed", "Claude's review of a PR failed.")]
+         EventDefinition("review.completed", "Dashii finished reviewing a PR."),
+         EventDefinition("review.failed", "Dashii's review of a PR failed.")]
     }
 }

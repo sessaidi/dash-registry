@@ -15,7 +15,7 @@ struct PullRequestsWidget: DashboardWidget {
     static let kind = "github.pulls"
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 24)
     static let displayName = "Pull Requests"
-    static let summary = "Open PRs on watched repositories with Claude's review verdict and risk. Open one to read the review, diff and checks; merging stays your click."
+    static let summary = "Open PRs on watched repositories with Dashii's review verdict and risk. Open one to read the review, diff and checks; merging stays your click."
     static let systemImage = "arrow.triangle.pull"
     static let defaultSize = WidgetSize.large
     static let defaultConfig = Config(repo: "", filter: "all")
@@ -64,7 +64,7 @@ struct PullRequestsWidget: DashboardWidget {
         return [
             "explanation": """
                 Open pull requests on the watched repositories (filter: all, review_requested = someone asked the user to \
-                review, mine = the user's own). Each has Claude's automatic review when one ran: a verdict (approve, comment, \
+                review, mine = the user's own). Each has Dashii's automatic review when one ran: a verdict (approve, comment, \
                 request changes) and a risk level; approvals and changes_requested count human reviews. Drafts aren't ready \
                 for review yet.
                 """,
@@ -266,7 +266,7 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 ReviewBadge(review: review)
-                Text("Claude review").font(.headline)
+                Text("Dashii review").font(.headline)
                 if review.status == "done" {
                     Text("\(review.verdict.replacing("_", with: " ")) · risk \(review.risk)").foregroundStyle(.secondary)
                 } else {
@@ -326,7 +326,7 @@ enum PullRequestsWidgetActions {
                      properties: ["filter": JSONSchema.string("all, review_requested or mine.", enum: ["all", "review_requested", "mine"])], required: ["filter"]),
         WidgetAction(name: "set_repo", description: "Show one repository (owner/name), or \"\" for every watched one. Temporary: the widget's saved repository stays.",
                      properties: ["repo": JSONSchema.string("owner/name.")], required: ["repo"]),
-        WidgetAction(name: "select", description: "Select a PR and open its detail (Claude's review, diff, checks); linked widgets follow the selection. owner/name#123, #123, 123, or a unique part of its title.",
+        WidgetAction(name: "select", description: "Select a PR and open its detail (Dashii's review, diff, checks); linked widgets follow the selection. owner/name#123, #123, 123, or a unique part of its title.",
                      properties: ["pr": JSONSchema.string("Which PR.")], required: ["pr"]),
         WidgetAction(name: "clear_selection", description: "Unselect the selected PR."),
         WidgetAction(name: "clear", description: "Clear the search and Dashii's temporary repository and filter (back to the widget's settings)."),

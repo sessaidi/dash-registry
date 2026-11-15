@@ -405,7 +405,7 @@ struct AtlassianCacheSection: View {
         } header: {
             Text("Cache")
         } footer: {
-            Text("Only what Claude asked for is kept, in Dash's database, with secrets removed. Jira and Confluence stay the source of truth: older copies are read again online, and a cached copy is used only when the site can't be reached.")
+            Text("Only what Dashii asked for is kept, in Dash's database, with secrets removed. Jira and Confluence stay the source of truth: older copies are read again online, and a cached copy is used only when the site can't be reached.")
         }
         .onAppear(perform: reload)
     }
