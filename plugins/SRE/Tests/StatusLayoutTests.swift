@@ -25,3 +25,17 @@ struct StatusLayoutTests {
         #expect(StatusSnapshot.sample.tone == .danger)
     }
 }
+
+/// Asking about one item: the prompt names that item alone.
+struct SignalQuestionTests {
+    @Test func aPodOrMonitorIsAskedAboutOnItsOwn() {
+        let pod = StatusSnapshot.sample.signals.pods[0]
+        let monitor = StatusSnapshot.sample.signals.monitors[0]
+        #expect(pod.subject == "Pod api-7d9f8-x2k (pod bill-eu/api-7d9f8-x2k: CrashLoopBackOff in bill-eu · 14 restarts · BackOff)")
+        #expect(monitor.subject.hasPrefix("api 5xx rate (monitor 1201:"))
+        let investigate = SREQuestion.investigate.prompt(about: pod.subject)
+        #expect(investigate.hasPrefix("Ask the on-call SRE (agent sre.oncall ask): investigate only this"))
+        #expect(investigate.contains("bill-eu/api-7d9f8-x2k") && !investigate.contains("api 5xx rate"))
+        #expect(SREQuestion.explain.prompt(about: monitor.subject).hasPrefix("Explain this to me in plain words"))
+    }
+}
