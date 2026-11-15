@@ -73,6 +73,20 @@ the next launch. Diffs over 600,000 characters are reviewed partially, and the r
 |---|---|---|
 | `github.pulls` (Pull Requests) | Open PRs with Claude's verdict and risk. Opening one shows the review. From there you can comment, approve, request changes, post Claude's review as a comment, re-review, ask Claude, or merge (squash, merge commit or rebase). Default size: large. | **Repository** (`repo`, empty for all watched). **Show**: All open (`all`, default), Review requested (`review_requested`), Mine (`mine`). |
 
+## Answering reviewers (you only)
+
+The sheet's **Reviews** tab shows the PR's conversation from GitHub: threads on the code (open
+first, resolved on request), general comments and reviews. From there you reply to a thread,
+resolve or unresolve it, comment, and approve, request changes or comment as a review (started
+from your Review with Dashii notes). Each send asks you to confirm: it posts on GitHub as you.
+
+**Improve with Dashii** under any of these suggests clearer wording, checked against the diff and
+the thread, with notes on what changed or what looks wrong. You use it or not, and you send it.
+
+None of this is a Dashii tool or a widget action: Dashii and agents can't reply, resolve, approve
+or request changes. The GitHub token needs **Pull requests: Read and write** (the token link in
+Settings › GitHub asks for it).
+
 ## Claude tools
 
 | Tool | What it does | Needs approval |

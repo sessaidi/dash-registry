@@ -22,7 +22,6 @@ struct PullRequestSheet: View {
     @State private var workspaceNote: String?
     @State private var files: [JSONValue]?
     @State private var stats: PRStats?
-    @State private var human: (reviews: [JSONValue], comments: [JSONValue])?
 
     init(pr: PullRequest, host: any ExtensionContext) {
         self.pr = pr
@@ -191,36 +190,8 @@ struct PullRequestSheet: View {
     @ViewBuilder
     private var reviewsTab: some View {
         VStack(alignment: .leading, spacing: 14) {
-            DetailSection("From reviewers") {
-                if let human {
-                    if human.reviews.isEmpty && human.comments.isEmpty { Text("No reviews yet.").foregroundStyle(.secondary) }
-                    ForEach(Array(human.reviews.enumerated()), id: \.offset) { _, review in
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(review["user"]?["login"]?.string ?? "?").bold()
-                                let state = review["state"]?.string ?? ""
-                                Badge(state.replacingOccurrences(of: "_", with: " ").capitalized,
-                                      tone: state == "APPROVED" ? .success : state == "CHANGES_REQUESTED" ? .danger : .neutral)
-                            }
-                            if let body = review["body"]?.string, !body.isEmpty { host.markdown(body) }
-                        }
-                    }
-                    ForEach(Array(human.comments.suffix(30).enumerated()), id: \.offset) { _, comment in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(comment["user"]?["login"]?.string ?? "?") on \(comment["path"]?.string ?? "")\(comment["line"]?.int.map { ":\($0)" } ?? "")")
-                                .font(.caption.weight(.semibold))
-                            host.markdown(comment["body"]?.string ?? "").font(.callout)
-                        }
-                    }
-                } else {
-                    ProgressView().task {
-                        guard let github else { return }
-                        let repo = pr.repo, number = pr.number
-                        let reviews = (try? await github.client.reviews(repo, number)) ?? []
-                        let comments = (try? await github.client.get("/repos/\(repo)/pulls/\(number)/comments?per_page=100"))?.json.array ?? []
-                        human = (reviews, comments)
-                    }
-                }
+            if let github {
+                PRConversationView(pr: pr, host: host, feature: github, notes: github.discussion(pr.uid)?.draft ?? "")
             }
             DetailSection("Dashii's reviews (\(reviews.count))") {
                 ForEach(reviews) { review in
