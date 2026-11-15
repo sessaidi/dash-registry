@@ -24,6 +24,11 @@ struct WorkspacesWidget: DashboardWidget {
     ]
 
     static let queryFields = WorkspaceItem.queryFields
+    static let actions = [
+        WidgetAction(name: "select", description: "Select a workspace by name; linked widgets follow the selection. Temporary.",
+                     properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected workspace."),
+    ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         WorkspaceList(feature: context.host.ext(WorkspacesFeature.self), host: context.host, onlyMine: config.wrappedValue.onlyMine,
@@ -48,6 +53,16 @@ struct WorkspacesWidget: DashboardWidget {
 
 /// What a row shows. Built from a WorkspaceKit `Workspace`, or by hand for previews
 /// (`Workspace` has no public initializer).
+extension WorkspaceItem {
+    /// A workspace by exact name, else the only one whose name contains the text.
+    static func find(_ text: String, in items: [WorkspaceItem]) -> WorkspaceItem? {
+        let wanted = text.lowercased()
+        if let exact = items.first(where: { $0.name.lowercased() == wanted }) { return exact }
+        let hits = items.filter { $0.name.lowercased().contains(wanted) }
+        return wanted.isEmpty || hits.count != 1 ? nil : hits[0]
+    }
+}
+
 struct WorkspaceItem: Identifiable, Equatable, Sendable {
     var id: String { name }
     let name: String
@@ -105,7 +120,11 @@ private struct WorkspaceList: View {
     /// The widget's DashQL query (its query bar), applied after "only mine".
     let query: WidgetQuery?
     let queryText: String
+    /// The workspace whose sheet is open.
     @State private var selected: String?
+    /// The workspace the user picked: highlighted and published for linked widgets until another
+    /// is picked or it's clicked again.
+    @State private var picked: String?
     @State private var creating = false
     @State private var queryNames: [String]?
 
@@ -119,7 +138,13 @@ private struct WorkspaceList: View {
                     scope: "\(feature.env.rawValue)/\(feature.region.rawValue)",
                     items: items,
                     busy: feature.busy, isLoading: feature.isLoading, error: feature.lastError,
-                    refresh: { Task { await feature.refresh() } }, select: { selected = $0 }, create: { creating = true })
+                    selectedName: picked,
+                    refresh: { Task { await feature.refresh() } },
+                    select: { name in
+                        // Clicking selects and opens; clicking the selected one again unselects it.
+                        if picked == name { picked = nil } else { picked = name; selected = name }
+                    },
+                    create: { creating = true })
                     .sheet(item: Binding(get: { selected.map(SheetID.init) }, set: { selected = $0?.id })) {
                         WorkspaceSheet(name: $0.id, feature: feature, host: host)
                     }
@@ -127,6 +152,22 @@ private struct WorkspaceList: View {
             }
             .task(id: QueryRows.key(queryText, all, row: \.queryRow)) {
                 queryNames = await QueryRows.ids(query, all, row: \.queryRow)
+            }
+            .onExitCommand { picked = nil }
+            .reportsSelection(picked.flatMap { name in all.first { $0.name == name }?.queryRow })
+            .handlesWidgetActions { name, input in
+                switch name {
+                case "select":
+                    let wanted = input["name"]?.string ?? ""
+                    guard let item = WorkspaceItem.find(wanted, in: items) else { throw ToolError("No shown workspace “\(wanted)”.") }
+                    picked = item.name
+                    return ["selected": .string(item.name)]
+                case "clear_selection":
+                    picked = nil
+                    return "cleared"
+                default:
+                    throw ToolError("Unknown action \(name).")
+                }
             }
         } else {
             StateView(.failed(message: "The Workspaces feature isn't loaded."))
@@ -143,6 +184,7 @@ struct WorkspaceListContent: View {
     let busy: Set<String>
     let isLoading: Bool
     let error: String?
+    var selectedName: String? = nil
     var refresh: (() -> Void)?
     var select: ((String) -> Void)?
     var create: (() -> Void)?
@@ -171,6 +213,7 @@ struct WorkspaceListContent: View {
                     WorkspaceRow(item: item, busy: busy.contains(item.name))
                         .contentShape(.rect)
                         .onTapGesture { select?(item.name) }
+                        .listRowBackground(selectedName == item.name ? Color.accentColor.opacity(0.18) : Color.clear)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)

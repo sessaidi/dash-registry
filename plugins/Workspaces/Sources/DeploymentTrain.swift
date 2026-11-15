@@ -25,6 +25,11 @@ struct DeploymentTrainWidget: DashboardWidget {
     ]
 
     static let queryFields = TrainCar.queryFields
+    static let actions = [
+        WidgetAction(name: "select", description: "Select a deployment (its id, or the latest one of a workspace by name); linked widgets follow the selection. Temporary.",
+                     properties: ["id": JSONSchema.string("Deployment id or workspace name.")], required: ["id"]),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected deployment."),
+    ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         TrainView(config: config.wrappedValue, query: context.query(fields: TrainCar.queryFields), queryText: context.queryText)
@@ -56,6 +61,13 @@ struct DeploymentTrainWidget: DashboardWidget {
     }
 }
 
+extension TrainCar {
+    /// A deployment by id, else a workspace's latest one (cars are newest first).
+    static func find(_ text: String, in cars: [TrainCar]) -> TrainCar? {
+        cars.first { $0.id == text } ?? cars.first { $0.workspace.caseInsensitiveCompare(text) == .orderedSame }
+    }
+}
+
 struct TrainCar: Identifiable, Hashable {
     let id: String
     let workspace: String
@@ -76,6 +88,9 @@ private struct TrainView: View {
     let query: WidgetQuery?
     let queryText: String
     @State private var queryIDs: [String]?
+    /// The deployment the user picked: highlighted and published for linked widgets until another
+    /// is picked or it's clicked again.
+    @State private var selectedID: String?
     @Query(sort: \WorkspaceDeployment.startedAt, order: .reverse) private var deployments: [WorkspaceDeployment]
 
     private var all: [TrainCar] {
@@ -91,6 +106,22 @@ private struct TrainView: View {
             .task(id: QueryRows.key(queryText, all, row: \.queryRow)) {
                 queryIDs = await QueryRows.ids(query, all, row: \.queryRow)
             }
+            .onExitCommand { selectedID = nil }
+            .reportsSelection(selectedID.flatMap { id in all.first { $0.id == id }?.queryRow })
+            .handlesWidgetActions { name, input in
+                switch name {
+                case "select":
+                    let wanted = input["id"]?.string ?? ""
+                    guard let car = TrainCar.find(wanted, in: cars) else { throw ToolError("No shown deployment “\(wanted)”.") }
+                    selectedID = car.id
+                    return ["selected": .string("\(car.workspace) \(car.app) \(car.version)")]
+                case "clear_selection":
+                    selectedID = nil
+                    return "cleared"
+                default:
+                    throw ToolError("Unknown action \(name).")
+                }
+            }
     }
 
     @ViewBuilder
@@ -101,7 +132,9 @@ private struct TrainView: View {
         } else {
             VStack(alignment: .leading, spacing: 2) {
                 QueryCount(shown: cars.count, total: total, query: queryText)
-                TrainList(cars: cars)
+                TrainList(cars: cars, selectedID: selectedID) { car in
+                    selectedID = selectedID == car.id ? nil : car.id
+                }
             }
         }
     }
@@ -109,6 +142,9 @@ private struct TrainView: View {
 
 struct TrainList: View {
     let cars: [TrainCar]
+    var selectedID: String? = nil
+    /// nil: cars aren't clickable (previews, a workspace's sheet).
+    var onSelect: ((TrainCar) -> Void)? = nil
 
     var body: some View {
         ScrollView {
@@ -140,6 +176,10 @@ struct TrainList: View {
                         }
                         .padding(.bottom, 10)
                     }
+                    .padding(.horizontal, 4)
+                    .background(selectedID == car.id ? AnyShapeStyle(.tint.opacity(0.16)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 6))
+                    .contentShape(.rect)
+                    .onTapGesture { onSelect?(car) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

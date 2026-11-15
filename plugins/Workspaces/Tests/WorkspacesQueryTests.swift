@@ -30,4 +30,18 @@ struct WorkspacesQueryTests {
         #expect(feature.datasets.map(\.name) == ["workspaces", "deploys"])
         #expect(try await feature.datasets[1].rows(nil).isEmpty)
     }
+
+    @Test func selectionsFindWhatTheUserNames() {
+        let items = WorkspaceItem.samples
+        #expect(WorkspaceItem.find("EPG-REFRESH", in: items)?.name == "epg-refresh")
+        #expect(WorkspaceItem.find("", in: items) == nil)
+        let cars = [
+            TrainCar(id: "1", workspace: "laf-5680", kind: "worktree", app: "papi", version: "a1b2", branch: "b", by: "ada", at: .now, duration: 1, status: "succeeded", error: ""),
+            TrainCar(id: "2", workspace: "laf-5680", kind: "worktree", app: "papi", version: "c3d4", branch: "b", by: "ada", at: .now.addingTimeInterval(-60), duration: 1, status: "failed", error: ""),
+        ]
+        #expect(TrainCar.find("2", in: cars)?.version == "c3d4")
+        #expect(TrainCar.find("LAF-5680", in: cars)?.id == "1")
+        #expect(WorkspacesWidget.actions.map(\.name) == ["select", "clear_selection"])
+        #expect(DeploymentTrainWidget.actions.map(\.name) == ["select", "clear_selection"])
+    }
 }
