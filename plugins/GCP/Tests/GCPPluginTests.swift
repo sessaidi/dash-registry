@@ -224,7 +224,7 @@ struct GCPPluginTests {
         defer { try? FileManager.default.removeItem(at: file) }
         #expect(gcp.id == "gcp")
         #expect(gcp.layer == .integration)
-        #expect(gcp.metadata.version == "1.2.0")
+        #expect(gcp.metadata.version == "1.3.0" && gcp.metadata.minimumDashKit == "1.5.0")
         #expect(gcp.metadata.category == .cloud)
         #expect(gcp.metadata.author == .dash)
         #expect(gcp.metadata.homepage == "https://github.com/sessaidi/dash")
@@ -234,7 +234,14 @@ struct GCPPluginTests {
         let connection = try #require(gcp.connection)
         #expect(connection.baseURL.absoluteString == "https://www.googleapis.com")
         #expect(connection.hosts == [".googleapis.com"])
-        #expect(Set(gcp.tools.map(\.name)) == ["gcp_api_get", "gcp_list_projects", "gcp_logs_query", "gcp_metrics_query"])
+        #expect(Set(gcp.tools.map(\.name)) == [
+            "gcp_api_get", "gcp_list_projects", "gcp_logs_query", "gcp_metrics_query",
+            "gcp_gke_clusters", "gcp_gke_cluster", "gcp_cloud_run_services", "gcp_cloud_run_revisions", "gcp_pubsub_topics",
+            "gcp_pubsub_subscriptions", "gcp_sql_instances", "gcp_artifact_repositories", "gcp_artifact_images", "gcp_secrets",
+            "gcp_iam_policy", "gcp_compute_instances", "gcp_cloud_builds", "gcp_error_groups", "gcp_uptime_checks", "gcp_audit_logs",
+        ])
+        // Everything Claude gets here only reads.
+        #expect(gcp.tools.allSatisfy { !$0.writesRemotely && !$0.requiresApproval })
         #expect(GCPPlugin.makeExtensions().first?.id == "gcp")
     }
 

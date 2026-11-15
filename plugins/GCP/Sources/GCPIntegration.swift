@@ -14,8 +14,8 @@ final class GCPIntegration: Integration {
     let name = "Google Cloud"
     let systemImage = "cloud"
     let metadata = ExtensionMetadata(
-        version: "1.2.0", author: .dash, summary: "Google credentials refreshed in-process; signs *.googleapis.com requests.",
-        category: .cloud, tags: ["gcp", "google", "cloud", "gke"], homepage: "https://github.com/sessaidi/dash")
+        version: "1.3.0", author: .dash, summary: "Google credentials refreshed in-process; read-only tools for GKE, Cloud Run, Pub/Sub, Cloud SQL, Artifact Registry, IAM, Compute, Cloud Build, Error Reporting, logs and metrics.",
+        category: .cloud, tags: ["gcp", "google", "cloud", "gke", "cloud-run", "pubsub"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "1.5.0")
 
     static let baseURL = URL(string: "https://www.googleapis.com")!
     nonisolated static let tokenInfoURL = URL(string: "https://oauth2.googleapis.com/tokeninfo")!
@@ -140,13 +140,17 @@ final class GCPIntegration: Integration {
             },
             loggingTool,
             monitoringTool,
-        ]
+        ] + resourceTools
     }
 
     func apiGet(_ address: String) async throws -> JSONValue {
         let connection = try requireConnection()
         guard let url = URL(string: address), connection.allows(url) else {
             throw ToolError("Only https://*.googleapis.com URLs are allowed.")
+        }
+        // Secret values stay out of the conversation: names and metadata only (gcp_secrets).
+        if url.host()?.hasPrefix("secretmanager.") == true, url.path().hasSuffix(":access") {
+            throw ToolError("Secret values can't be read; gcp_secrets lists names and metadata.")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
