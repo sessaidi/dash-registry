@@ -287,3 +287,42 @@ struct PodQueryTests {
         #expect(warnings == ["a/web": ["Unhealthy", "BackOff"]])
     }
 }
+
+@MainActor
+struct PodsWidgetActionsTests {
+    private let pods = [
+        PodSummary(namespace: "prod", name: "api-1", phase: "Running", ready: 1, total: 1, restarts: 0),
+        PodSummary(namespace: "prod", name: "api-2", phase: "Running", ready: 1, total: 1, restarts: 0),
+        PodSummary(namespace: "prod", name: "worker-1", phase: "Running", status: "CrashLoopBackOff", ready: 0, total: 1, restarts: 7),
+    ]
+
+    @Test func dashiiFiltersAndSwitchesWhatTheWidgetShows() throws {
+        #expect(PodsWidget.actions.map(\.name) == ["filter", "set_status", "show_problems_only", "set_namespace", "set_context", "select_pod", "clear_filters"])
+        var config = PodsWidget.defaultConfig
+        _ = try PodsWidgetActions.perform("filter", ["text": "worker"], config: &config, pods: pods)
+        #expect(config.search == "worker")
+        _ = try PodsWidgetActions.perform("show_problems_only", ["on": true], config: &config, pods: pods)
+        #expect(config.statusFilter == .problems)
+        _ = try PodsWidgetActions.perform("set_status", ["status": "failed"], config: &config, pods: pods)
+        #expect(config.statusFilter == .failed)
+        #expect(throws: ToolError.self) { try PodsWidgetActions.perform("set_status", ["status": "broken"], config: &config, pods: pods) }
+        _ = try PodsWidgetActions.perform("set_namespace", ["namespace": "*"], config: &config, pods: pods)
+        #expect(config.namespace == "*")
+        _ = try PodsWidgetActions.perform("set_context", ["context": "gke-prod"], config: &config, pods: pods)
+        #expect(config.context == "gke-prod" && config.namespace == nil)
+        _ = try PodsWidgetActions.perform("clear_filters", [:], config: &config, pods: pods)
+        #expect(config.search == nil && config.statusFilter == .all)
+    }
+
+    @Test func selectingAPodAndReportingCounts() throws {
+        var config = PodsWidget.defaultConfig
+        let opened = try PodsWidgetActions.perform("select_pod", ["name": "worker"], config: &config, pods: pods)
+        #expect(opened.select?.name == "worker-1")
+        #expect(throws: ToolError.self) { try PodsWidgetActions.perform("select_pod", ["name": "api"], config: &config, pods: pods) }
+        #expect(try PodsWidgetActions.perform("select_pod", ["name": "api-2"], config: &config, pods: pods).select?.name == "api-2")
+
+        let state = PodsWidgetActions.state(config: config, pods: pods, total: 5, namespace: "prod", selected: opened.select)
+        #expect(state["counts"]?["failing"] == 1 && state["counts"]?["running"] == 2 && state["counts"]?["restarts"] == 7)
+        #expect(state["shown"] == 3 && state["total"] == 5 && state["open_pod"] == "prod/worker-1")
+    }
+}

@@ -15,7 +15,7 @@ final class PodsFeature: DashExtension {
     let systemImage = "cube.box"
     let requires = ["kubernetes"]
     let metadata = ExtensionMetadata(
-        version: "1.3.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
+        version: "1.4.0", author: .dash, summary: "Browse pods like k9s: context, namespace, filters, and a detail view with logs, events and YAML.",
         category: .cloud, tags: ["kubernetes", "pods"], minimumDashKit: "1.4.0")
 
     static let refreshInterval: Duration = .seconds(30)
@@ -230,8 +230,10 @@ struct PodsWidget: DashboardWidget {
         ],
     ]
 
+    static let actions = PodsWidgetActions.actions
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, config: config.wrappedValue)
+        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, config: config)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -269,7 +271,14 @@ struct PodsWidget: DashboardWidget {
         guard let feature = context.host.ext(PodsFeature.self) else { return .null }
         let browse = feature.browsing[config.browseKey]
         let pods = (browse?.pods ?? []).filter { config.query.matches($0, warnings: browse?.warnings[$0.id] ?? []) }
-        return ["context": config.context.map(JSONValue.string) ?? feature.snapshot["context"] ?? .null,
+        return ["explanation": """
+                    Pods of one namespace (or all, "*") of a kubeconfig context, after the widget's filters. status is what \
+                    kubectl shows (Running, Pending, CrashLoopBackOff, ImagePullBackOff, Completed…); ready is ready/total \
+                    containers; restarts count container restarts (many restarts or CrashLoopBackOff means the container keeps \
+                    crashing); warnings are recent Warning event reasons (BackOff, Unhealthy, FailedScheduling…). A healthy \
+                    pod is Running with all containers ready; Completed pods (jobs) finished successfully.
+                    """,
+                "context": config.context.map(JSONValue.string) ?? feature.snapshot["context"] ?? .null,
                 "namespace": .string(config.namespace ?? feature.defaultNamespace(context: config.context)),
                 "filters": .array(config.activeFilters.map { .string($0) }),
                 "lastSync": browse?.lastSync.map { .string($0.formatted(.iso8601)) } ?? .null,
@@ -293,6 +302,94 @@ private extension String {
 }
 
 /// The widget's settings: what it shows and how often it refreshes.
+/// What Dashii can do with a Pods widget, kept apart from the view so it can be tested.
+enum PodsWidgetActions {
+    static let actions = [
+        WidgetAction(name: "filter", description: "Search the pods: words match name, node, status, IP or owner; key=value matches a label; !word excludes. Empty clears it.",
+                     properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
+        WidgetAction(name: "set_status", description: "Show pods by status.",
+                     properties: ["status": JSONSchema.string("all, problems, running, pending, failed or completed.", enum: ["all", "problems", "running", "pending", "failed", "completed"])], required: ["status"]),
+        WidgetAction(name: "show_problems_only", description: "Only pods that aren't healthy (on), or every pod (off).",
+                     properties: ["on": JSONSchema.boolean("true for problems only.")], required: ["on"]),
+        WidgetAction(name: "set_namespace", description: "Show another namespace: a name, \"*\" for every namespace, or \"\" for the context's own.",
+                     properties: ["namespace": JSONSchema.string("Namespace.")], required: ["namespace"]),
+        WidgetAction(name: "set_context", description: "Show another kubeconfig context; \"\" follows the one the Kubernetes integration uses.",
+                     properties: ["context": JSONSchema.string("Context name.")], required: ["context"]),
+        WidgetAction(name: "select_pod", description: "Open a pod's detail (containers, events, logs, YAML) by name or a unique part of it.",
+                     properties: ["name": JSONSchema.string("Pod name.")], required: ["name"]),
+        WidgetAction(name: "clear_filters", description: "Remove the search and status filters."),
+    ]
+
+    struct Outcome {
+        var reply: JSONValue
+        var select: PodSummary?
+    }
+
+    static func perform(_ name: String, _ input: JSONValue, config: inout PodsWidget.Config, pods: [PodSummary]) throws -> Outcome {
+        switch name {
+        case "filter":
+            let text = input["text"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            config.search = text.isEmpty ? nil : text
+            return Outcome(reply: ["search": text.isEmpty ? .null : .string(text)])
+        case "set_status":
+            guard let raw = input["status"]?.string, let status = PodSummary.Filter(rawValue: raw) else {
+                throw ToolError("Status is one of all, problems, running, pending, failed, completed.")
+            }
+            config.filter = status.rawValue
+            config.problemsOnly = status == .problems
+            return Outcome(reply: ["status": .string(status.rawValue)])
+        case "show_problems_only":
+            let on = input["on"]?.bool ?? true
+            config.filter = on ? PodSummary.Filter.problems.rawValue : PodSummary.Filter.all.rawValue
+            config.problemsOnly = on
+            return Outcome(reply: ["problems_only": .bool(on)])
+        case "set_namespace":
+            let namespace = input["namespace"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            config.namespace = namespace.isEmpty ? nil : namespace
+            return Outcome(reply: ["namespace": namespace.isEmpty ? "context's own" : .string(namespace)])
+        case "set_context":
+            let context = input["context"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            config.context = context.isEmpty ? nil : context
+            config.namespace = nil
+            return Outcome(reply: ["context": context.isEmpty ? "integration's" : .string(context)])
+        case "select_pod":
+            let wanted = input["name"]?.string?.lowercased() ?? ""
+            let matches = pods.filter { $0.name.lowercased().contains(wanted) }
+            guard !wanted.isEmpty, let pod = pods.first(where: { $0.name.lowercased() == wanted }) ?? (matches.count == 1 ? matches[0] : nil) else {
+                throw ToolError(matches.count > 1 ? "Several pods match “\(wanted)”: \(matches.prefix(8).map(\.name).joined(separator: ", "))."
+                                                  : "No pod matching “\(wanted)” is shown.")
+            }
+            return Outcome(reply: ["opened": .string(pod.id)], select: pod)
+        case "clear_filters":
+            config.search = nil
+            config.filter = nil
+            config.problemsOnly = false
+            return Outcome(reply: "cleared")
+        default:
+            throw ToolError("Unknown action \(name).")
+        }
+    }
+
+    static func state(config: PodsWidget.Config, pods: [PodSummary], total: Int, namespace: String, selected: PodSummary?) -> JSONValue {
+        [
+            "context": config.context.map(JSONValue.string) ?? "integration's",
+            "namespace": .string(namespace),
+            "status": .string(config.statusFilter.rawValue),
+            "search": config.search.map(JSONValue.string) ?? .null,
+            "filters": .array(config.activeFilters.map { .string($0) }),
+            "shown": .number(Double(pods.count)), "total": .number(Double(total)),
+            "counts": [
+                "running": .number(Double(pods.filter { $0.tone == .success }.count)),
+                "failing": .number(Double(pods.filter { $0.tone == .danger }.count)),
+                "not_ready": .number(Double(pods.filter { $0.tone == .warning }.count)),
+                "completed": .number(Double(pods.filter { $0.phase == "Succeeded" }.count)),
+                "restarts": .number(Double(pods.reduce(0) { $0 + $1.restarts })),
+            ],
+            "open_pod": selected.map { .string($0.id) } ?? .null,
+        ]
+    }
+}
+
 private struct PodsWidgetSettings: View {
     let feature: PodsFeature?
     @Binding var config: PodsWidget.Config
@@ -363,12 +460,31 @@ private struct PodsWidgetSettings: View {
 private struct PodsWidgetView: View {
     let feature: PodsFeature?
     let host: any ExtensionContext
-    let config: PodsWidget.Config
+    @Binding var config: PodsWidget.Config
     @State private var selected: PodSummary?
     /// The widget's size family, from the dashboard: each gets its own layout.
     @Environment(\.widgetLayout) private var layout
 
     var body: some View {
+        main
+            .handlesWidgetActions { name, input in
+                let result = try PodsWidgetActions.perform(name, input, config: &config, pods: visiblePods)
+                if let pod = result.select { selected = pod }
+                return result.reply
+            }
+            .reportsWidgetState(PodsWidgetActions.state(config: config, pods: visiblePods, total: browse?.pods.count ?? 0,
+                                                        namespace: feature.map(namespaceLabel) ?? "", selected: selected))
+    }
+
+    private var browse: PodsFeature.Browse? { feature?.browsing[config.browseKey] }
+
+    /// The pods the widget lists, filtered and sorted as shown.
+    private var visiblePods: [PodSummary] {
+        let browse = browse
+        return PodSummary.sorted((browse?.pods ?? []).filter { config.query.matches($0, warnings: browse?.warnings[$0.id] ?? []) }, by: config.podSort)
+    }
+
+    @ViewBuilder private var main: some View {
         if let feature {
             content(feature)
                 .sheet(item: $selected) { PodDetailSheet(pod: $0, context: config.context, feature: feature, host: host) { await feature.refresh(browsing: config.browseKey) } }
