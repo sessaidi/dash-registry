@@ -3,10 +3,13 @@ import DashKit
 import DashKitUI
 import SwiftUI
 
-/// The widget body: header, the chart with zoom, pan, search and selection, and a footer.
+/// The widget body, one layout per size family: what's live when narrow, the chart with zoom,
+/// pan, search and selection when medium, the chart with the latest releases beside it when wide,
+/// and the chart over a release table and the picked release's detail when large.
 struct ReleaseTimelineView: View {
     let feature: ReleasesFeature
-    let host: any ExtensionContext
+    /// nil in the gallery: no repository picker.
+    let host: (any ExtensionContext)?
     @Binding var config: ReleaseTimelineWidget.Config
     /// The widget's DashQL query (its query bar): only the releases it matches stay on the chart.
     var widgetQuery: WidgetQuery?
@@ -31,7 +34,7 @@ struct ReleaseTimelineView: View {
     @State var query = ""
     /// A date the search jumped to: marked on the chart, its live release highlighted.
     @State var focusDate: Date?
-    /// The widget's size family from the dashboard: narrow widgets get the compact layout.
+    /// The widget's size and family from the dashboard (or the gallery's preset).
     @Environment(\.widgetLayout) private var widgetLayout
 
     /// The settings with Dashii's temporary changes on top: what the timeline shows.
@@ -62,9 +65,11 @@ struct ReleaseTimelineView: View {
                 Text(feature.repositories.isEmpty ? "Choose a repository" : "This widget's repository was removed").font(.headline)
                 Text("Pick one your GitHub or GitLab integration watches, or a local checkout.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                RepositoryPicker(feature: feature, host: host, selection: $config.repository)
-                    .labelsHidden()
-                    .fixedSize()
+                if let host {
+                    RepositoryPicker(feature: feature, host: host, selection: $config.repository)
+                        .labelsHidden()
+                        .fixedSize()
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -99,25 +104,46 @@ struct ReleaseTimelineView: View {
         let model = currentModel
         let now = feature.now()
         let full = fullDomain(model, now: now)
-        let shown = domain ?? initialDomain(full, now: now)
-        return GeometryReader { geometry in
-            let compact = widgetLayout.family == .narrow
-            let layout = TimelineLayout(size: CGSize(width: geometry.size.width, height: 0), domain: shown, compact: compact, lanes: model.lanes)
-            VStack(alignment: .leading, spacing: 6) {
-                header(model, compact: compact, now: now, zoomed: domain != nil)
-                if model.lanes.isEmpty {
-                    StateView(.empty(title: "No release tags", systemImage: "tag",
-                                     message: "No tags match \(repositories.map(\.tagPattern).joined(separator: ", ")). Check the tag pattern in Settings › Releases."))
-                } else {
-                    ScrollView(.vertical) {
-                        chart(model, layout: layout, full: full, now: now, compact: compact)
-                            .frame(height: layout.height)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    footer(model, compact: compact, now: now)
+        let visible = domain ?? initialDomain(full, now: now)
+        let size = widgetLayout.size
+        return Group {
+            switch widgetLayout.family {
+            case .narrow:
+                VStack(alignment: .leading, spacing: 8) {
+                    if searching { header(model, now: now, showLive: false) }
+                    ReleaseGlance(live: liveNow(now), matches: searching && !query.isEmpty ? Array(model.releases.filter { $0.matches(query) }.suffix(3).reversed()) : nil,
+                                  latest: latest(model, count: 6), now: now, selectedID: picked?.release, trainTitle: trainTitle, open: click)
                 }
+            case .wide:
+                HStack(alignment: .top, spacing: 12) {
+                    timeline(model, full: full, visible: visible, now: now, showLive: false)
+                    Divider()
+                    ReleaseContextColumn(live: liveNow(now), latest: latest(model, count: 8), now: now, selectedID: picked?.release,
+                                         trainTitle: trainTitle, open: click)
+                        .frame(width: size.width * 0.3)
+                }
+            case .large:
+                VStack(alignment: .leading, spacing: 10) {
+                    timeline(model, full: full, visible: visible, now: now, showLive: true)
+                        .frame(maxHeight: size.height * 0.5)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top, spacing: 12) {
+                        ReleaseTable(releases: model.releases.sorted { $0.start > $1.start }, now: now, trainTitle: trainTitle,
+                                     selectedID: Binding(get: { picked?.release }, set: { id in
+                                         picked = id.flatMap { id in model.releases.first { $0.id == id } }.map { ReleaseSelection(repository: $0.repository, release: $0.id) }
+                                     }),
+                                     open: { selection = ReleaseSelection(repository: $0.repository, release: $0.id) })
+                        Divider()
+                        ReleaseDetailPanel(release: detailRelease(model, now: now), now: now, trainTitle: trainTitle,
+                                           open: { selection = ReleaseSelection(repository: $0.repository, release: $0.id) })
+                            .frame(width: size.width * 0.34)
+                    }
+                }
+            default:
+                timeline(model, full: full, visible: visible, now: now, showLive: true)
             }
         }
+        .widgetHeader { headerControls(zoomed: domain != nil) }
         .sheet(item: $selection) { selection in
             ReleaseDetailSheet(feature: feature, repository: selection.repository, releaseID: selection.release)
         }
@@ -125,6 +151,59 @@ struct ReleaseTimelineView: View {
             ReleaseEventSheet(event: event, releases: timelines.map { timeline in (timeline, timeline.liveAt(event.date)) })
         }
         .onChange(of: config) { domain = nil }
+    }
+
+    /// The chart with its title row and footer: the medium layout, and the top of the wider ones.
+    private func timeline(_ model: TimelineModel, full: ClosedRange<Date>, visible: ClosedRange<Date>, now: Date, showLive: Bool) -> some View {
+        let lanesHeight = TimelineLayout(size: .zero, domain: visible, compact: false, lanes: model.lanes).height
+        return VStack(alignment: .leading, spacing: 6) {
+            header(model, now: now, showLive: showLive)
+            if model.lanes.isEmpty {
+                StateView(.empty(title: "No release tags", systemImage: "tag",
+                                 message: "No tags match \(repositories.map(\.tagPattern).joined(separator: ", ")). Check the tag pattern in Settings › Releases."))
+            } else {
+                GeometryReader { geometry in
+                    let layout = TimelineLayout(size: CGSize(width: geometry.size.width, height: 0), domain: visible, compact: false, lanes: model.lanes)
+                    ScrollView(.vertical) {
+                        chart(model, layout: layout, full: full, now: now, compact: false)
+                            .frame(height: layout.height)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                }
+                // No taller than the lanes: the footer stays under them, and wider layouts get the rest.
+                .frame(idealHeight: lanesHeight, maxHeight: lanesHeight)
+                footer(model, now: now)
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    /// Clicking a release selects and opens it; clicking the selected one again unselects it.
+    private func click(_ release: Release) {
+        let clicked = ReleaseSelection(repository: release.repository, release: release.id)
+        if picked?.release == release.id && picked?.repository == release.repository {
+            picked = nil
+        } else {
+            picked = clicked
+            selection = clicked
+        }
+    }
+
+    /// The newest releases first.
+    private func latest(_ model: TimelineModel, count: Int) -> [Release] {
+        Array(model.releases.sorted { $0.start > $1.start }.prefix(count))
+    }
+
+    /// The large layout's detail: the picked release, else the hovered one, else the newest live.
+    private func detailRelease(_ model: TimelineModel, now: Date) -> Release? {
+        if let picked, let release = model.releases.first(where: { $0.id == picked.release }) { return release }
+        return hovered ?? liveNow(now).map(\.release).max { $0.start < $1.start } ?? model.releases.last
+    }
+
+    /// "EU", "Shared" (with the repository's name when several are shown).
+    func trainTitle(_ release: Release) -> String {
+        guard let timeline = timelines.first(where: { $0.repository.id == release.repository }) else { return release.train.uppercased() }
+        return (timelines.count > 1 ? timeline.repository.name + " " : "") + timeline.trainTitle(release.train)
     }
 
     private func chart(_ model: TimelineModel, layout: TimelineLayout, full: ClosedRange<Date>, now: Date, compact: Bool) -> some View {
@@ -164,14 +243,7 @@ struct ReleaseTimelineView: View {
             })
             .onTapGesture { point in
                 if let release = layout.release(at: point) {
-                    // Clicking selects and opens; clicking the selected release again unselects it.
-                    let clicked = ReleaseSelection(repository: release.repository, release: release.id)
-                    if picked?.release == release.id && picked?.repository == release.repository {
-                        picked = nil
-                    } else {
-                        picked = clicked
-                        selection = clicked
-                    }
+                    click(release)
                 } else if let event = layout.event(at: point) {
                     eventSelection = event
                 }
@@ -192,7 +264,8 @@ struct ReleaseTimelineView: View {
 
     // MARK: Header and footer
 
-    private func header(_ model: TimelineModel, compact: Bool, now: Date, zoomed: Bool) -> some View {
+    /// The title row: count, repository and what's live, or the search field while searching.
+    private func header(_ model: TimelineModel, now: Date, showLive: Bool) -> some View {
         HStack(spacing: 6) {
             QueryCount(shown: model.releases.count, total: allReleases.count, query: queryText)
             if searching {
@@ -209,7 +282,7 @@ struct ReleaseTimelineView: View {
                 }
             } else {
                 Text(title(model)).font(.caption.bold()).lineLimit(1)
-                if !compact {
+                if showLive {
                     ForEach(liveNow(now), id: \.id) { live in
                         Badge("\(live.train) \(live.name)", tone: live.hotfix ? .warning : .info, systemImage: "dot.radiowaves.left.and.right")
                             .help("Live now on \(live.train): \(live.tag)")
@@ -217,6 +290,13 @@ struct ReleaseTimelineView: View {
                 }
             }
             Spacer(minLength: 0)
+        }
+        .font(.caption)
+    }
+
+    /// Loading, errors, back-to-period and search: in the card's header.
+    private func headerControls(zoomed: Bool) -> some View {
+        HStack(spacing: 6) {
             if repositories.contains(where: { feature.loading.contains($0.id) }) { ProgressView().controlSize(.mini) }
             if let error = repositories.lazy.compactMap({ feature.errors[$0.id] }).first {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tone.warning.color).help(error)
@@ -228,19 +308,15 @@ struct ReleaseTimelineView: View {
             Button { searching.toggle(); if !searching { query = ""; focusDate = nil } } label: { Image(systemName: searching ? "xmark.circle.fill" : "magnifyingglass") }
                 .buttonStyle(.borderless).help(searching ? "Stop searching" : "Search releases by ticket, text or date")
         }
-        .font(.caption)
     }
 
-    private func footer(_ model: TimelineModel, compact: Bool, now: Date) -> some View {
+    private func footer(_ model: TimelineModel, now: Date) -> some View {
         Group {
             if let hovered = hovered ?? focused(model) {
                 Text((hovered.id == focused(model)?.id && self.hovered == nil ? "Live on \(focusDate?.formatted(.dateTime.day().month(.abbreviated)) ?? ""): " : "")
                      + hoverLine(hovered, now: now)).lineLimit(1).truncationMode(.tail)
             } else if let hoveredEvent {
                 Text("\(hoveredEvent.kind.title) · \(hoveredEvent.date.formatted(date: .abbreviated, time: .omitted)) · \(hoveredEvent.title)").lineLimit(1)
-            } else if compact {
-                // Narrow: what's live now, in place of the header badges.
-                Text(liveNow(now).map { "\($0.train) \($0.name)" }.joined(separator: " · ")).lineLimit(1)
             } else {
                 Text("Scroll or pinch to zoom, drag to pan, click a release for details.").foregroundStyle(.tertiary)
             }
@@ -254,13 +330,22 @@ struct ReleaseTimelineView: View {
         return (repositories.count == 1 ? repositories[0].name + " · " : "") + "\(count) release\(count == 1 ? "" : "s")"
     }
 
-    struct Live: Identifiable { let id: String; let train: String; let name: String; let tag: String; let hotfix: Bool }
+    struct Live: Identifiable {
+        let id: String
+        let train: String
+        let name: String
+        let tag: String
+        let hotfix: Bool
+        let release: Release
+        /// When the live build was tagged.
+        let since: Date
+    }
 
     func liveNow(_ now: Date) -> [Live] {
         timelines.flatMap { timeline in
             timeline.liveAt(now).filter { shown.train == nil || $0.train == shown.train }.map { live in
                 Live(id: timeline.repository.id + live.train, train: (timelines.count > 1 ? timeline.repository.name + " " : "") + timeline.trainTitle(live.train),
-                     name: live.release.shortName, tag: live.build.tag, hotfix: !live.build.onBase)
+                     name: live.release.shortName, tag: live.build.tag, hotfix: !live.build.onBase, release: live.release, since: live.build.date)
             }
         }
     }

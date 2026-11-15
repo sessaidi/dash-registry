@@ -63,6 +63,14 @@ final class ReleasesFeature: DashExtension {
         timelineEvents = Self.load([ReleaseEvent].self, "events", defaults) ?? []
     }
 
+    /// Shows `timeline` without reading git: the widget gallery's sample data.
+    func showSample(_ timeline: RepositoryTimeline, events: [ReleaseEvent], now: Date) {
+        repositories = [timeline.repository]
+        timelines[timeline.repository.id] = timeline
+        timelineEvents = events
+        self.now = { now }
+    }
+
     var widgets: [WidgetType] { [WidgetType(ReleaseTimelineWidget.self)] }
     var events: [EventDefinition] { [EventDefinition("release.tagged", "A new release tag appeared in a repository set up in Releases.")] }
 

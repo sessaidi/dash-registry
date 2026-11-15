@@ -64,13 +64,9 @@ struct ReleaseTimelineWidget: DashboardWidget {
         ReleaseTimelineSettings(feature: context.host.ext(ReleasesFeature.self), host: context.host, config: config)
     }
 
-    /// Sample releases for the widget gallery (never git).
+    /// Sample releases for the widget gallery (never git): the same responsive view as the dashboard.
     static func preview(config: Config) -> some View {
-        let timeline = ReleaseSamples.timeline
-        return TimelineChart(model: TimelineModel(timelines: [timeline], events: ReleaseSamples.events, train: nil, showEvents: true),
-                             domain: ReleaseSamples.now.addingTimeInterval(-75 * 86_400)...ReleaseSamples.now.addingTimeInterval(3 * 86_400),
-                             now: ReleaseSamples.now, compact: false, selected: nil, hovered: nil, query: "")
-            .frame(height: 150)
+        ReleaseTimelineView(feature: ReleaseSamples.feature, host: nil, config: .constant(config))
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
