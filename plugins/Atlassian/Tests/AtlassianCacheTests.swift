@@ -125,4 +125,18 @@ struct AtlassianCacheTests {
         #expect(markdown.contains("> **Warning:** Prod only"))
         #expect(markdown.contains("See [[Deploys]] & more."))
     }
+
+    @Test func cachedReadsAreQueryableOffline() async throws {
+        let (sandbox, atlassian, mirror, _) = setUp()
+        defer { sandbox.cleanUp() }
+        StubURLProtocol.reset { _ in .init(body: Data(Self.issue.utf8)) }
+        _ = try await run(atlassian, "jira_issue", ["key": "LAF-12"])
+        mirror.upsert([SyncedRecord(kind: "jira.hit", scope: "acme.atlassian.net", key: "LAF-99",
+                                    value: ["key": "LAF-99", "summary": "Other", "status": "To Do"], source: "atlassian", updatedAt: .now)])
+
+        let engine = QueryEngine(datasets: atlassian.datasets)
+        let rows = try await engine.run("from jira_cache | sort key | select key, full, priority").rows
+        #expect(rows == [["key": "LAF-12", "full": true, "priority": "High"], ["key": "LAF-99", "full": false, "priority": .null]])
+        #expect(try await engine.run("from confluence").rows.isEmpty)
+    }
 }

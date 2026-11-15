@@ -103,7 +103,7 @@ struct AtlassianIntegrationTests {
         let atlassian = sandbox.integration()
         #expect(atlassian.id == "atlassian")
         #expect(atlassian.layer == .integration)
-        #expect(atlassian.metadata.version == "1.3.0")
+        #expect(atlassian.metadata.version == "1.4.0")
         #expect(atlassian.metadata.category == .projectManagement)
         #expect(atlassian.metadata.author == .dash)
         #expect(atlassian.metadata.homepage == "https://github.com/sessaidi/dash")

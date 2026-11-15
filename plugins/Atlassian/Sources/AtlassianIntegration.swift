@@ -14,7 +14,7 @@ final class AtlassianIntegration: Integration {
     let name = "Atlassian"
     let systemImage = "building.columns"
     let metadata = ExtensionMetadata(
-        version: "1.3.0", author: .dash, summary: "Jira and Confluence Cloud with one site, email and API token.",
+        version: "1.4.0", author: .dash, summary: "Jira and Confluence Cloud with one site, email and API token.",
         category: .projectManagement, tags: ["jira", "confluence"], homepage: "https://github.com/sessaidi/dash")
     let secretKeys = [SecretKey("token", "API token")]
     @ObservationIgnored let secrets: SecretStore?
