@@ -3,7 +3,8 @@ import DashKitUI
 import SwiftData
 import SwiftUI
 
-/// The widget body: recording controls, live transcript while in a meeting, past meetings otherwise.
+/// The widget body: Zoom's live state, the live transcript and the stored meetings, laid out
+/// per size by `MeetingLayout`.
 struct MeetingPanel: View {
     let zoom: ZoomExtension?
     let host: any ExtensionContext
@@ -20,54 +21,33 @@ struct MeetingPanel: View {
         queryIDs == nil ? Array(meetings.prefix(recentCount)) : QueryRows.ordered(meetings, by: queryIDs)
     }
 
+    private var live: MeetingLive {
+        guard let zoom else { return MeetingLive() }
+        let current = zoom.currentMeetingID.flatMap { id in meetings.first { $0.id == id } }
+        return MeetingLive(zoomRunning: zoom.isZoomRunning, inMeeting: zoom.inMeeting, recording: zoom.isRecording, saveAudio: zoom.saveAudio,
+                           recordVideo: zoom.recordVideo, summarizing: zoom.isSummarizing, error: zoom.lastError, participants: zoom.participants,
+                           meetingID: zoom.currentMeetingID, title: current?.title, startedAt: current?.startedAt)
+    }
+
+    private var commands: MeetingCommands {
+        MeetingCommands(
+            record: { Task { await zoom?.startRecording() } },
+            stop: { Task { await zoom?.stopRecording() } },
+            setVideo: { zoom?.recordVideo = $0 },
+            open: { id in selected = meetings.first { $0.id == id } })
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if zoom?.isRecording == true {
-                    RecordingLabel(saving: zoom?.saveAudio == true)
-                } else {
-                    Text(zoom?.inMeeting == true ? "In a Zoom meeting" : zoom?.isZoomRunning == true ? "Zoom is open" : "Zoom is not running")
-                        .font(.callout).foregroundStyle(.secondary)
+        let live = live
+        // The meeting being transcribed isn't "past" yet.
+        let past = listed.filter { $0.id != live.meetingID }.map(MeetingDigest.init)
+        Group {
+            if let meetingID = live.meetingID {
+                LiveSegments(meetingID: meetingID) { lines in
+                    MeetingLayout(live: live, lines: lines, past: past, commands: commands, query: queryText, total: meetings.count)
                 }
-                Spacer()
-                if let zoom, zoom.saveAudio {
-                    // Applies to the next recording: the capture's video is set when it starts.
-                    Toggle(isOn: Binding(get: { zoom.recordVideo }, set: { zoom.recordVideo = $0 })) {
-                        Image(systemName: zoom.recordVideo ? "video.fill" : "video.slash")
-                    }
-                    .toggleStyle(.button)
-                    .help(zoom.recordVideo ? "Video on: Zoom's windows are recorded too" : "Video off: audio only")
-                    .disabled(zoom.isRecording)
-                }
-                if zoom?.isRecording == true {
-                    Button("Stop") { Task { await zoom?.stopRecording() } }
-                } else {
-                    Button(zoom?.saveAudio == true ? "Record" : "Transcribe") { Task { await zoom?.startRecording() } }
-                        .disabled(zoom?.isZoomRunning != true)
-                }
-            }
-            if let error = zoom?.lastError { Text(error).font(.caption).foregroundStyle(.red) }
-            if zoom?.inMeeting == true, let participants = zoom?.participants, !participants.isEmpty {
-                ParticipantChips(names: participants)
-            }
-            if let meetingID = zoom?.currentMeetingID {
-                LiveTranscript(meetingID: meetingID)
-            } else if meetings.isEmpty {
-                ContentUnavailableView("No meetings yet", systemImage: "waveform", description: Text("Join a Zoom meeting and press Transcribe."))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                QueryCount(shown: listed.count, total: meetings.count, query: queryText)
-                List(listed) { meeting in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(meeting.title).lineLimit(1)
-                        Text(meeting.summary.isEmpty ? meeting.startedAt.formatted(date: .abbreviated, time: .shortened) : meeting.summary)
-                            .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    }
-                    .contentShape(.rect)
-                    .onTapGesture { selected = meeting }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+                MeetingLayout(live: live, lines: [], past: past, commands: commands, query: queryText, total: meetings.count)
             }
         }
         .sheet(item: $selected) { MeetingSheet(meeting: $0, zoom: zoom, host: host) }

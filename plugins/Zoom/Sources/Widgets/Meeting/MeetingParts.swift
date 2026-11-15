@@ -1,6 +1,9 @@
 import SwiftData
 import SwiftUI
 
+/// One transcript line as the widget shows it, live or sample.
+typealias TranscriptLine = MeetingSample.Line
+
 /// The red dot and Recording / Transcribing.
 struct RecordingLabel: View {
     let saving: Bool
@@ -23,26 +26,40 @@ struct ParticipantChips: View {
                 }
             }
         }
+        .scrollIndicators(.never)
     }
 }
 
-/// The current meeting's transcript, following new lines.
-struct LiveTranscript: View {
+/// The current meeting's transcript lines, followed live, handed to `content`.
+struct LiveSegments<Content: View>: View {
     @Query private var segments: [TranscriptSegment]
+    let content: ([TranscriptLine]) -> Content
 
-    init(meetingID: UUID) {
+    init(meetingID: UUID, @ViewBuilder content: @escaping ([TranscriptLine]) -> Content) {
         _segments = Query(filter: #Predicate<TranscriptSegment> { $0.meetingID == meetingID }, sort: \.createdAt)
+        self.content = content
     }
+
+    var body: some View {
+        content(segments.map { TranscriptLine(speaker: $0.speaker, text: $0.text) })
+    }
+}
+
+/// A transcript, following new lines.
+struct TranscriptView: View {
+    let lines: [TranscriptLine]
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(segments) { SegmentRow(speaker: $0.speaker, text: $0.text) }
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in SegmentRow(speaker: line.speaker, text: line.text) }
                     Color.clear.frame(height: 1).id("end")
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .onChange(of: segments.count) { proxy.scrollTo("end") }
+            .onChange(of: lines.count) { proxy.scrollTo("end") }
+            .onAppear { proxy.scrollTo("end") }
         }
     }
 }
@@ -51,11 +68,13 @@ struct LiveTranscript: View {
 struct SegmentRow: View {
     let speaker: String
     let text: String
+    /// Two lines at most, for the narrow glance.
+    var compact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(speaker).font(.caption.bold()).foregroundStyle(speaker == MeetingRecorder.othersSpeaker ? Color.secondary : .accentColor)
-            Text(text).font(.callout).textSelection(.enabled)
+            Text(text).font(compact ? .caption : .callout).lineLimit(compact ? 2 : nil).textSelection(.enabled)
         }
     }
 }

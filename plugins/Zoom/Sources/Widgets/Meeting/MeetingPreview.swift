@@ -1,19 +1,13 @@
 import SwiftUI
 
-/// The widget gallery's picture: a meeting being transcribed, from `MeetingSample`.
+/// The widget gallery's picture: the same responsive layout over `MeetingSample`, a meeting
+/// being transcribed (the past meetings show where there's room for them).
 struct MeetingPreview: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                RecordingLabel(saving: false)
-                Spacer()
-                Button("Stop") {}.allowsHitTesting(false)
-            }
-            ParticipantChips(names: MeetingSample.participants)
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(MeetingSample.lines, id: \.self) { SegmentRow(speaker: $0.speaker, text: $0.text) }
-            }
-            Spacer(minLength: 0)
-        }
+        MeetingLayout(
+            live: MeetingLive(zoomRunning: true, inMeeting: true, recording: true, participants: MeetingSample.participants,
+                              meetingID: UUID(), title: MeetingSample.title, startedAt: MeetingSample.startedAt),
+            lines: MeetingSample.lines, past: MeetingSample.past, total: MeetingSample.past.count)
+        .allowsHitTesting(false)
     }
 }

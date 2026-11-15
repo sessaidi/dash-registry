@@ -76,7 +76,8 @@ final class TranscriptSegment {
     }
 }
 
-/// The sample meeting widget previews draw: no capture, no store.
+/// The sample meeting widget previews draw: no capture, no store. A meeting being transcribed,
+/// and a few past ones with summaries, so every size family looks real.
 enum MeetingSample {
     struct Line: Hashable, Sendable {
         let speaker: String
@@ -84,11 +85,38 @@ enum MeetingSample {
     }
 
     static let title = "Weekly sync"
-    static let participants = ["Ada Lovelace", "Grace Hopper", "Alan Turing"]
+    static let participants = ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Katherine Johnson", "Linus Torvalds"]
+    /// Twelve minutes in.
+    static var startedAt: Date { .now.addingTimeInterval(-12 * 60 - 4) }
     static let lines = [
         Line(speaker: "Ada Lovelace", text: "Let's start with the release. Is the migration ready for Thursday?"),
         Line(speaker: MeetingRecorder.othersSpeaker, text: "Almost. The backfill finished overnight; I still need to check the indexes."),
         Line(speaker: "Ada Lovelace", text: "Great. Can you post the numbers in the channel before standup?"),
         Line(speaker: MeetingRecorder.othersSpeaker, text: "Will do. I'll also open a ticket for the flaky integration test."),
+        Line(speaker: "Ada Lovelace", text: "Next: the on-call rotation. Who takes the week of the 24th?"),
+        Line(speaker: MeetingRecorder.othersSpeaker, text: "I can, if someone swaps the Friday with me."),
+        Line(speaker: "Ada Lovelace", text: "Done, I'll take Friday. Last item is the dashboard latency."),
+        Line(speaker: MeetingRecorder.othersSpeaker, text: "p95 is back under 300 ms since the cache change; I'll keep an eye on it."),
     ]
+
+    /// Past meetings, newest first.
+    static var past: [MeetingDigest] {
+        let day: TimeInterval = 24 * 3600
+        return [
+            MeetingDigest(id: UUID(), title: "Release planning", startedAt: .now.addingTimeInterval(-day), endedAt: .now.addingTimeInterval(-day + 1800),
+                          participants: ["Ada Lovelace", "Grace Hopper", "Alan Turing"],
+                          summary: "Agreed to ship the migration Thursday behind a flag, with the backfill verified first.",
+                          decisions: ["Ship Thursday behind the migration flag", "Freeze schema changes until Monday"],
+                          actionItems: [.init(owner: "Grace", task: "Verify the backfill counts"), .init(owner: "Alan", task: "Write the rollback runbook"),
+                                        .init(owner: "Ada", task: "Announce the freeze in #backend")]),
+            MeetingDigest(id: UUID(), title: "Incident review: checkout 502s", startedAt: .now.addingTimeInterval(-3 * day),
+                          endedAt: .now.addingTimeInterval(-3 * day + 2700), participants: ["Ada Lovelace", "Linus Torvalds"],
+                          summary: "A connection pool limit caused the 502s; raised it and added an alert on saturation.",
+                          decisions: ["Alert at 80% pool saturation"],
+                          actionItems: [.init(owner: "Linus", task: "Add the saturation alert")]),
+            MeetingDigest(id: UUID(), title: "1:1 with Grace", startedAt: .now.addingTimeInterval(-6 * day), endedAt: .now.addingTimeInterval(-6 * day + 1500),
+                          participants: ["Ada Lovelace", "Grace Hopper"], summary: "Career goals for next quarter and the conference talk.",
+                          decisions: [], actionItems: [.init(owner: "Ada", task: "Review the talk outline")]),
+        ]
+    }
 }
