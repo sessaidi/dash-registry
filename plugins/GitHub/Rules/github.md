@@ -1,0 +1,6 @@
+- Read GitHub: github_pulls, github_pull, github_pull_files, github_pull_reviews, github_checks, github_workflow_runs, github_job_log, github_commits, github_compare, github_file, github_issues, github_releases, github_search.
+- Prefer these over github_api_get (GET only).
+- Nothing here writes to GitHub: no comments, reviews, merges, pushes or issue changes; the user does those.
+- github_sync_tags and github_sync_compare fill Dash's local mirror for the release timeline; call them only when release data is missing or stale.
+- Cite repositories as owner/name and PRs as owner/name#123 with their link; failing checks with the job and the log lines that fail.
+- Never paste tokens.

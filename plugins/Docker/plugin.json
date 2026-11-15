@@ -1,0 +1,14 @@
+{
+  "name": "Docker",
+  "kind": "integration",
+  "icon": "shippingbox",
+  "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
+  "provides": [
+    "docker",
+    "docker-containers"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

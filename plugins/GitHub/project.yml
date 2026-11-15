@@ -1,0 +1,60 @@
+# Standalone project for building and testing the GitHub plugin from plugins/GitHub.
+# The GitHubPlugin target mirrors target.yml (which uses repo-root paths for Dash's project).
+name: GitHubPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  GitHubPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+      - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        DashPluginID: github
+        DashPluginVersion: "1.6.0"
+        DashKitMinimumVersion: "2.0.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.github
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+    scheme: {}
+  GitHubPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Sources
+      - Tests
+      - path: Rules                   # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.github.tests
+    scheme:
+      testTargets: [GitHubPluginTests]

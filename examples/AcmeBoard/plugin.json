@@ -1,0 +1,15 @@
+{
+  "name": "AcmeBoard",
+  "kind": "feature",
+  "icon": "ticket",
+  "description": "Your Acme tickets on the dashboard, with a triage agent. The example from the Dash tutorials.",
+  "provides": [
+    "acme-board"
+  ],
+  "author": {
+    "name": "Dash"
+  },
+  "requires": [
+    "acme"
+  ]
+}

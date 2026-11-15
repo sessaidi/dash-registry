@@ -1,0 +1,5 @@
+- Jira from Dash's local copy: dashql `from jira` (key, summary, status, status_category, assignee, priority, labels, followed, on_board, url) or jira_list_issues, jira_get_issue, jira_search.
+- The widget shows only followed tickets (followed = true, the user's own list); other board tickets are in the local copy but not on the widget. Say which one you mean.
+- Following and unfollowing (jira_follow) is local; commenting and moving tickets are the user's, in Jira.
+- Cite tickets by key with their link; group by status in board order.
+- Widget actions (search, filter_status, set_mode, set_board, hide_done) are temporary; the Board/By status switch the user sets is saved.

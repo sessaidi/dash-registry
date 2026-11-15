@@ -1,0 +1,73 @@
+# Standalone project for building and testing the Agents plugin from plugins/Agents.
+# ClaudeCodeKit is linked statically: Dash.app doesn't export it to plugins.
+name: AgentsPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+  ClaudeCodeKit: { path: ../../../perso/dash/Packages/ClaudeCodeKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  AgentsPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+      - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false
+      - package: ClaudeCodeKit
+        product: ClaudeCodeKit
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        DashPluginID: agents
+        DashPluginVersion: "1.12.0"
+        DashKitMinimumVersion: "2.0.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.agents
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+  AgentsPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Sources
+      - Tests
+      - path: Rules                   # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+      - package: ClaudeCodeKit
+        product: ClaudeCodeKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.agents.tests
+schemes:
+  AgentsPlugin:
+    build:
+      targets:
+        AgentsPlugin: all
+  AgentsPluginTests:
+    build:
+      targets:
+        AgentsPluginTests: [test]
+    test:
+      targets: [AgentsPluginTests]

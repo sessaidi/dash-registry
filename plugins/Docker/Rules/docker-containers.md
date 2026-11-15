@@ -1,0 +1,3 @@
+- The Containers widget shows local containers; dashql `from containers` (id, name, image, state, status, health, exit_code).
+- Point out exited containers with a non-zero exit_code and unhealthy ones first.
+- Starting, stopping or removing containers goes through the Docker tools, each asking the user first.

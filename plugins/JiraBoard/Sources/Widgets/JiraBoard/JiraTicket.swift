@@ -1,0 +1,99 @@
+import DashKit
+import Foundation
+
+/// What the board draws for one issue: a value copy of `JiraIssue`, so previews can use sample data.
+struct JiraTicket: Identifiable, Hashable, Sendable {
+    let key: String
+    let summary: String
+    let statusID: String
+    let statusName: String
+    let statusCategory: String
+    let assignee: String?
+    let onBoard: Bool
+    let followed: Bool
+    let url: String
+    var boardIDs: [Int] = []
+    /// Shown in the large layout's detail panel.
+    var priority: String?
+    var issueType: String?
+    var labels: [String] = []
+    var updated: Date?
+
+    var id: String { key }
+
+    init(key: String, summary: String, statusID: String, statusName: String, statusCategory: String,
+         assignee: String?, onBoard: Bool, followed: Bool, url: String) {
+        self.key = key
+        self.summary = summary
+        self.statusID = statusID
+        self.statusName = statusName
+        self.statusCategory = statusCategory
+        self.assignee = assignee
+        self.onBoard = onBoard
+        self.followed = followed
+        self.url = url
+    }
+
+    @MainActor
+    init(_ issue: JiraIssue) {
+        self.init(key: issue.key, summary: issue.summary, statusID: issue.statusID, statusName: issue.statusName,
+                  statusCategory: issue.statusCategory, assignee: issue.assignee, onBoard: issue.onBoard,
+                  followed: issue.followed, url: issue.url)
+        boardIDs = issue.boardIDs
+        priority = issue.priority
+        issueType = issue.issueType
+        labels = issue.labels
+        updated = issue.updated
+    }
+
+    /// The tickets a widget with `config` shows.
+    /// Only the tickets the user follows, whatever their assignee or board: the mode changes the
+    /// columns they sit in (the board's, or one per status), not which tickets show.
+    static func visible(_ tickets: [JiraTicket], config: JiraBoardWidget.Config) -> [JiraTicket] {
+        tickets.filter { $0.followed && !(config.hideDone && $0.statusCategory == "done") }
+    }
+
+    /// A sprint's worth of tickets: every column filled, several in progress for "you" (followed),
+    /// and one done, so each size family looks real.
+    static let samples: [JiraTicket] = [
+        sample("WEB-482", "Checkout button stays disabled after editing the shipping address", "1", "To Do", "new", "Maya Chen", followed: true,
+               type: "Bug", priority: "High", labels: ["checkout"], hoursAgo: 3),
+        sample("WEB-479", "Add rate limiting to the password reset endpoint", "1", "To Do", "new", nil,
+               type: "Story", priority: "Medium", labels: ["security"], hoursAgo: 26),
+        sample("WEB-490", "Show delivery estimates on the cart page", "1", "To Do", "new", "Sam Ortiz",
+               type: "Story", priority: "Low", hoursAgo: 50),
+        sample("WEB-475", "Migrate order history to the paginated orders API", "3", "In Progress", "indeterminate", "Sam Ortiz", followed: true,
+               type: "Story", priority: "High", labels: ["orders", "api"], hoursAgo: 1),
+        sample("WEB-488", "Retry failed webhook deliveries with backoff", "3", "In Progress", "indeterminate", "Sam Ortiz", followed: true,
+               type: "Task", priority: "Medium", labels: ["payments"], hoursAgo: 5),
+        sample("WEB-471", "Flaky snapshot test in the invoice PDF renderer", "3", "In Progress", "indeterminate", "Priya Natarajan",
+               type: "Bug", priority: "Low", hoursAgo: 8),
+        sample("WEB-466", "Dark mode colours for the account settings page", "10002", "Code Review", "indeterminate", "Maya Chen", followed: true,
+               type: "Story", priority: "Medium", labels: ["design"], hoursAgo: 2),
+        sample("WEB-460", "Upgrade the image CDN client to v4", "10001", "Done", "done", "Leo Martin", followed: true,
+               type: "Task", priority: "Low", hoursAgo: 30),
+        sample("OPS-212", "Rotate the staging database credentials", "3", "In Progress", "indeterminate", "Maya Chen", onBoard: false, followed: true,
+               type: "Task", priority: "Highest", labels: ["security"], hoursAgo: 4),
+    ]
+
+    private static func sample(_ key: String, _ summary: String, _ statusID: String, _ statusName: String, _ category: String,
+                               _ assignee: String?, onBoard: Bool = true, followed: Bool = false,
+                               type: String, priority: String, labels: [String] = [], hoursAgo: Double) -> JiraTicket {
+        var ticket = JiraTicket(key: key, summary: summary, statusID: statusID, statusName: statusName, statusCategory: category,
+                                assignee: assignee, onBoard: onBoard, followed: followed, url: "https://example.atlassian.net/browse/\(key)")
+        ticket.issueType = type
+        ticket.priority = priority
+        ticket.labels = labels
+        ticket.updated = Date(timeIntervalSinceNow: -hoursAgo * 3_600)
+        return ticket
+    }
+}
+
+extension JiraClient.Column {
+    static let samples = [
+        JiraClient.Column(name: "To Do", statusIDs: ["1"]),
+        JiraClient.Column(name: "In Progress", statusIDs: ["3"]),
+        JiraClient.Column(name: "Review", statusIDs: ["10002"]),
+        JiraClient.Column(name: "Done", statusIDs: ["10001"]),
+    ]
+}

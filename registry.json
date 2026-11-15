@@ -1,0 +1,371 @@
+{
+  "format": 2,
+  "name": "Dash Extensions",
+  "label": "Community",
+  "extensions": [
+    {
+      "id": "aws",
+      "name": "AWS",
+      "kind": "integration",
+      "version": "1.3.1",
+      "plugin": {
+        "download": "dist/aws-1.3.1.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "aws"
+        ],
+        "sha256": "8d6055d870fdb726ab937328f2d83042da02f79fab7cf54da3c7abeadc313bbf"
+      },
+      "description": "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.",
+      "icon": "server.rack",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/AWS/README.md"
+    },
+    {
+      "id": "agents",
+      "name": "Agents",
+      "kind": "feature",
+      "version": "1.12.0",
+      "plugin": {
+        "download": "dist/agents-1.12.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "agents"
+        ],
+        "sha256": "1dc63545626b645bc5e141ad5f87bc8f2778abca3eb537c9f468d040c99a07f6"
+      },
+      "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
+      "icon": "hammer",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "requires": [
+        "atlassian"
+      ],
+      "readme": "plugins/Agents/README.md"
+    },
+    {
+      "id": "atlassian",
+      "name": "Atlassian",
+      "kind": "integration",
+      "version": "1.5.1",
+      "plugin": {
+        "download": "dist/atlassian-1.5.1.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "atlassian"
+        ],
+        "sha256": "811159e1b8b2ad3e682c1f0af14e39fe77743db79a7e53f4f1aaae77fbd6e17b"
+      },
+      "description": "Jira and Confluence Cloud with one site, email and API token.",
+      "icon": "square.stack.3d.up",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/Atlassian/README.md"
+    },
+    {
+      "id": "backend-meeting",
+      "name": "Backend Meeting",
+      "kind": "feature",
+      "version": "1.4.0",
+      "plugin": {
+        "download": "dist/backend-meeting-1.4.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "backend-meeting"
+        ],
+        "sha256": "7f83bb4fa468a451181b8e37bc048c32e9198765ada3769ca5ac0a029d09308c"
+      },
+      "description": "Your highlights for the backend meeting: PRs, tickets and activity since the last report (1\u201310 week cycles), grouped into themes.",
+      "icon": "person.2.wave.2",
+      "author": {
+        "name": "Dash"
+      },
+      "requires": [
+        "github"
+      ],
+      "optional": [
+        "atlassian"
+      ],
+      "readme": "plugins/BackendMeeting/README.md"
+    },
+    {
+      "id": "daily-standup",
+      "name": "Daily Standup",
+      "kind": "feature",
+      "version": "1.6.0",
+      "plugin": {
+        "download": "dist/daily-standup-1.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "daily-standup"
+        ],
+        "sha256": "f777ee184bc61b273de44b9b5722766136243844730c329880051a484df80d8d"
+      },
+      "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
+      "icon": "person.3.sequence",
+      "author": {
+        "name": "Dash"
+      },
+      "requires": [
+        "zoom"
+      ],
+      "optional": [
+        "pull-requests",
+        "jira-board",
+        "agents",
+        "workspaces"
+      ],
+      "readme": "plugins/DailyStandup/README.md"
+    },
+    {
+      "id": "datadog",
+      "name": "Datadog",
+      "kind": "integration",
+      "version": "1.4.0",
+      "plugin": {
+        "download": "dist/datadog-1.4.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "datadog"
+        ],
+        "sha256": "f46b78cd0bc1d475d71920fb869a15d381fc4a02fadc01537e4f8e102ee24277"
+      },
+      "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
+      "icon": "dog",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/Datadog/README.md"
+    },
+    {
+      "id": "docker",
+      "name": "Docker",
+      "kind": "integration",
+      "version": "1.6.0",
+      "plugin": {
+        "download": "dist/docker-1.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "docker",
+          "docker-containers"
+        ],
+        "sha256": "314da4d93998d05611b16b1ec1a583f724f10e481010c7683b008f2284cc0ec8"
+      },
+      "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
+      "icon": "shippingbox",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/Docker/README.md"
+    },
+    {
+      "id": "gcp",
+      "name": "Google Cloud",
+      "kind": "integration",
+      "version": "1.4.1",
+      "plugin": {
+        "download": "dist/gcp-1.4.1.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "gcp"
+        ],
+        "sha256": "8097863d66007596166416f72cdf3543c459b1dc3e2e97ae6083e05995e91870"
+      },
+      "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
+      "icon": "cloud",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/GCP/README.md"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "kind": "integration",
+      "version": "1.6.0",
+      "plugin": {
+        "download": "dist/github-1.6.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "github"
+        ],
+        "sha256": "815e64df0e7cb4f55c19f735f38d81761b718acd6226d36ce77d357a62bcb718"
+      },
+      "description": "GitHub account, API URL and the repositories you watch.",
+      "icon": "chevron.left.forwardslash.chevron.right",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/GitHub/README.md"
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "kind": "integration",
+      "version": "1.4.0",
+      "plugin": {
+        "download": "dist/gitlab-1.4.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "gitlab"
+        ],
+        "sha256": "b9535ea9cab6a0b8dd3dbb5440d1daeb7599055580ec38cce5d6354742e42dda"
+      },
+      "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
+      "icon": "point.3.connected.trianglepath.dotted",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/GitLab/README.md"
+    },
+    {
+      "id": "jira-board",
+      "name": "Jira Board",
+      "kind": "feature",
+      "version": "1.13.3",
+      "plugin": {
+        "download": "dist/jira-board-1.13.3.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "jira-board"
+        ],
+        "sha256": "34ee1e3ac7b875b85865d93b925424bbbd89569a784c71d0d37580c10e4cfcec"
+      },
+      "description": "The Jira issues you follow, in your board's columns or by status, with Claude tools to search, comment and move tickets.",
+      "icon": "checklist",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "requires": [
+        "atlassian"
+      ],
+      "readme": "plugins/JiraBoard/README.md"
+    },
+    {
+      "id": "kubernetes",
+      "name": "Kubernetes",
+      "kind": "integration",
+      "version": "1.11.0",
+      "plugin": {
+        "download": "dist/kubernetes-1.11.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "kubernetes",
+          "kubernetes-pods"
+        ],
+        "sha256": "2ff4a50c6293b4b90b6be3ed889a1325851e72bf13f0cb64aea44155bbf25dd6"
+      },
+      "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
+      "icon": "circle.hexagongrid",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "readme": "plugins/Kubernetes/README.md"
+    },
+    {
+      "id": "pull-requests",
+      "name": "Pull Requests",
+      "kind": "feature",
+      "version": "1.11.0",
+      "plugin": {
+        "download": "dist/pull-requests-1.11.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "pull-requests"
+        ],
+        "sha256": "15e9e3117759c6389738b782701eccf671a23ac90296bfb3d67972568425e6e9"
+      },
+      "description": "Open PRs on watched repos with automatic Claude reviews.",
+      "icon": "arrow.triangle.pull",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "requires": [
+        "github"
+      ],
+      "readme": "plugins/PullRequests/README.md"
+    },
+    {
+      "id": "releases",
+      "name": "Releases",
+      "kind": "feature",
+      "version": "1.7.0",
+      "plugin": {
+        "download": "dist/releases-1.7.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "releases"
+        ],
+        "sha256": "c6250e8728019805f674b521ca4c17e644c366cb59be170a6ce6714a1bb85ac4"
+      },
+      "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
+      "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
+      "author": {
+        "name": "Dash"
+      }
+    },
+    {
+      "id": "sre",
+      "name": "SRE",
+      "kind": "feature",
+      "version": "1.1.0",
+      "plugin": {
+        "download": "dist/sre-1.1.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "sre"
+        ],
+        "sha256": "f3b5159dff1d981b7980dc751eae98f26b6172e64e523d099d1ef1afe5f1cadb"
+      },
+      "description": "A senior on-call SRE: watches Datadog monitors and Kubernetes pods, investigates with evidence across Datadog, Google Cloud and Kubernetes, hands narrow jobs to smaller models, and reports likely causes and next steps. Read-only.",
+      "icon": "stethoscope",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "optional": [
+        "datadog",
+        "gcp",
+        "kubernetes"
+      ],
+      "readme": "plugins/SRE/README.md"
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "kind": "feature",
+      "version": "1.7.0",
+      "plugin": {
+        "download": "dist/zoom-1.7.0.dashplugin.zip",
+        "minimumDashKit": "2.0.0",
+        "provides": [
+          "zoom"
+        ],
+        "sha256": "f5d4677957f325f2473fc257766e04fe33feb0676f66424ad17b7331b46001ae"
+      },
+      "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
+      "icon": "video",
+      "author": {
+        "name": "Dash",
+        "url": "https://github.com/sessaidi/dash-extensions"
+      },
+      "requires": [],
+      "readme": "plugins/Zoom/README.md"
+    }
+  ]
+}

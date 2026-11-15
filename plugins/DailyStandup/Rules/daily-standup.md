@@ -1,0 +1,5 @@
+- The standup update covers since the last standup: what was done, what's next, blockers; read it with standup_today, standup_history or dashql `from standups`; blockers with standup_blockers or `from blockers`.
+- standup_prepare builds today's update from commits, PRs, tickets, agents and deploys; prepare before the standup time, not after.
+- Respect the team calendar: no standup on French public holidays; no Zoom daily on ceremony or chapter days (the update is still prepared).
+- Keep updates short, one line per item, with ticket keys; blockers say who or what is blocking.
+- Zoom standups are followed and reported only when the user started transcription; never share a transcript outside Dash.

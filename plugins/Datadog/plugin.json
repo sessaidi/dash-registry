@@ -1,0 +1,13 @@
+{
+  "name": "Datadog",
+  "kind": "integration",
+  "icon": "dog",
+  "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
+  "provides": [
+    "datadog"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

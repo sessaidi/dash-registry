@@ -1,0 +1,14 @@
+{
+  "name": "Zoom",
+  "kind": "feature",
+  "icon": "video",
+  "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
+  "requires": [],
+  "provides": [
+    "zoom"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

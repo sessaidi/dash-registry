@@ -1,0 +1,4 @@
+- The Monitors widget lists monitors in Alert, Warn or No Data; dashql `from monitors` (id, name, status, type, tags, service, env, severity, last_triggered, url).
+- Lead with what is alerting now, worst first, with the service and environment, then how long it has been alerting.
+- Its filter and select actions are temporary; a lasting filter goes through the widget's filter.
+- Link each monitor (url) so the user can act in Datadog; nothing is muted or resolved from Dash.

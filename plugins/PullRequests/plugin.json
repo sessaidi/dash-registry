@@ -1,0 +1,16 @@
+{
+  "name": "Pull Requests",
+  "kind": "feature",
+  "icon": "arrow.triangle.pull",
+  "description": "Open PRs on watched repos with automatic Claude reviews.",
+  "requires": [
+    "github"
+  ],
+  "provides": [
+    "pull-requests"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

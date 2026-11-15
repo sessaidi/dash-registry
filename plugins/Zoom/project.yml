@@ -1,0 +1,61 @@
+# Standalone project for building and testing the Zoom plugin from plugins/Zoom.
+name: ZoomPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  ZoomPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+      - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        DashPluginID: zoom
+        DashPluginVersion: "1.7.0"
+        DashKitMinimumVersion: "2.0.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.zoom
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+        # Microphone, speech and screen-capture usage strings live in Dash.app's Info.plist:
+        # the plugin runs inside Dash's process, so macOS reads them from there.
+    scheme: {}
+  ZoomPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Sources
+      - Tests
+      - path: Rules                   # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.zoom.tests
+    scheme:
+      testTargets: [ZoomPluginTests]

@@ -1,0 +1,6 @@
+- Read-only Google Cloud as the user's ADC login: GKE (gcp_gke_clusters), Cloud Run, Pub/Sub (with backlog), Cloud SQL, Artifact Registry, Compute, Cloud Build, Error Reporting, uptime checks, IAM policy, audit logs, logs (gcp_logs_query) and metrics (gcp_metrics_query).
+- Prefer these tools; gcp_api_get is GET-only for anything else.
+- Secret Manager: names and metadata only; secret values are never read, so don't try.
+- Always name the project (and region or zone); start with gcp_list_projects when unsure which one.
+- Logs: filter narrowly (resource, severity, time) and quote the few lines that matter.
+- Nothing here changes Google Cloud; deploys and config changes are the user's.

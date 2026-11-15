@@ -1,0 +1,13 @@
+{
+  "name": "Google Cloud",
+  "kind": "integration",
+  "icon": "cloud",
+  "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
+  "provides": [
+    "gcp"
+  ],
+  "author": {
+    "name": "Dash",
+    "url": "https://github.com/sessaidi/dash-extensions"
+  }
+}

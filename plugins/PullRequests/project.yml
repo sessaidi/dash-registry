@@ -1,0 +1,60 @@
+# Standalone project for building and testing the Pull Requests plugin from plugins/PullRequests.
+# A feature plugin: it needs the `github` integration (plugins/GitHub) and reaches it only through DashKit.
+name: PullRequestsPlugin
+options:
+  deploymentTarget: { macOS: "26.0" }
+  createIntermediateGroups: true
+packages:
+  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  PullRequestsPlugin:
+    type: bundle
+    platform: macOS
+    sources:
+      - Sources
+      - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
+        buildPhase: resources
+      - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+        embed: false
+    info:
+      path: Info.plist
+      properties:
+        CFBundleExecutable: "$(EXECUTABLE_NAME)"
+        DashPluginID: pull-requests
+        DashPluginVersion: "1.11.0"
+        DashKitMinimumVersion: "2.0.0"
+    settings:
+      base:
+        WRAPPER_EXTENSION: dashplugin
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.pull-requests
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/../../../../Frameworks"
+    scheme: {}
+  PullRequestsPluginTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Sources
+      - Tests
+      - path: Rules                   # the rules load from the bundle the code runs in
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: DashKit
+        product: DashKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.sessaidi.Dash.plugin.pull-requests.tests
+    scheme:
+      testTargets: [PullRequestsPluginTests]

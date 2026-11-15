@@ -1,0 +1,7 @@
+[
+  {"id": "ACME-12", "title": "Checkout fails for EU cards", "status": "doing", "priority": "urgent", "assignee": "Ada"},
+  {"id": "ACME-15", "title": "Add dark mode to settings", "status": "todo", "priority": "normal", "assignee": null},
+  {"id": "ACME-9", "title": "Retry webhooks with backoff", "status": "doing", "priority": "high", "assignee": "Sam"},
+  {"id": "ACME-17", "title": "Typo on the pricing page", "status": "todo", "priority": "low", "assignee": "Lin"},
+  {"id": "ACME-4", "title": "Rotate staging credentials", "status": "done", "priority": "high", "assignee": "Ada"}
+]

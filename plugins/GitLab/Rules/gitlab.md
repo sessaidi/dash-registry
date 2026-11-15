@@ -1,0 +1,5 @@
+- Read GitLab: gitlab_merge_requests for the watched projects, gitlab_api_get (GET only) for the rest.
+- Nothing here writes to GitLab: no notes, approvals, merges or pushes.
+- gitlab_sync_tags and gitlab_sync_compare fill Dash's local mirror for the release timeline; call them only when release data is missing or stale.
+- Cite projects as group/project and merge requests as !123 with their link.
+- Never paste tokens.

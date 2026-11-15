@@ -1,0 +1,4 @@
+- The Pods widget browses pods like k9s; dashql `from pods` (name, namespace/ns, status, ready, restarts, node, created, owner, app, labels, healthy, context).
+- Problem pods first: CrashLoopBackOff, Error, Pending, not ready, high restarts; then the rest.
+- Its actions (filter, set_status, show_problems_only, set_namespace, set_context) are temporary; a lasting filter goes through the widget's filter.
+- Data covers the contexts and namespaces Dash has loaded; say so when a namespace may be missing.
