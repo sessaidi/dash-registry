@@ -1,6 +1,7 @@
 {
   "format": 2,
   "name": "Dash Extensions",
+  "label": "Community",
   "extensions": [
     {
       "id": "aws",

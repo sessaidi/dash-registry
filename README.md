@@ -16,7 +16,7 @@ you install from Dash's Settings › Marketplace.
 |---|---|
 | `plugins/<Name>/` | Compiled Swift plugins (`.dashplugin`), each a standalone XcodeGen project with tests and a `plugin.json` |
 | `dist/` | Built plugin zips, referenced by `registry.json` |
-| `registry.json` | The index Dash reads (generated) |
+| `registry.json` | The index Dash reads (generated; its top-level `label`, "Community", is the badge Dash shows on these plugins) |
 | `scripts/` | `new-plugin.py` (start a plugin), `build-plugins.sh` (build, test, zip, index), `build-index.py` |
 
 ## Using it

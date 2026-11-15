@@ -30,7 +30,7 @@ for meta_path in sorted((root / "plugins").glob("*/plugin.json")):
         entry["plugin"]["sha256"] = hashlib.sha256(zip_path.read_bytes()).hexdigest()
     else:
         print(f"warning: {zip_path.name} not built yet; no sha256", file=sys.stderr)
-    for key in ("description", "icon", "author", "requires", "optional"):
+    for key in ("description", "icon", "author", "label", "requires", "optional"):
         if key in meta:
             entry[key] = meta[key]
     # The plugin's README, shown on its Marketplace page.
