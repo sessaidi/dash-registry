@@ -257,15 +257,15 @@
       "id": "kubernetes",
       "name": "Kubernetes",
       "kind": "integration",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "plugin": {
-        "download": "dist/kubernetes-1.8.0.dashplugin.zip",
+        "download": "dist/kubernetes-1.8.1.dashplugin.zip",
         "minimumDashKit": "1.5.0",
         "provides": [
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "fc2b89d9ce1373e5bdc188bd96252dd1e440a1d5a1e9f5d45e8e523972aa52d0"
+        "sha256": "282c8a5953e9ddbb7bac99ff2dd1e09ab830d4ab55d993eb30b880e0e63d47e2"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
