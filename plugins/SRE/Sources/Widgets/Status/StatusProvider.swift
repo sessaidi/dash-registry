@@ -15,7 +15,8 @@ struct StatusProvider: WidgetDataProvider {
         let report = host.agentReports("sre.oncall", limit: 5).first { $0.status != .skipped }.map { report in
             StatusSnapshot.Report(summary: report.summary, at: report.finishedAt,
                                   findings: report.findings.sorted { $0.severity > $1.severity }.prefix(3).map(\.title),
-                                  critical: report.severity == .critical)
+                                  critical: report.severity == .critical,
+                                  items: report.findings.sorted { $0.severity > $1.severity })
         }
         return StatusSnapshot(signals: signals, lastReport: report)
     }
