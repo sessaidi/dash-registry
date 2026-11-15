@@ -39,3 +39,34 @@ struct ReportMarkdown: View {
         .textSelection(.enabled)
     }
 }
+
+/// A theme of the report: its bold title, the text after it, and its nested items.
+struct ReportSection: Equatable, Sendable {
+    var title: String
+    var summary: String
+    var items: [String]
+
+    /// "- **Theme**: text" lines with their nested "  - item" lines; nested lines before any theme
+    /// get an untitled section.
+    static func sections(_ markdown: String) -> [ReportSection] {
+        var result: [ReportSection] = []
+        for line in ReportMarkdown.lines(markdown) {
+            if line.level == 0 {
+                result.append(split(line.text))
+            } else if result.isEmpty {
+                result.append(ReportSection(title: "", summary: "", items: [line.text]))
+            } else {
+                result[result.count - 1].items.append(line.text)
+            }
+        }
+        return result
+    }
+
+    /// "**Theme**: text" → ("Theme", "text"); anything else is all title.
+    static func split(_ text: String) -> ReportSection {
+        if let match = text.wholeMatch(of: /\*\*(.+?)\*\*\s*:?\s*(.*)/) {
+            return ReportSection(title: String(match.output.1), summary: String(match.output.2), items: [])
+        }
+        return ReportSection(title: text, summary: "", items: [])
+    }
+}

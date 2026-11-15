@@ -39,17 +39,9 @@ struct BackendMeetingWidget: DashboardWidget {
         Toggle("Start where the last report ended", isOn: config.sinceLastReport)
     }
 
-    /// Sample data for the widget gallery: no network, no accounts.
+    /// The same responsive layout over sample reports: no network, no accounts.
     static func preview(config: Config) -> some View {
-        ReportMarkdown(markdown: """
-            - **Social connection**: reworked the Apple sign-in flow to link accounts from the email scope
-            - **Catalog sync**: automatic user creation during social sign-up and sync of the region flag
-            - **In chantier**:
-              - observability on tag operations and service calls (in review)
-              - recordings cap removal on mobile (open PR)
-            - **Debug & Fix**
-            """)
-        .padding(4)
+        BackendMeetingLayout(reports: ReportDigest.samples, config: .constant(config))
     }
 
     @MainActor
