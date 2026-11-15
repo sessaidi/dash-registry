@@ -95,29 +95,13 @@ struct PodsWidget: DashboardWidget {
 
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 20)
 
-    /// Sample pods for the widget gallery (never the cluster).
+    /// Sample pods for the widget gallery (never the cluster), in the live widget's responsive layout.
     static func preview(config: Config) -> some View {
-        let samples: [(String, String, Tone, String, Int)] = [
-            ("api-7d9f8c6b5-x2lqp", "2/2 ready · 3d · gke-pool-a-1", .success, "Running", 0),
-            ("api-7d9f8c6b5-k9wzt", "2/2 ready · 3d · gke-pool-a-2", .success, "Running", 0),
-            ("worker-5c4b7d8f9-mn3vr", "0/1 ready · 12m · gke-pool-b-1", .danger, "CrashLoopBackOff", 7),
-            ("migrate-28431-q8s7d", "0/1 ready · 2h · gke-pool-a-1", .neutral, "Completed", 0),
-        ]
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Badge("gke-prod", tone: .neutral, systemImage: "server.rack")
-                Badge("default", tone: .info, systemImage: "square.stack.3d.up")
-                Text("4 pods").font(.caption).foregroundStyle(.secondary)
-            }
-            ForEach(samples, id: \.0) { name, subtitle, tone, status, restarts in
-                ItemRow(name, subtitle: subtitle, monospacedTitle: true, leading: { StatusDot(tone) }, trailing: {
-                    HStack(spacing: 4) {
-                        if restarts > 0 { Badge("\(restarts)", tone: .danger, systemImage: "arrow.clockwise") }
-                        Badge(status, tone: tone)
-                    }
-                })
-            }
-        }
+        let pods = PodSummary.sorted(PodsSamples.pods.filter { config.query.matches($0, warnings: PodsSamples.warnings[$0.id] ?? []) },
+                                     by: config.podSort)
+        var scope = PodsSamples.scope
+        scope.filters = config.activeFilters
+        return PodsContent(pods: pods, total: PodsSamples.pods.count, warnings: PodsSamples.warnings, scope: scope)
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
