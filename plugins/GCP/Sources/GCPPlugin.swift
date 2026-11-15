@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Entry point of GCP.dashplugin (Info.plist `NSPrincipalClass`).
-@objc(GCPDashPlugin)
-final class GCPPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [GCPIntegration()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum GCPPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [GCPIntegration()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

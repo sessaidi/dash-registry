@@ -70,8 +70,8 @@ extension GCPIntegration {
         })]
     }
 
-    var monitoringTool: ClaudeTool {
-        ClaudeTool(
+    var monitoringTool: DashiiTool {
+        DashiiTool(
             name: "gcp_metrics_query",
             description: "Read Google Cloud Monitoring time series for Kubernetes containers: memory used (bytes) and memory/CPU limit utilization (0-1), CPU cores used, restarts per interval, ephemeral storage used. Points newest first, with max and last. Read-only.",
             properties: [

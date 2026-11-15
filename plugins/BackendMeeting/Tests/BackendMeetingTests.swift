@@ -91,12 +91,12 @@ struct BackendMeetingTests {
         serveGitHub(gh)
         serveJira(atl)
         host.activity.emit("agent.pr_opened", source: "agents", title: "Draft PR opened for LAF-13", importance: .notable)
-        host.testClaude.reply = "```markdown\n- **Renewals**: subscriptions renew automatically\n- **In chantier**:\n  - observability on renewals (open PR)\n```"
+        host.testDashii.reply = "```markdown\n- **Renewals**: subscriptions renew automatically\n- **In chantier**:\n  - observability on renewals (open PR)\n```"
         let range = feature.nextRange(cycleWeeks: 2, sinceLastReport: true)
         let report = try await feature.generate(range: range, cycleWeeks: 2)
 
         #expect(report.markdown == "- **Renewals**: subscriptions renew automatically\n- **In chantier**:\n  - observability on renewals (open PR)")
-        let call = try #require(host.testClaude.calls.last)
+        let call = try #require(host.testDashii.calls.last)
         #expect(call.system.contains("In chantier") && call.system.contains("Debug & Fix") && call.system.contains("English"))
         let data = try JSONValue.parse(Data(call.prompt.utf8))
         // Closed-unmerged PRs never reach Claude.
@@ -122,9 +122,9 @@ struct BackendMeetingTests {
         let (feature, host, gh, _, folder) = try make(jira: false)
         defer { try? FileManager.default.removeItem(at: folder) }
         serveGitHub(gh)
-        host.testClaude.reply = "- **Renewals**: done"
+        host.testDashii.reply = "- **Renewals**: done"
         _ = try await feature.generate(range: feature.nextRange(cycleWeeks: 1, sinceLastReport: false), cycleWeeks: 1)
-        let data = try JSONValue.parse(Data(try #require(host.testClaude.calls.last).prompt.utf8))
+        let data = try JSONValue.parse(Data(try #require(host.testDashii.calls.last).prompt.utf8))
         #expect(data["tickets"] == nil)
         #expect(feature.requires == ["github"] && feature.optional == ["atlassian"])
     }

@@ -305,9 +305,9 @@ final class JiraBoardFeature: DashExtension {
     private struct SearchInput: Decodable { let jql: String }
     private struct FollowInput: Decodable { let key: String; let follow: Bool? }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_list_issues",
                 description: "List cached Jira issues from the user's board and the issues they follow. Use this for questions like \"what's on my plate\" or \"what's in review\".",
                 properties: [
@@ -326,7 +326,7 @@ final class JiraBoardFeature: DashExtension {
                     }
                 }.filter { request.status == nil || $0.statusName.localizedCaseInsensitiveCompare(request.status!) == .orderedSame }.map(\.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_follow",
                 description: "Follow or unfollow a Jira ticket in Dash (local only; nothing changes in Jira). Followed tickets sync into the cache and show in \"Issues I follow\".",
                 properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234."),
@@ -340,7 +340,7 @@ final class JiraBoardFeature: DashExtension {
                 if request.follow ?? true { await follow(key) } else { await unfollow(key) }
                 return ["key": .string(key), "following": .bool(followedKeys.contains(key))]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_get_issue",
                 description: "Fetch one Jira issue live, with its description and recent comments.",
                 properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234.")], required: ["key"]
@@ -348,7 +348,7 @@ final class JiraBoardFeature: DashExtension {
                 guard let self else { return nil }
                 return try await client.issueDetail(input.toolInput(KeyInput.self).key.uppercased())
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_search",
                 description: "Run a JQL search against Jira (live, up to 50 results).",
                 properties: ["jql": JSONSchema.string("JQL query.")], required: ["jql"]
@@ -357,7 +357,7 @@ final class JiraBoardFeature: DashExtension {
                 let issues = try await client.search(input.toolInput(SearchInput.self).jql, limit: 50)
                 return .array(issues.prefix(50).map { ["key": .string($0.key), "summary": .string($0.summary), "status": .string($0.statusName), "assignee": .string($0.assignee ?? "Unassigned")] })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_add_comment",
                 description: "Post a comment on a Jira issue.",
                 properties: ["key": JSONSchema.string("Issue key."), "text": JSONSchema.string("Comment text. Blank lines separate paragraphs.")],
@@ -368,7 +368,7 @@ final class JiraBoardFeature: DashExtension {
                 try await client.comment(request.key, text: request.text)
                 return "commented"
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_transition_issue",
                 description: "Move a Jira issue to another status using one of its workflow transitions (for example \"In Progress\" or \"Code Review\").",
                 properties: ["key": JSONSchema.string("Issue key."), "status": JSONSchema.string("Transition or status name.")],

@@ -109,7 +109,7 @@ struct AgentsExtensionTests {
         #expect(AgentsExtension.tddPrompt.contains("Never write anything remotely"))
         #expect(options.systemPrompt == .append(AgentsExtension.tddPrompt))
         // No free-text model: the AI tab's choice (Opus by default, high effort).
-        #expect(options.resume == "abc" && options.model == ClaudeModel.opus.rawValue && options.effort == "high")
+        #expect(options.resume == "abc" && options.model == DashiiModel.strong.rawValue && options.effort == "high")
         #expect(options.removedEnvironment == ["ANTHROPIC_API_KEY"])
 
         session.phase = "implementing"

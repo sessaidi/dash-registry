@@ -205,7 +205,7 @@ final class ReleasesFeature: DashExtension {
     // MARK: Mirror
 
     /// The integration's tool, e.g. github_sync_tags.
-    private func syncTool(_ service: String, _ name: String) throws -> ClaudeTool {
+    private func syncTool(_ service: String, _ name: String) throws -> DashiiTool {
         guard let integration = host?.integration(service) else {
             throw ToolError("Install and connect the \(service == "gitlab" ? "GitLab" : "GitHub") integration to read this repository.")
         }
@@ -259,9 +259,9 @@ final class ReleasesFeature: DashExtension {
     private struct TextInput: Decodable { let text: String; let repo: String? }
     private struct EventInput: Decodable { let date: String; let title: String; let kind: String?; let note: String?; let repo: String? }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "releases_list",
                 description: "List releases from git tags in the repositories set up in Releases: name, train, first and last build, how long it was live and why it ended, hotfix, commit and ticket counts. Newest first.",
                 properties: [
@@ -285,7 +285,7 @@ final class ReleasesFeature: DashExtension {
                 }
                 return .array(out)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "release_detail",
                 description: "One release by tag (any build tag or the release name): builds with dates and commits, live period, previous and next release, hotfix status, the commits it brought grouped by ticket project (changes the previous release already shipped as a cherry-pick are flagged), tickets and authors.",
                 properties: ["tag": JSONSchema.string("e.g. release-2026W23-02-eu.01 or v1.4.0."), "repo": JSONSchema.string("Repository name (optional).")],
@@ -298,7 +298,7 @@ final class ReleasesFeature: DashExtension {
                 }
                 throw ToolError("No release tag \(input.tag).")
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "release_live_at",
                 description: "Which tag each train had in production at a moment: its last release tag before then, with the release it belongs to.",
                 properties: ["date": JSONSchema.string("YYYY-MM-DD (the end of that day; today means now) or an ISO 8601 time."),
@@ -319,7 +319,7 @@ final class ReleasesFeature: DashExtension {
                 }
                 return .array(out)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "releases_containing",
                 description: "Which release first shipped a change, on each train: give a ticket key (LAF-5917), a commit sha (at least 7 characters) or words from a commit subject.",
                 properties: ["text": JSONSchema.string("Ticket key, commit sha or text."), "repo": JSONSchema.string("Repository name (optional).")],
@@ -340,7 +340,7 @@ final class ReleasesFeature: DashExtension {
                 }
                 return .array(out)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "release_events_add",
                 description: "Add a launch, incident or milestone to the Releases timeline's events lane (stored locally in Dash).",
                 properties: [

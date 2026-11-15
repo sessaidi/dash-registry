@@ -120,16 +120,16 @@ extension GitHubIntegration {
         return commits
     }
 
-    var syncTools: [ClaudeTool] {
+    var syncTools: [DashiiTool] {
         [
-            ClaudeTool(name: "github_sync_tags",
+            DashiiTool(name: "github_sync_tags",
                        description: "Mirror a repository's tags (commit, date, on the default branch or not) from GitHub into Dash, for release timelines. Reads GitHub only; replaces the local mirror with what GitHub has.",
                        properties: ["repo": JSONSchema.string("owner/name")], required: ["repo"]) { [weak self] input in
                 guard let self, let host else { return nil }
                 let count = try await syncTags(input["repo"]?.string ?? "", store: host.synced)
                 return ["tags": .number(Double(count))]
             },
-            ClaudeTool(name: "github_sync_compare",
+            DashiiTool(name: "github_sync_compare",
                        description: "Mirror the commits between two commits or tags of a repository (merges left out) from GitHub into Dash. Reads GitHub only.",
                        properties: ["repo": JSONSchema.string("owner/name"), "base": JSONSchema.string("Base commit or tag."), "head": JSONSchema.string("Head commit or tag.")],
                        required: ["repo", "base", "head"]) { [weak self] input in

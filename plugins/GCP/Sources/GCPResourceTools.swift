@@ -51,10 +51,10 @@ extension GCPIntegration {
         return text.count > responseLimit ? .string(String(text.prefix(responseLimit)) + "\n[truncated]") : value
     }
 
-    var resourceTools: [ClaudeTool] {
+    var resourceTools: [DashiiTool] {
         let project = JSONSchema.string("GCP project id.")
         return [
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_gke_clusters",
                 description: "GKE clusters: name, location, status, version, node count and node pools (machine type, autoscaling, version).",
                 properties: ["project": project, "location": JSONSchema.string("Region or zone (default: all).")], required: ["project"]
@@ -72,7 +72,7 @@ extension GCPIntegration {
                      })]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_gke_cluster",
                 description: "One GKE cluster in full (networking, add-ons, maintenance window, conditions).",
                 properties: ["project": project, "location": JSONSchema.string("Region or zone."), "name": JSONSchema.string("Cluster name.")],
@@ -82,7 +82,7 @@ extension GCPIntegration {
                 let request = try input.toolInput(ClusterInput.self)
                 return Self.limited(try await fetch("https://container.googleapis.com/v1/projects/\(request.project)/locations/\(request.location)/clusters/\(request.name)"))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_cloud_run_services",
                 description: "Cloud Run services: URL, latest ready revision, image, ready state, last change and who made it.",
                 properties: ["project": project, "location": JSONSchema.string("Region (default: all).")], required: ["project"]
@@ -97,7 +97,7 @@ extension GCPIntegration {
                      "by": service["lastModifier"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_cloud_run_revisions",
                 description: "A Cloud Run service's revisions, newest first: image, created, ready state and scaling.",
                 properties: ["project": project, "region": JSONSchema.string("Region."), "service": JSONSchema.string("Service name.")],
@@ -113,7 +113,7 @@ extension GCPIntegration {
                      "ready": .array((revision["conditions"]?.array ?? []).filter { $0["type"] == "Ready" }.map { $0["state"] ?? .null })]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_pubsub_topics",
                 description: "Pub/Sub topics of a project.",
                 properties: ["project": project], required: ["project"]
@@ -123,7 +123,7 @@ extension GCPIntegration {
                 let topics = try await fetchAll("https://pubsub.googleapis.com/v1/projects/\(request.project)/topics", key: "topics", ["pageSize": "500"])
                 return .array(topics.map { ["name": Self.short($0["name"]), "labels": $0["labels"] ?? .null] })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_pubsub_subscriptions",
                 description: "Pub/Sub subscriptions: topic, ack deadline, push or pull, dead-letter topic, filter; with backlog=true also the messages waiting and the oldest unacked age (Cloud Monitoring, last 10 minutes).",
                 properties: ["project": project, "backlog": JSONSchema.boolean("Add backlog size and oldest unacked age.")], required: ["project"]
@@ -151,7 +151,7 @@ extension GCPIntegration {
                     return item
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_sql_instances",
                 description: "Cloud SQL instances: database version, state, region, tier, IP addresses, availability and backups.",
                 properties: ["project": project], required: ["project"]
@@ -167,7 +167,7 @@ extension GCPIntegration {
                      "ips": .array((instance["ipAddresses"]?.array ?? []).map { ["type": $0["type"] ?? .null, "ip": $0["ipAddress"] ?? .null] })]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_artifact_repositories",
                 description: "Artifact Registry repositories: format (DOCKER, NPM…), location, size and cleanup policies. Without location, every location is checked.",
                 properties: ["project": project, "location": JSONSchema.string("Location, e.g. us, europe-west1 (default: all).")], required: ["project"]
@@ -189,7 +189,7 @@ extension GCPIntegration {
                 }
                 return Self.limited(.array(repositories))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_artifact_images",
                 description: "Docker images in an Artifact Registry repository, most recently updated first: URI, tags, upload time and size. With package, the tags of that image instead.",
                 properties: ["project": project, "location": JSONSchema.string("Repository location."),
@@ -210,7 +210,7 @@ extension GCPIntegration {
                      "updated": image["updateTime"] ?? .null, "size_bytes": image["imageSizeBytes"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_secrets",
                 description: "Secret Manager secrets: names, labels, replication, rotation and creation time. Metadata only: secret values are never read.",
                 properties: ["project": project], required: ["project"]
@@ -224,7 +224,7 @@ extension GCPIntegration {
                      "rotation": secret["rotation"] ?? .null, "expires": secret["expireTime"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_iam_policy",
                 description: "Who has which role on a project: each role with its members (users, groups, service accounts) and conditions. Read-only (getIamPolicy).",
                 properties: ["project": project], required: ["project"]
@@ -236,7 +236,7 @@ extension GCPIntegration {
                     ["role": binding["role"] ?? .null, "members": binding["members"] ?? .array([]), "condition": binding["condition"]?["title"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_compute_instances",
                 description: "Compute Engine VMs across zones: name, zone, status, machine type, internal and external IPs, labels.",
                 properties: ["project": project, "filter": JSONSchema.string("Compute filter, e.g. status=RUNNING or labels.env=prod.")], required: ["project"]
@@ -256,7 +256,7 @@ extension GCPIntegration {
                 }
                 return Self.limited(.array(instances))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_cloud_builds",
                 description: "Recent Cloud Build builds, newest first: status, trigger, repo, branch, commit, start and finish, failure reason and log URL.",
                 properties: ["project": project, "filter": JSONSchema.string("Build filter, e.g. status=\"FAILURE\" or substitutions.BRANCH_NAME=\"main\".")],
@@ -274,7 +274,7 @@ extension GCPIntegration {
                             "failure": build["failureInfo"]?["detail"] ?? .null, "log": build["logUrl"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_error_groups",
                 description: "Error Reporting: the most frequent error groups in a period: message, service, version, count, affected users, first and last seen.",
                 properties: ["project": project,
@@ -298,7 +298,7 @@ extension GCPIntegration {
                             "first_seen": group["firstSeenTime"] ?? .null, "last_seen": group["lastSeenTime"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_uptime_checks",
                 description: "Cloud Monitoring uptime checks: name, target (host or resource), path, period and regions checked from.",
                 properties: ["project": project], required: ["project"]
@@ -311,7 +311,7 @@ extension GCPIntegration {
                      "path": check["httpCheck"]?["path"] ?? .null, "period": check["period"] ?? .null, "regions": check["selectedRegions"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_audit_logs",
                 description: "Admin Activity audit logs (who changed what): newest first, optionally for one principal (email) or method (e.g. SetIamPolicy, google.container.v1.ClusterManager.UpdateCluster). Read-only.",
                 properties: ["project": project, "since": JSONSchema.string("How far back: 1h, 24h, 7d (default 24h)."),

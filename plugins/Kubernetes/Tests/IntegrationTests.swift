@@ -142,7 +142,7 @@ struct IntegrationTests {
 
     // MARK: Tools
 
-    func tool(_ k8s: KubernetesIntegration, _ name: String) throws -> ClaudeTool {
+    func tool(_ k8s: KubernetesIntegration, _ name: String) throws -> DashiiTool {
         try #require(k8s.tools.first { $0.name == name })
     }
 
@@ -218,7 +218,6 @@ struct IntegrationTests {
         #expect(extensions[1].requires == ["kubernetes"])
         #expect(extensions[1].layer == .feature)
         #expect(extensions[1].widgets.map(\.kind) == ["kubernetes.pods"])
-        #expect(NSClassFromString("KubernetesDashPlugin") != nil)
     }
 
     @Test func cEntryPointExportsBothExtensions() {

@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Principal class of AgentsPlugin.dashplugin (`NSPrincipalClass` = AgentsDashPlugin).
-@objc(AgentsDashPlugin)
-final class AgentsPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [AgentsExtension()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum AgentsPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [AgentsExtension()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

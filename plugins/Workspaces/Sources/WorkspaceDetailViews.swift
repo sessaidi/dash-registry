@@ -156,7 +156,7 @@ struct WorkspaceLogsView: View {
         explaining = true
         let excerpt = visibleLines.suffix(400).joined(separator: "\n")
         Task {
-            explanation = (try? await host.claude.complete(
+            explanation = (try? await host.dashii.complete(
                 task: WorkspacesFeature.explainTask.id, settings: host.aiSettings(.extension(feature.id), tasks: feature.aiTasks),
                 system: "You explain service logs to the engineer who owns the service. Say what happened, in order, and why; quote the exact lines (with their timestamps) that show it; then what to do. Be brief.",
                 prompt: "Workspace \(name), pod \(pod), container \(container)\(previous ? " (run before the last restart)" : ""):\n\n\(excerpt)")) ?? "Claude couldn't explain these logs."

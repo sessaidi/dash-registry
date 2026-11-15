@@ -89,20 +89,20 @@ extension KubernetesIntegration {
     private struct DeploymentInput: Decodable { let name: String; let namespace: String? }
     private struct ScaleInput: Decodable { let name: String; let namespace: String?; let replicas: Int }
 
-    var granularTools: [ClaudeTool] {
+    var granularTools: [DashiiTool] {
         let namespaceProperty = JSONSchema.string("Namespace; default: the one set in Settings. \"all\" for every namespace (lists only).")
         return [
-            ClaudeTool(name: "k8s_contexts", description: "The kubeconfig's contexts (cluster, namespace, auth) and which one Dash uses. Read-only.") { [weak self] _ in
+            DashiiTool(name: "k8s_contexts", description: "The kubeconfig's contexts (cluster, namespace, auth) and which one Dash uses. Read-only.") { [weak self] _ in
                 guard let self else { return nil }
                 return exports
             },
-            ClaudeTool(name: "k8s_namespaces", description: "Namespaces on the current context with their status and labels. Read-only.") { [weak self] _ in
+            DashiiTool(name: "k8s_namespaces", description: "Namespaces on the current context with their status and labels. Read-only.") { [weak self] _ in
                 guard let self else { return nil }
                 let list = try await requireConnection().get("/api/v1/namespaces", service: "Kubernetes")
                 return .array((list["items"]?.array ?? []).map { ["name": $0["metadata"]?["name"] ?? .null, "status": $0["status"]?["phase"] ?? .null,
                                                                   "labels": $0["metadata"]?["labels"] ?? .null] })
             },
-            ClaudeTool(name: "k8s_list", description: "List objects of a kind (kubectl get): deployments, services, configmaps (keys only), secrets (keys only, never values), jobs, cronjobs, statefulsets, daemonsets, hpa, ingresses, httproutes, nodes, events, pvc… with a compact line each. Read-only.",
+            DashiiTool(name: "k8s_list", description: "List objects of a kind (kubectl get): deployments, services, configmaps (keys only), secrets (keys only, never values), jobs, cronjobs, statefulsets, daemonsets, hpa, ingresses, httproutes, nodes, events, pvc… with a compact line each. Read-only.",
                        properties: ["kind": JSONSchema.string("Kind or kubectl short name (deploy, svc, cm, hpa…)."), "namespace": namespaceProperty,
                                     "labelSelector": JSONSchema.string("e.g. app=web"), "fieldSelector": JSONSchema.string("e.g. status.phase!=Running")],
                        required: ["kind"]) { [weak self] input in
@@ -117,7 +117,7 @@ extension KubernetesIntegration {
                 let list = try await requireConnection().get(path, service: "Kubernetes")
                 return .array((list["items"]?.array ?? []).map { Self.summary($0, kind: kind) })
             },
-            ClaudeTool(name: "k8s_describe", description: "One object in full (kubectl describe): its spec and status, plus the events about it. Secret values are removed. Read-only.",
+            DashiiTool(name: "k8s_describe", description: "One object in full (kubectl describe): its spec and status, plus the events about it. Secret values are removed. Read-only.",
                        properties: ["kind": JSONSchema.string("Kind or short name."), "name": JSONSchema.string("Object name."), "namespace": namespaceProperty],
                        required: ["kind", "name"]) { [weak self] input in
                 guard let self else { return nil }
@@ -144,7 +144,7 @@ extension KubernetesIntegration {
                 }
                 return ["object": object, "events": events]
             },
-            ClaudeTool(name: "k8s_logs", description: "A pod's logs (kubectl logs): container, the run before the last restart (previous), last N lines or since N seconds, with timestamps. Read-only.",
+            DashiiTool(name: "k8s_logs", description: "A pod's logs (kubectl logs): container, the run before the last restart (previous), last N lines or since N seconds, with timestamps. Read-only.",
                        properties: ["pod": JSONSchema.string("Pod name."), "namespace": namespaceProperty, "container": JSONSchema.string("Container name."),
                                     "previous": JSONSchema.boolean("The previous run's logs."), "tail": JSONSchema.integer("Last N lines (default 300)."),
                                     "sinceSeconds": JSONSchema.integer("Only this many seconds back.")],
@@ -157,7 +157,7 @@ extension KubernetesIntegration {
                 if let since = request.sinceSeconds { query.append("sinceSeconds=\(since)") }
                 return try await Self.get("/api/v1/namespaces/\(ns(request.namespace))/pods/\(request.pod)/log?" + query.joined(separator: "&"), connection: try requireConnection())
             },
-            ClaudeTool(name: "k8s_events", description: "Events in a namespace, newest first (kubectl get events): warnings only by default, or about one object (Kind/name). Read-only.",
+            DashiiTool(name: "k8s_events", description: "Events in a namespace, newest first (kubectl get events): warnings only by default, or about one object (Kind/name). Read-only.",
                        properties: ["namespace": namespaceProperty, "object": JSONSchema.string("Kind/name, e.g. Pod/web-1."),
                                     "warningsOnly": JSONSchema.boolean("Only Warning events (default true).")]) { [weak self] input in
                 guard let self else { return nil }
@@ -168,7 +168,7 @@ extension KubernetesIntegration {
                 }
                 return .array(Array(rows.sorted { ($0["lastSeen"]?.string ?? "") > ($1["lastSeen"]?.string ?? "") }.prefix(100)))
             },
-            ClaudeTool(name: "k8s_top_pods", description: "CPU and memory each pod's containers use now (kubectl top pods; needs metrics-server). Read-only.",
+            DashiiTool(name: "k8s_top_pods", description: "CPU and memory each pod's containers use now (kubectl top pods; needs metrics-server). Read-only.",
                        properties: ["namespace": namespaceProperty]) { [weak self] input in
                 guard let self else { return nil }
                 let namespace = ns(try input.toolInput(NamespaceInput.self).namespace)
@@ -179,7 +179,7 @@ extension KubernetesIntegration {
                      "containers": .array((pod["containers"]?.array ?? []).map { ["name": $0["name"] ?? .null, "cpu": $0["usage"]?["cpu"] ?? .null, "memory": $0["usage"]?["memory"] ?? .null] })]
                 })
             },
-            ClaudeTool(name: "k8s_rollout_status", description: "Whether a deployment's rollout finished (kubectl rollout status): updated, ready and available replicas, and its conditions. Read-only.",
+            DashiiTool(name: "k8s_rollout_status", description: "Whether a deployment's rollout finished (kubectl rollout status): updated, ready and available replicas, and its conditions. Read-only.",
                        properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(DeploymentInput.self)
@@ -192,7 +192,7 @@ extension KubernetesIntegration {
                 return ["done": .bool(done), "desired": .number(Double(desired)), "updated": status?["updatedReplicas"] ?? 0,
                         "ready": status?["readyReplicas"] ?? 0, "available": status?["availableReplicas"] ?? 0, "conditions": status?["conditions"] ?? []]
             },
-            ClaudeTool(name: "k8s_rollout_restart", description: "Restart a deployment's pods (kubectl rollout restart).",
+            DashiiTool(name: "k8s_rollout_restart", description: "Restart a deployment's pods (kubectl rollout restart).",
                        properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(DeploymentInput.self)
@@ -201,7 +201,7 @@ extension KubernetesIntegration {
                                 contentType: "application/strategic-merge-patch+json")
                 return "restarted"
             },
-            ClaudeTool(name: "k8s_scale", description: "Set a deployment's replica count (kubectl scale).",
+            DashiiTool(name: "k8s_scale", description: "Set a deployment's replica count (kubectl scale).",
                        properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty, "replicas": JSONSchema.integer("Replicas, 0-50.")],
                        required: ["name", "replicas"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }

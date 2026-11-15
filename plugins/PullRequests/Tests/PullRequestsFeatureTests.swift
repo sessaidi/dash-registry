@@ -24,7 +24,6 @@ struct PullRequestsFeatureTests {
 
     @Test func pluginEntryPoint() {
         #expect(PullRequestsPlugin.makeExtensions().map(\.id) == ["pull-requests"])
-        #expect(NSStringFromClass(PullRequestsPlugin.self) == "PullRequestsDashPlugin")
     }
 
     @Test func preferencesKeepTheBuiltInKeys() {
@@ -127,7 +126,7 @@ struct PullRequestsFeatureTests {
     @Test func newPullsAreReviewedAutomatically() async throws {
         let harness = Harness()
         harness.feature.reviewInstructions = "We use Go."
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "abc1234567"), Fixtures.pull(2, sha: "d1", draft: true))),
             "/repos/acme/api/pulls/1": .text("diff --git a/Sources/Fetcher.swift b/Sources/Fetcher.swift\n+retry()\n"),
@@ -138,16 +137,16 @@ struct PullRequestsFeatureTests {
         // Drafts are skipped unless reviewDrafts is on.
         let review = try #require(harness.feature.latestReview("acme/api#1"))
         #expect(harness.feature.latestReview("acme/api#2") == nil)
-        #expect(review.uid == "acme/api#1@abc1234567" && review.model == ClaudeModel.opus.rawValue)
+        #expect(review.uid == "acme/api#1@abc1234567" && review.model == DashiiModel.strong.rawValue)
         #expect(review.status == "done" && review.verdict == "request_changes" && review.risk == "high")
         #expect(review.summary == "Adds retries; 4xx responses are retried too.")
         #expect(review.testing == "No test for the give-up path.")
         #expect(review.findings.count == 2 && review.findings[0].line == 58 && review.findings[1].suggestion.isEmpty)
 
-        let call = try #require(harness.claude.calls.first)
-        #expect(harness.claude.calls.count == 1)
+        let call = try #require(harness.dashii.calls.first)
+        #expect(harness.dashii.calls.count == 1)
         // The AI tab's defaults for reviews: Opus at high effort.
-        #expect(call.effort == "high" && call.model == ClaudeModel.opus.rawValue && call.outputSchema == PullRequestsFeature.reviewSchema)
+        #expect(call.effort == "high" && call.model == DashiiModel.strong.rawValue && call.outputSchema == PullRequestsFeature.reviewSchema)
         #expect(call.system.hasSuffix("The user's review instructions:\nWe use Go."))
         #expect(call.prompt.contains("Repository: acme/api\nPR #1: PR 1\nAuthor: octocat\nBranch: feature-1 → main"))
         #expect(call.prompt.contains("<diff>\ndiff --git a/Sources/Fetcher.swift b/Sources/Fetcher.swift\n+retry()\n\n</diff>"))
@@ -160,7 +159,7 @@ struct PullRequestsFeatureTests {
     @Test func draftsAreReviewedWhenAskedFor() async throws {
         let harness = Harness()
         harness.feature.reviewDrafts = true
-        harness.claude.reply = #"{"verdict":"approve","risk":"low","summary":"Fine.","testing":"","findings":[]}"#
+        harness.dashii.reply = #"{"verdict":"approve","risk":"low","summary":"Fine.","testing":"","findings":[]}"#
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(2, sha: "d1", draft: true))),
             "/repos/acme/api/pulls/2": .text("+x\n"),
@@ -174,7 +173,7 @@ struct PullRequestsFeatureTests {
 
     @Test func hugeDiffsAreCutAndMarkedPartial() async throws {
         let harness = Harness()
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         let diff = String(repeating: "+", count: 600_010)
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
@@ -182,14 +181,14 @@ struct PullRequestsFeatureTests {
         ])
         await harness.feature.sync()
         await harness.feature.reviewsFinished()
-        let prompt = try #require(harness.claude.calls.first?.prompt)
+        let prompt = try #require(harness.dashii.calls.first?.prompt)
         #expect(prompt.contains("NOTE: the diff is 600010 characters; only the first 600000 are included."))
         #expect(!prompt.contains(String(repeating: "+", count: 600_001)))
     }
 
     @Test func failedReviewsKeepTheError() async throws {
         let harness = Harness()
-        harness.claude.error = ToolError("Claude is overloaded")
+        harness.dashii.error = ToolError("Dashii is overloaded")
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
@@ -203,7 +202,7 @@ struct PullRequestsFeatureTests {
 
     @Test func malformedReviewOutputFails() async throws {
         let harness = Harness()
-        harness.claude.reply = "Sure! Here is my review."
+        harness.dashii.reply = "Sure! Here is my review."
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
@@ -215,7 +214,7 @@ struct PullRequestsFeatureTests {
 
     @Test func missingFieldsFallBackToDefaults() async throws {
         let harness = Harness()
-        harness.claude.reply = #"{"findings":[{"file":"a.swift"}]}"#
+        harness.dashii.reply = #"{"findings":[{"file":"a.swift"}]}"#
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
@@ -228,7 +227,7 @@ struct PullRequestsFeatureTests {
 
     @Test func rerunReplacesAFinishedReviewOfTheSameCommit() async throws {
         let harness = Harness()
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
@@ -242,12 +241,12 @@ struct PullRequestsFeatureTests {
         #expect(harness.reviews().count == 1 && harness.reviews().first?.status == "queued")
         await harness.feature.reviewsFinished()
         #expect(harness.reviews().count == 1 && harness.reviews().first?.status == "done")
-        #expect(harness.claude.calls.count == 2)
+        #expect(harness.dashii.calls.count == 2)
     }
 
     @Test func interruptedReviewsResumeOnStart() async throws {
         let harness = Harness(autoReview: false)
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "a1"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),
@@ -264,12 +263,12 @@ struct PullRequestsFeatureTests {
         #expect(harness.feature.reviewQueue == ["acme/api#1"])
         await harness.feature.reviewsFinished()
         #expect(harness.feature.latestReview("acme/api#1")?.status == "done")
-        #expect(harness.claude.calls.count == 1)
+        #expect(harness.dashii.calls.count == 1)
     }
 
     @Test func reviewsNeverTouchGitHub() async throws {
         let harness = Harness()
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(Fixtures.pull(1, sha: "abc1234567"))),
             "/repos/acme/api/pulls/1": .text("+x\n"),

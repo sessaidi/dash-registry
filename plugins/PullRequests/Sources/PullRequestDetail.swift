@@ -111,7 +111,7 @@ extension PullRequestsFeature {
             agree when I'm right, correction when I'm wrong or misread the code (say why, with the file and line), \
             suggestion or risk for what I missed, question when something needs the author. Be direct and brief; no praise.
             """
-        let text = try await host.claude.complete(
+        let text = try await host.dashii.complete(
             system: "You help an engineer review a colleague's pull request. You check their reasoning against the actual diff and correct them when needed.",
             prompt: prompt, outputSchema: Self.discussionSchema, effort: "medium")
         let result = try JSONValue.parse(text)
@@ -193,7 +193,7 @@ struct PullRequestSheet: View {
                 Spacer()
                 Button("Re-review", systemImage: "arrow.clockwise") { github?.requestReview(pr) }
                 Button("Ask Dashii", systemImage: "sparkles") {
-                    host.askClaude("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Claude review first.")
+                    host.askDashii("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Dashii review first.")
                     dismiss()
                 }
                 Button("Merge…") { confirmMerge = true }.disabled(busy || pr.isDraft)

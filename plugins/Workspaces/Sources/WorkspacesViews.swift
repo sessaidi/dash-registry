@@ -329,8 +329,8 @@ private struct WorkspaceSheet: View {
                     Button("Deploy Worktree", systemImage: "arrow.up.circle") { run { try await feature.deployWorktree(name) } }
                         .help("Build the linked worktree and deploy it (up-toolbox workspace run)")
                 }
-                Button("Ask Claude", systemImage: "sparkles") {
-                    host.askClaude("Check workspace \(name): read its status and tell me if anything is wrong.")
+                Button("Ask Dashii", systemImage: "sparkles") {
+                    host.askDashii("Check workspace \(name): read its status and tell me if anything is wrong.")
                     dismiss()
                 }
                 Spacer()

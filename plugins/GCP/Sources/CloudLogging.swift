@@ -83,8 +83,8 @@ extension GCPIntegration {
                 "gcloud": .string("gcloud logging read '\(filter.replacingOccurrences(of: "'", with: "'\\''"))' --project \(input.project) --limit \(min(max(input.limit ?? 200, 1), 1000)) --order desc --format json")]
     }
 
-    var loggingTool: ClaudeTool {
-        ClaudeTool(
+    var loggingTool: DashiiTool {
+        DashiiTool(
             name: "gcp_logs_query",
             description: "Read Google Cloud Logging entries (newest first): Kubernetes container logs of a namespace/pod/container, or any filter (e.g. k8s_pod events, k8s_node logs for OOM kills and disk pressure). Read-only.",
             properties: [

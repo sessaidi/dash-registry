@@ -71,16 +71,16 @@ final class FakePermissions: PermissionAsking {
         self.allow = allow
     }
 
-    func ask(icon: String, title: String, message: String, details: [PermissionDetail], allowLabel: String, denyLabel: String) async -> Bool {
-        asked.append(title)
+    func ask(_ prompt: PermissionPrompt) async -> Bool {
+        asked.append(prompt.title)
         return allow
     }
 }
 
 @MainActor
-final class FakeClaude: ClaudeService {
+final class FakeDashii: DashiiService {
     var model: String { "test" }
-    func complete(system: String, prompt: String, outputSchema: JSONValue?, effort: String?) async throws -> String { "" }
+    func complete(_ request: DashiiRequest) async throws -> String { "" }
 }
 
 /// Stands in for the `gcp` integration: signs with a fixed token.
@@ -117,7 +117,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     var extensions: [any DashExtension]
     let fakePermissions: FakePermissions
     var permissions: any PermissionAsking { fakePermissions }
-    let claude: any ClaudeService = FakeClaude()
+    let dashii: any DashiiService = FakeDashii()
     let activity = ActivityLog()
     private(set) var prompts: [String] = []
     static var retained: [FakeHost] = []
@@ -130,7 +130,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     }
 
     func isEnabled(_ item: any DashExtension) -> Bool { true }
-    func askClaude(_ prompt: String) { prompts.append(prompt) }
+    func askDashii(_ prompt: String) { prompts.append(prompt) }
     func openManager(_ extensionID: String?) {}
     func addWidget(kind: String) throws {}
 }
@@ -279,7 +279,7 @@ func makeFeature(_ cluster: FakeCluster, gcp: FakeGCP = FakeGCP(), allow: Bool =
 }
 
 extension WorkspacesFeature {
-    func tool(_ name: String) throws -> ClaudeTool {
+    func tool(_ name: String) throws -> DashiiTool {
         guard let tool = tools.first(where: { $0.name == name }) else { throw ToolError("no tool \(name)") }
         return tool
     }

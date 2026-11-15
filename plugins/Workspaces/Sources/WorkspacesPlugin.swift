@@ -1,13 +1,12 @@
 import DashKit
 import Foundation
 
-/// Entry point of Workspaces.dashplugin: the backend-workspaces feature, built on the `gcp` integration.
-@objc(WorkspacesDashPlugin)
-final class WorkspacesPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [WorkspacesFeature()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum WorkspacesPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [WorkspacesFeature()] }
 }
 
-/// C entry point Dash loads (Bundle can't resolve NSPrincipalClass for subclasses of DashKit's resilient class).
+/// The C entry point Dash loads (see docs/PLUGINS.md).
 @_cdecl("dash_plugin_entry")
 public func dashPluginEntry() -> UnsafeMutableRawPointer {
     DashPluginFactory.export { WorkspacesPlugin.makeExtensions() }

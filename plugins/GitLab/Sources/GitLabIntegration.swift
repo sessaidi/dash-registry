@@ -114,9 +114,9 @@ final class GitLabIntegration: Integration {
     private struct GetInput: Decodable { let path: String }
     private struct MRInput: Decodable { let project: String?; let scope: String? }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "gitlab_merge_requests",
                 description: "Open merge requests on a GitLab project (default: every watched project), or across the instance for the user with scope assigned_to_me / created_by_me.",
                 properties: [
@@ -140,7 +140,7 @@ final class GitLabIntegration: Integration {
                      "pipeline": $0["head_pipeline"]?["status"] ?? .null]
                 })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gitlab_api_get",
                 description: "Read any GitLab REST v4 endpoint as the user (GET only), e.g. /projects/group%2Fservice/pipelines?per_page=5. Responses are cut at 100,000 characters.",
                 properties: ["path": JSONSchema.string("Path after /api/v4, starting with /.")], required: ["path"]

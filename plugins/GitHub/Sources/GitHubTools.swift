@@ -52,18 +52,18 @@ extension GitHubIntegration {
 
     // MARK: Tools
 
-    var readTools: [ClaudeTool] {
+    var readTools: [DashiiTool] {
         let repo = JSONSchema.string("owner/name")
         let number = JSONSchema.integer("Pull request or issue number.")
         func get(_ path: String) async throws -> JSONValue { try await toolAPI.get(path) }
         return [
-            ClaudeTool(name: "github_whoami", description: "The signed-in GitHub user and their organizations. Read-only.") { [weak self] _ in
+            DashiiTool(name: "github_whoami", description: "The signed-in GitHub user and their organizations. Read-only.") { [weak self] _ in
                 guard self != nil else { return nil }
                 let me = try await get("/user")
                 let orgs = try await get("/user/orgs?per_page=100")
                 return ["login": me["login"] ?? .null, "name": me["name"] ?? .null, "organizations": .array((orgs.array ?? []).compactMap { $0["login"] })]
             },
-            ClaudeTool(name: "github_repo", description: "A repository: default branch, visibility, language, topics, open issues, last push. Read-only.",
+            DashiiTool(name: "github_repo", description: "A repository: default branch, visibility, language, topics, open issues, last push. Read-only.",
                        properties: ["repo": repo], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let r = try await get(try Self.repoPath(input))
@@ -71,14 +71,14 @@ extension GitHubIntegration {
                         "private": r["private"] ?? .null, "language": r["language"] ?? .null, "topics": r["topics"] ?? [],
                         "open_issues": r["open_issues_count"] ?? .null, "pushed": r["pushed_at"] ?? .null, "archived": r["archived"] ?? .null]
             },
-            ClaudeTool(name: "github_branches", description: "A repository's branches with their last commit and protection. Read-only.",
+            DashiiTool(name: "github_branches", description: "A repository's branches with their last commit and protection. Read-only.",
                        properties: ["repo": repo], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
                 return .array((try await get(try Self.repoPath(input) + "/branches?per_page=100").array ?? []).map {
                     ["name": $0["name"] ?? .null, "sha": .string(String(($0["commit"]?["sha"]?.string ?? "").prefix(7))), "protected": $0["protected"] ?? false]
                 })
             },
-            ClaudeTool(name: "github_pulls", description: "Pull requests of a repository: open (default), closed or all, optionally by author or base branch. Read-only.",
+            DashiiTool(name: "github_pulls", description: "Pull requests of a repository: open (default), closed or all, optionally by author or base branch. Read-only.",
                        properties: ["repo": repo, "state": JSONSchema.string("open, closed or all.", enum: ["open", "closed", "all"]),
                                     "author": JSONSchema.string("Only this author's."), "base": JSONSchema.string("Only into this branch.")],
                        required: ["repo"]) { [weak self] input in
@@ -87,7 +87,7 @@ extension GitHubIntegration {
                 let author = input["author"]?.string?.lowercased()
                 return .array((try await get(path).array ?? []).filter { author == nil || $0["user"]?["login"]?.string?.lowercased() == author }.map(Self.pullSummary))
             },
-            ClaudeTool(name: "github_pull", description: "One pull request: description, branches, mergeability, reviewers, labels, size. Read-only.",
+            DashiiTool(name: "github_pull", description: "One pull request: description, branches, mergeability, reviewers, labels, size. Read-only.",
                        properties: ["repo": repo, "number": number], required: ["repo", "number"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let pr = try await get(try Self.repoPath(input) + "/pulls/\(input["number"]?.int ?? 0)")
@@ -95,7 +95,7 @@ extension GitHubIntegration {
                                                      "additions": pr["additions"] ?? .null, "deletions": pr["deletions"] ?? .null,
                                                      "changed_files": pr["changed_files"] ?? .null, "commits": pr["commits"] ?? .null])
             },
-            ClaudeTool(name: "github_pull_files", description: "Files a pull request changes, with status and line counts (and patches when small). Read-only.",
+            DashiiTool(name: "github_pull_files", description: "Files a pull request changes, with status and line counts (and patches when small). Read-only.",
                        properties: ["repo": repo, "number": number, "patches": JSONSchema.boolean("Include each file's patch (default false).")],
                        required: ["repo", "number"]) { [weak self] input in
                 guard self != nil else { return nil }
@@ -107,7 +107,7 @@ extension GitHubIntegration {
                     return .object(row)
                 })
             },
-            ClaudeTool(name: "github_pull_reviews", description: "Human reviews of a pull request (who, approve or changes requested, what they said) and the review comments on its lines. Read-only.",
+            DashiiTool(name: "github_pull_reviews", description: "Human reviews of a pull request (who, approve or changes requested, what they said) and the review comments on its lines. Read-only.",
                        properties: ["repo": repo, "number": number], required: ["repo", "number"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let base = try Self.repoPath(input) + "/pulls/\(input["number"]?.int ?? 0)"
@@ -117,7 +117,7 @@ extension GitHubIntegration {
                         "line_comments": .array(comments.suffix(60).map { ["by": Self.user($0["user"]), "file": $0["path"] ?? .null, "line": $0["line"] ?? .null,
                                                                           "body": $0["body"] ?? .null, "at": $0["created_at"] ?? .null] })]
             },
-            ClaudeTool(name: "github_checks", description: "CI on a commit, branch or PR head: each check run's status and conclusion, plus the combined commit status. Read-only.",
+            DashiiTool(name: "github_checks", description: "CI on a commit, branch or PR head: each check run's status and conclusion, plus the combined commit status. Read-only.",
                        properties: ["repo": repo, "ref": JSONSchema.string("Commit SHA, branch or tag.")], required: ["repo", "ref"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let base = try Self.repoPath(input) + "/commits/\(input["ref"]?.string?.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "HEAD")"
@@ -127,7 +127,7 @@ extension GitHubIntegration {
                         "checks": .array(runs.map { ["name": $0["name"] ?? .null, "status": $0["status"] ?? .null, "conclusion": $0["conclusion"] ?? .null, "url": $0["html_url"] ?? .null] }),
                         "statuses": .array((combined?["statuses"]?.array ?? []).map { ["context": $0["context"] ?? .null, "state": $0["state"] ?? .null] })]
             },
-            ClaudeTool(name: "github_workflow_runs", description: "Recent GitHub Actions runs, newest first: workflow, branch, event, status and conclusion. Filter by branch or status (e.g. failure). Read-only.",
+            DashiiTool(name: "github_workflow_runs", description: "Recent GitHub Actions runs, newest first: workflow, branch, event, status and conclusion. Filter by branch or status (e.g. failure). Read-only.",
                        properties: ["repo": repo, "branch": JSONSchema.string("Only this branch."), "status": JSONSchema.string("e.g. failure, success, in_progress."),
                                     "limit": JSONSchema.integer("How many (default 15).")], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
@@ -135,12 +135,12 @@ extension GitHubIntegration {
                                                                                        ("per_page", String(min(input["limit"]?.int ?? 15, 50)))])
                 return .array((try await get(path)["workflow_runs"]?.array ?? []).map(Self.runSummary))
             },
-            ClaudeTool(name: "github_run_jobs", description: "The jobs of an Actions run with their conclusion and the steps that failed. Read-only.",
+            DashiiTool(name: "github_run_jobs", description: "The jobs of an Actions run with their conclusion and the steps that failed. Read-only.",
                        properties: ["repo": repo, "run_id": JSONSchema.integer("Run id from github_workflow_runs.")], required: ["repo", "run_id"]) { [weak self] input in
                 guard self != nil else { return nil }
                 return .array((try await get(try Self.repoPath(input) + "/actions/runs/\(input["run_id"]?.int ?? 0)/jobs?per_page=100")["jobs"]?.array ?? []).map(Self.jobSummary))
             },
-            ClaudeTool(name: "github_job_log", description: "The end of an Actions job's log (where failures are), to see why it failed. Read-only.",
+            DashiiTool(name: "github_job_log", description: "The end of an Actions job's log (where failures are), to see why it failed. Read-only.",
                        properties: ["repo": repo, "job_id": JSONSchema.integer("Job id from github_run_jobs."), "lines": JSONSchema.integer("Last N lines (default 200).")],
                        required: ["repo", "job_id"]) { [weak self] input in
                 guard let self else { return nil }
@@ -149,7 +149,7 @@ extension GitHubIntegration {
                 let lines = String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false)
                 return .string(lines.suffix(min(input["lines"]?.int ?? 200, 2000)).joined(separator: "\n"))
             },
-            ClaudeTool(name: "github_commits", description: "Commits on a branch, optionally touching a path, by an author, since a date. Read-only.",
+            DashiiTool(name: "github_commits", description: "Commits on a branch, optionally touching a path, by an author, since a date. Read-only.",
                        properties: ["repo": repo, "branch": JSONSchema.string("Branch or SHA (default: the default branch)."), "path": JSONSchema.string("Only commits touching this path."),
                                     "author": JSONSchema.string("GitHub login or email."), "since": JSONSchema.string("ISO date, e.g. 2026-11-01.")], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
@@ -158,7 +158,7 @@ extension GitHubIntegration {
                                                                                  ("per_page", "30")])
                 return .array((try await get(path).array ?? []).map(Self.commitSummary))
             },
-            ClaudeTool(name: "github_compare", description: "Compare two refs (base...head): commits ahead and behind, and the files changed. Read-only.",
+            DashiiTool(name: "github_compare", description: "Compare two refs (base...head): commits ahead and behind, and the files changed. Read-only.",
                        properties: ["repo": repo, "base": JSONSchema.string("Base ref."), "head": JSONSchema.string("Head ref.")], required: ["repo", "base", "head"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let c = try await get(try Self.repoPath(input) + "/compare/\(input["base"]?.string ?? "")...\(input["head"]?.string ?? "")")
@@ -167,7 +167,7 @@ extension GitHubIntegration {
                         "files": .array((c["files"]?.array ?? []).prefix(150).map { ["file": $0["filename"] ?? .null, "status": $0["status"] ?? .null,
                                                                                      "additions": $0["additions"] ?? .null, "deletions": $0["deletions"] ?? .null] })]
             },
-            ClaudeTool(name: "github_file", description: "A file's content at a ref (default branch when omitted). Read-only.",
+            DashiiTool(name: "github_file", description: "A file's content at a ref (default branch when omitted). Read-only.",
                        properties: ["repo": repo, "path": JSONSchema.string("File path."), "ref": JSONSchema.string("Branch, tag or SHA.")], required: ["repo", "path"]) { [weak self] input in
                 guard self != nil else { return nil }
                 let file = try await get(try Self.repoPath(input) + "/contents/\(input["path"]?.string?.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")"
@@ -177,7 +177,7 @@ extension GitHubIntegration {
                 }
                 return ["path": file["path"] ?? .null, "size": file["size"] ?? .null, "content": .string(String(String(decoding: data, as: UTF8.self).prefix(Self.maxToolCharacters)))]
             },
-            ClaudeTool(name: "github_issues", description: "Issues of a repository (pull requests left out): open by default, optionally by label or assignee. Read-only.",
+            DashiiTool(name: "github_issues", description: "Issues of a repository (pull requests left out): open by default, optionally by label or assignee. Read-only.",
                        properties: ["repo": repo, "state": JSONSchema.string("open, closed or all.", enum: ["open", "closed", "all"]),
                                     "labels": JSONSchema.string("Comma-separated labels."), "assignee": JSONSchema.string("Login.")], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
@@ -188,7 +188,7 @@ extension GitHubIntegration {
                      "labels": .array(($0["labels"]?.array ?? []).compactMap { $0["name"] }), "updated": $0["updated_at"] ?? .null, "url": $0["html_url"] ?? .null]
                 })
             },
-            ClaudeTool(name: "github_releases", description: "Recent releases and tags: name, tag, date, draft/prerelease, notes. Read-only.",
+            DashiiTool(name: "github_releases", description: "Recent releases and tags: name, tag, date, draft/prerelease, notes. Read-only.",
                        properties: ["repo": repo], required: ["repo"]) { [weak self] input in
                 guard self != nil else { return nil }
                 return .array((try await get(try Self.repoPath(input) + "/releases?per_page=15").array ?? []).map {
@@ -196,7 +196,7 @@ extension GitHubIntegration {
                      "prerelease": $0["prerelease"] ?? false, "notes": .string(String(($0["body"]?.string ?? "").prefix(2000)))]
                 })
             },
-            ClaudeTool(name: "github_search", description: "Search GitHub: code (e.g. \"retryPolicy repo:org/name\"), issues and pull requests (e.g. \"is:pr is:open review-requested:@me\"), or repositories. Read-only.",
+            DashiiTool(name: "github_search", description: "Search GitHub: code (e.g. \"retryPolicy repo:org/name\"), issues and pull requests (e.g. \"is:pr is:open review-requested:@me\"), or repositories. Read-only.",
                        properties: ["kind": JSONSchema.string("What to search.", enum: ["code", "issues", "repositories"]), "query": JSONSchema.string("GitHub search syntax.")],
                        required: ["kind", "query"]) { [weak self] input in
                 guard self != nil else { return nil }
@@ -213,7 +213,7 @@ extension GitHubIntegration {
                     }
                 })]
             },
-            ClaudeTool(name: "github_notifications", description: "The user's unread GitHub notifications: review requests, mentions, CI. Read-only (nothing is marked read).") { [weak self] _ in
+            DashiiTool(name: "github_notifications", description: "The user's unread GitHub notifications: review requests, mentions, CI. Read-only (nothing is marked read).") { [weak self] _ in
                 guard self != nil else { return nil }
                 return .array((try await get("/notifications?per_page=50").array ?? []).map {
                     ["repo": $0["repository"]?["full_name"] ?? .null, "reason": $0["reason"] ?? .null, "title": $0["subject"]?["title"] ?? .null,

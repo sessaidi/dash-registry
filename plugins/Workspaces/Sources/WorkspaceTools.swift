@@ -36,9 +36,9 @@ extension WorkspacesFeature {
         ]
     }
 
-    var workspaceTools: [ClaudeTool] {
+    var workspaceTools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_profiles",
                 description: "The workspace profiles (named sets of services, e.g. signup: capig, papi, services-signup, services-user) and the worktrees workspaces can be linked to."
             ) { [weak self] _ in
@@ -48,7 +48,7 @@ extension WorkspacesFeature {
                         "worktrees": .array(worktrees.map { ["path": .string($0.path), "branch": .string($0.branch), "issue": .string($0.issue), "suggested_name": .string($0.suggestedName)] }),
                         "links": .object(links.mapValues { ["worktree": .string($0.worktree), "service": .string($0.service)] })]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_create",
                 description: "Create a workspace (like up-toolbox generate + up): copies the profile's services from the default namespace, writes the configuration into the worktree, and creates everything. Optionally linked to a worktree for later deploys.",
                 properties: ["name": JSONSchema.string("Workspace name, usually the ticket key lowercased."),
@@ -63,7 +63,7 @@ extension WorkspacesFeature {
                 try await create(name: request.name, services: services, worktree: request.worktree)
                 return ["url": .string("https://\(WorkspaceGenerator.host(name: request.name.lowercased(), env: env, region: region))")]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_deploy_worktree",
                 description: "Build the linked worktree's service and deploy it to the workspace (like up-toolbox workspace run): go test, go build, docker build, push, patch, wait for the rollout.",
                 properties: ["name": JSONSchema.string("Workspace name."), "runTests": JSONSchema.boolean("Run go test first (default true).")],
@@ -73,7 +73,7 @@ extension WorkspacesFeature {
                 let request = try input.toolInput(DeployInput.self)
                 return ["image": .string(try await deployWorktree(request.name, runTests: request.runTests ?? true))]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_config_changes",
                 description: "What the local configuration files (in the worktree) would change in the workspace: objects to create or update and the fields that differ. Read-only.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]
@@ -82,7 +82,7 @@ extension WorkspacesFeature {
                 let changes = try await pendingChanges(try input.toolInput(NameInput.self).name)
                 return .array(changes.filter { $0.kind != .unchanged }.map { ["object": .string($0.id), "change": .string($0.kind.rawValue), "fields": .array($0.differences.map { .string($0) })] })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_apply_config",
                 description: "Apply the local configuration files to the workspace and restart the deployments whose ConfigMaps changed.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"], requiresApproval: true, writesRemotely: true
@@ -91,7 +91,7 @@ extension WorkspacesFeature {
                 let changes = try await applyConfig(try input.toolInput(NameInput.self).name)
                 return .array(changes.map { .string("\($0.kind.rawValue) \($0.id)") })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_diagnose",
                 description: "Everything that explains a workspace's health: pods, containers (state, last termination such as OOMKilled with exit code and times, restarts, requests/limits, current usage), failing conditions, warning events, node pressure, and rule-based findings each with a reference and the verbatim evidence. Read-only.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]
@@ -99,7 +99,7 @@ extension WorkspacesFeature {
                 guard let self else { return nil }
                 return Self.json(try await diagnose(try input.toolInput(NameInput.self).name))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_logs",
                 description: "A container's logs in a workspace (with timestamps). previous=true reads the run before the last restart, where a crash's last lines are. Read-only.",
                 properties: ["name": JSONSchema.string("Workspace name."), "pod": JSONSchema.string("Pod name (see workspace_diagnose)."),
@@ -113,7 +113,7 @@ extension WorkspacesFeature {
                                           tail: min(request.tail ?? 300, 3000), sinceSeconds: request.sinceSeconds)
                 return .string(String(text.suffix(60_000)))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_cloud_logs",
                 description: "A workspace's logs in Google Cloud Logging (also for pods that restarted or are gone), newest first, filtered by severity, text, pod and time. Read-only.",
                 properties: ["name": JSONSchema.string("Workspace name."),
@@ -126,7 +126,7 @@ extension WorkspacesFeature {
                 let request = try input.toolInput(CloudInput.self)
                 return try await cloudLogs(request.name, minSeverity: request.minSeverity, text: request.text, since: request.since ?? "6h", pod: request.pod, limit: 200)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_commands",
                 description: "What Dash did for a workspace, each with the exact command that does the same thing (same output) and the usual kubectl/gcloud/up-toolbox equivalent.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]
@@ -153,7 +153,7 @@ extension WorkspacesFeature {
 
     static let explainTask = AITask(id: "explain_logs", title: "Explain logs",
                                     summary: "Explains a container's logs: what happened, the lines that show it, and what to do.",
-                                    models: [.sonnet, .haiku, .opus], defaultModel: .sonnet, efforts: [.low, .medium], defaultEffort: .low)
+                                    models: [.balanced, .fast, .strong], defaultModel: .balanced, efforts: [.low, .medium], defaultEffort: .low)
 
     var aiTasks: [AITask] { [Self.explainTask] }
 

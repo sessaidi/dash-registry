@@ -117,9 +117,9 @@ final class DockerIntegration: Integration {
         return "/containers/\(name)/\(suffix)"
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_containers", description: "List local Docker containers (id, name, image, state, status).",
                 properties: ["all": JSONSchema.boolean("Include stopped containers (default true).")]
             ) { [weak self] input in
@@ -128,7 +128,7 @@ final class DockerIntegration: Integration {
                 let list = try await requireConnection().get("/containers/json?all=\(all ? 1 : 0)", service: "Docker")
                 return .array(DockerContainer.list(list).map(\.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_inspect", description: "Inspect a Docker container: state, health, image, command, ports, mounts, labels (no environment variables).",
                 properties: ["id": JSONSchema.string("Container id, id prefix or name.")], required: ["id"]
             ) { [weak self] input in
@@ -137,7 +137,7 @@ final class DockerIntegration: Integration {
                 let info = try await requireConnection().get(Self.containerPath(id, "json"), service: "Docker")
                 return Self.inspectSummary(info)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_logs", description: "Recent logs (stdout and stderr) of a Docker container. Output is cut to the last 50,000 characters.",
                 properties: [
                     "id": JSONSchema.string("Container id, id prefix or name."),
@@ -153,7 +153,7 @@ final class DockerIntegration: Integration {
                 let (text, truncated) = DockerLogs.truncate(DockerLogs.text(data, markStderr: true))
                 return ["logs": .string(text), "truncated": .bool(truncated)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_container_action", description: "Start, stop or restart a Docker container.",
                 properties: [
                     "id": JSONSchema.string("Container id, id prefix or name."),

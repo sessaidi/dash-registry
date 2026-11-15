@@ -28,7 +28,6 @@ targets:
       path: Info.plist
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSPrincipalClass: GitHubDashPlugin
         DashPluginID: github
         DashPluginVersion: "1.4.0"
         DashKitMinimumVersion: "1.5.0"

@@ -77,16 +77,16 @@ extension GitLabIntegration {
         return commits
     }
 
-    var syncTools: [ClaudeTool] {
+    var syncTools: [DashiiTool] {
         [
-            ClaudeTool(name: "gitlab_sync_tags",
+            DashiiTool(name: "gitlab_sync_tags",
                        description: "Mirror a project's tags (commit, date, on the default branch or not) from GitLab into Dash, for release timelines. Reads GitLab only; replaces the local mirror with what GitLab has.",
                        properties: ["repo": JSONSchema.string("group/project")], required: ["repo"]) { [weak self] input in
                 guard let self, let host else { return nil }
                 let count = try await syncTags(input["repo"]?.string ?? "", store: host.synced)
                 return ["tags": .number(Double(count))]
             },
-            ClaudeTool(name: "gitlab_sync_compare",
+            DashiiTool(name: "gitlab_sync_compare",
                        description: "Mirror the commits between two commits or tags of a project (merges left out) from GitLab into Dash. Reads GitLab only.",
                        properties: ["repo": JSONSchema.string("group/project"), "base": JSONSchema.string("Base commit or tag."), "head": JSONSchema.string("Head commit or tag.")],
                        required: ["repo", "base", "head"]) { [weak self] input in

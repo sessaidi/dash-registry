@@ -13,10 +13,10 @@ enum DatadogTools {
     private struct SLOHistoryInput: Decodable { let id: String; let days: Int? }
     private struct HostsInput: Decodable { let filter: String?; let limit: Int? }
 
-    static func tools(_ datadog: DatadogIntegration) -> [ClaudeTool] {
+    static func tools(_ datadog: DatadogIntegration) -> [DashiiTool] {
         let query = JSONSchema.string("Datadog search query, e.g. status:alert service:api or tag:env:prod.")
         return [
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_api_get",
                 description: "GET any Datadog API path on the configured site (read-only), e.g. /api/v1/downtime?current_only=true. Only GET; only /api/ paths.",
                 properties: ["path": JSONSchema.string("Path with query, starting with /api/, e.g. /api/v1/downtime?current_only=true.")],
@@ -29,7 +29,7 @@ enum DatadogTools {
                 }
                 return DatadogIntegration.limited(try await datadog.requireConnection().get(path, service: "Datadog"))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_monitors",
                 description: "Search monitors with their status (OK, Alert, Warn, No Data), type, tags and when they last triggered. Default: every monitor not OK.",
                 properties: ["query": JSONSchema.string("Monitor search, e.g. status:alert, tag:service:api, notification:@slack-oncall. Default: status:(alert OR warn OR \"no data\").")]
@@ -38,7 +38,7 @@ enum DatadogTools {
                 let text = try input.toolInput(QueryInput.self).query ?? #"status:(alert OR warn OR "no data")"#
                 return .array(DatadogMonitor.list(try await datadog.get("/api/v1/monitor/search", ["query": text, "per_page": "100"])).map(\.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_monitor",
                 description: "One monitor in detail: its query, message, thresholds, and the state of each group (which hosts or services are alerting).",
                 properties: ["id": JSONSchema.string("Monitor id.")], required: ["id"]
@@ -47,7 +47,7 @@ enum DatadogTools {
                 let id = try input.toolInput(IDInput.self).id.filter(\.isNumber)
                 return DatadogIntegration.limited(try await datadog.get("/api/v1/monitor/\(id)", ["group_states": "all"]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_metrics_query",
                 description: "Query a metric timeseries, e.g. avg:system.cpu.user{service:api} by {host} or sum:trace.http.request.errors{env:prod}.as_count(). Returns series with points.",
                 properties: ["query": JSONSchema.string("Metrics query."),
@@ -62,7 +62,7 @@ enum DatadogTools {
                 let from = request.from ?? to - 60 * min(max(request.minutes ?? 60, 1), 60 * 24 * 30)
                 return DatadogIntegration.limited(try await datadog.get("/api/v1/query", ["query": request.query, "from": String(from), "to": String(to)]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_logs_search",
                 description: "Search logs (newest first): timestamp, service, status, host and message. Read-only.",
                 properties: ["query": JSONSchema.string("Logs query, e.g. service:api status:error @http.status_code:500."),
@@ -77,7 +77,7 @@ enum DatadogTools {
                                                           limit: min(max(request.limit ?? 50, 1), 200))
                 return DatadogIntegration.limited(.array((result["data"]?.array ?? []).map(DatadogTools.log)))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_events",
                 description: "Events (deploys, alerts, config changes) in a time window, newest first.",
                 properties: ["query": JSONSchema.string("Events query, e.g. source:kubernetes service:api."),
@@ -91,7 +91,7 @@ enum DatadogTools {
                     "filter[to]": "now", "page[limit]": String(min(max(request.limit ?? 50, 1), 100)), "sort": "-timestamp",
                 ]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_incidents",
                 description: "Incidents (read-only): title, severity, state, commander, created and resolved times. Default: active ones.",
                 properties: ["query": JSONSchema.string("Incident search, e.g. state:active (default), severity:SEV-1, state:resolved.")]
@@ -100,7 +100,7 @@ enum DatadogTools {
                 let text = try input.toolInput(QueryInput.self).query ?? "state:active"
                 return DatadogIntegration.limited(try await datadog.get("/api/v2/incidents/search", ["query": text, "page[size]": "50"]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_dashboards",
                 description: "Dashboards (id, title, url, author), optionally only those whose title contains a text.",
                 properties: ["query": JSONSchema.string("Text in the title.")]
@@ -114,7 +114,7 @@ enum DatadogTools {
                      "url": .string(datadog.appURL.absoluteString + (dashboard["url"]?.string ?? ""))]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_dashboard",
                 description: "One dashboard: its widgets and their queries (to know which metrics matter for a service).",
                 properties: ["id": JSONSchema.string("Dashboard id, e.g. abc-def-ghi.")], required: ["id"]
@@ -123,7 +123,7 @@ enum DatadogTools {
                 let id = try input.toolInput(IDInput.self).id.filter { $0.isLetter || $0.isNumber || $0 == "-" }
                 return DatadogIntegration.limited(try await datadog.get("/api/v1/dashboard/\(id)"))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_slos",
                 description: "Service level objectives: name, type, targets, tags, and the current status where Datadog reports it.",
                 properties: ["query": JSONSchema.string("SLO search, e.g. service:api.")]
@@ -132,7 +132,7 @@ enum DatadogTools {
                 let text = try input.toolInput(QueryInput.self).query
                 return DatadogIntegration.limited(try await datadog.get("/api/v1/slo", ["query": text, "limit": "100"]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_slo_history",
                 description: "An SLO's history over the last days: SLI value, error budget remaining, and per-group detail.",
                 properties: ["id": JSONSchema.string("SLO id."), "days": JSONSchema.integer("Days back (default 7, at most 90).")],
@@ -145,7 +145,7 @@ enum DatadogTools {
                 let id = request.id.filter { $0.isLetter || $0.isNumber }
                 return DatadogIntegration.limited(try await datadog.get("/api/v1/slo/\(id)/history", ["from_ts": String(from), "to_ts": String(to)]))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_hosts",
                 description: "Hosts reporting to Datadog: name, aliases, apps, tags, up and muted state.",
                 properties: ["filter": JSONSchema.string("Host name, alias or tag filter, e.g. env:prod."),
@@ -160,7 +160,7 @@ enum DatadogTools {
                      "last_reported": host["last_reported_time"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "datadog_services",
                 description: "Services in the Datadog service catalog (APM): name, team, contacts, links, languages and tier.",
                 properties: ["query": JSONSchema.string("Text in the service name.")]

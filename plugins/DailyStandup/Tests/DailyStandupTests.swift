@@ -14,15 +14,15 @@ private final class FakeZoom: DashExtension {
     var meetingStart = Date.now
     func settingsView() -> AnyView { AnyView(EmptyView()) }
     func start(host: any ExtensionContext) {}
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         let started = meetingStart.formatted(.iso8601)
         return [
-            ClaudeTool(name: "meetings_list", description: "") { _ in [["id": "m1", "title": "Daily standup", "started": .string(started)]] },
-            ClaudeTool(name: "meeting_transcript", description: "") { _ in
+            DashiiTool(name: "meetings_list", description: "") { _ in [["id": "m1", "title": "Daily standup", "started": .string(started)]] },
+            DashiiTool(name: "meeting_transcript", description: "") { _ in
                 ["id": "m1", "started": .string(started), "participants": ["Sadik", "Ada", "Sam"],
                  "transcript": "[00:05] Sadik: Yesterday I finished LAF-12.\n[00:40] Ada: Today I review it.\n[01:10] Sam: Blocked on the QA env."]
             },
-            ClaudeTool(name: "meeting_speakers", description: "") { _ in
+            DashiiTool(name: "meeting_speakers", description: "") { _ in
                 ["meeting_id": "m1", "named": true, "speakers": [["name": "Sadik", "words": 6], ["name": "Ada", "words": 5], ["name": "Sam", "words": 5]],
                  "not_heard_yet": []]
             },
@@ -68,7 +68,7 @@ struct DailyStandupTests {
         #expect(evidence["commits"]?.array?.first?["subject"]?.string == "LAF-12 renewal endpoint")
         #expect(evidence["commits"]?.array?.first?["repo"]?.string == "api")
 
-        host.testClaude.reply = #"""
+        host.testDashii.reply = #"""
             {"yesterday":[{"ticket":"LAF-12","text":"Finished the renewal endpoint","refs":["abc1234"]}],
              "today":[{"ticket":"LAF-12","text":"Fix the failing proration test","refs":["api#8"],"kind":"fix"},
                       {"ticket":"LAF-20","text":"Proration on upgrade","refs":[],"kind":"start"}],
@@ -82,7 +82,7 @@ struct DailyStandupTests {
         #expect(standup.openBlockers().map(\.text) == ["QA workspace keeps restarting"])
         #expect(host.activity.events.contains { $0.kind == "standup.prepared" })
         // The prompt asked for tickets and the kinds of next step.
-        let call = try #require(host.testClaude.calls.last)
+        let call = try #require(host.testDashii.calls.last)
         #expect(call.system.contains("Yesterday I did") && call.prompt.contains("LAF-12 renewal endpoint"))
         // Mentioned again tomorrow: the same blocker, not a new one.
         standup.remember("QA workspace keeps restarting", owner: "Sadik")
@@ -95,7 +95,7 @@ struct DailyStandupTests {
         standup.zoomDays = [Calendar.current.component(.weekday, from: .now)]
         standup.workdays = standup.zoomDays
         #expect(standup.isStandup(title: "Weekly sync", started: standup.standupDate()))
-        host.testClaude.reply = #"""
+        host.testDashii.reply = #"""
             {"summary":"Renewals shipped; QA env blocks Sam.",
              "people":[{"name":"Sadik","yesterday":["Finished LAF-12"],"today":[],"blockers":[]},
                        {"name":"Sam","yesterday":[],"today":[],"blockers":["QA env"]}],
@@ -107,6 +107,6 @@ struct DailyStandupTests {
         #expect(standup.day()?.report?.actionItems == [MeetingReport.Action(owner: "Ada", task: "Review LAF-12")])
         #expect(host.notes.first?.folder == "Standups" && host.notes.first?.markdown.contains("- [ ] Ada: Review LAF-12") == true)
         #expect(standup.openBlockers().contains { $0.owner == "Sam" })
-        #expect(host.testClaude.calls.last?.system.contains("Lines carry each speaker's name") == true)
+        #expect(host.testDashii.calls.last?.system.contains("Lines carry each speaker's name") == true)
     }
 }

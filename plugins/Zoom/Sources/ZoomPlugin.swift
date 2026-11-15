@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Principal class of ZoomPlugin.dashplugin (`NSPrincipalClass` = ZoomDashPlugin): the Zoom feature.
-@objc(ZoomDashPlugin)
-final class ZoomPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [ZoomExtension()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum ZoomPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [ZoomExtension()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

@@ -262,9 +262,9 @@ final class KubernetesIntegration: Integration {
         return connection
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "k8s_get",
                 description: "Read any Kubernetes API path on the current context (GET only), e.g. /api/v1/namespaces/default/pods, /apis/apps/v1/namespaces/prod/deployments/web, /api/v1/namespaces/default/pods/web-1/log?tailLines=100 or /api/v1/nodes. Watches, exec, attach, port-forward and proxy are refused. Responses are cut at 100,000 characters.",
                 properties: ["path": JSONSchema.string("API path starting with /, with an optional query string.")], required: ["path"]
@@ -274,7 +274,7 @@ final class KubernetesIntegration: Integration {
                 try Self.checkReadOnly(path)
                 return try await Self.get(path, connection: try requireConnection())
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "k8s_list_pods",
                 description: "List pods on the current Kubernetes context with phase, kubectl-style status (CrashLoopBackOff, ImagePullBackOff…), ready containers, restarts and node. Defaults to the configured namespace; use \"all\" for every namespace.",
                 properties: [

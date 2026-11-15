@@ -32,29 +32,27 @@ final class AtlassianIntegration: Integration {
     @ObservationIgnored var now: () -> Date = { .now }
 
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let legacyTokenAccount: String
     @ObservationIgnored private let session: URLSession?
 
     /// Defaults are the production storage; tests inject their own suite, keychain accounts and session.
     init(
         defaults: UserDefaults = DashStorage.defaults,
-        secrets: SecretStore = SecretStore(extensionID: "atlassian", legacy: ["token": "atlassian"]),
-        legacyTokenAccount: String = "jira",
+        // Earlier builds kept the token under "atlassian", and before that "jira".
+        secrets: SecretStore = SecretStore(extensionID: "atlassian", legacy: ["token": ["atlassian", "jira"]]),
         session: URLSession? = nil
     ) {
         self.defaults = defaults
         self.secrets = secrets
-        self.legacyTokenAccount = legacyTokenAccount
         self.session = session
         // Earlier builds stored these under "jira".
         site = defaults.string(forKey: "atlassian.site") ?? defaults.string(forKey: "jira.site") ?? ""
         email = defaults.string(forKey: "atlassian.email") ?? defaults.string(forKey: "jira.email") ?? ""
-        hasToken = (secrets.read("token") ?? Keychain.read(legacyTokenAccount)) != nil
+        hasToken = secrets.contains("token")
         cacheMinutes = (defaults.object(forKey: "atlassian.cacheMinutes") as? Int) ?? 15
     }
 
-    /// The stored API token: this extension's item, its legacy "atlassian" item, then the old "jira" item.
-    var token: String? { secrets?.read("token") ?? Keychain.read(legacyTokenAccount) }
+    /// The stored API token: this extension's item, then the legacy "atlassian" and "jira" items.
+    var token: String? { secrets?.read("token") }
 
     var siteURL: URL? {
         let trimmed = site.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -78,7 +76,6 @@ final class AtlassianIntegration: Integration {
 
     func setToken(_ token: String) {
         secrets?.write("token", token)
-        if token.isEmpty { Keychain.write(nil, for: legacyTokenAccount) }
         hasToken = !token.isEmpty
         Task { await verify() }
     }

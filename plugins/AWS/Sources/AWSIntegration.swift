@@ -120,13 +120,13 @@ final class AWSIntegration: Integration {
         let target: String?
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(name: "aws_whoami", description: "The AWS identity (ARN), profile and region Dash uses.") { [weak self] _ in
+            DashiiTool(name: "aws_whoami", description: "The AWS identity (ARN), profile and region Dash uses.") { [weak self] _ in
                 guard let self else { return nil }
                 return ["arn": .string(try await callerIdentity()), "profile": .string(profileName), "region": .string(region)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "aws_api",
                 description: """
                     Call an AWS API as the user, signed with SigV4. Give the full https URL on *.amazonaws.com \

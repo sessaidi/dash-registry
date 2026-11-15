@@ -245,7 +245,7 @@ final class PullRequestsFeature: DashExtension {
     static let reviewTask = AITask(
         id: "review", title: "PR review",
         summary: "Reviews each new or updated PR's diff and posts findings in Dash's fixed format.",
-        models: [.opus, .sonnet, .fable, .haiku], defaultModel: .opus,
+        models: [.strong, .balanced, .deep, .fast], defaultModel: .strong,
         efforts: [.medium, .high, .xhigh, .max], defaultEffort: .high,
         templates: [AITemplate(
             id: "instructions", title: "Extra review instructions",
@@ -266,7 +266,7 @@ final class PullRequestsFeature: DashExtension {
             host.context.delete(old)
             try? host.context.save()
         }
-        host.context.insert(PRReview(prUID: pr.uid, headSHA: pr.headSHA, model: ai?.model(Self.reviewTask.id).rawValue ?? host.claude.model))
+        host.context.insert(PRReview(prUID: pr.uid, headSHA: pr.headSHA, model: ai?.model(Self.reviewTask.id).rawValue ?? host.dashii.model))
         try? host.context.save()
         enqueue(pr.uid)
     }
@@ -357,7 +357,7 @@ final class PullRequestsFeature: DashExtension {
                 </diff>
                 """
             let settings = ai ?? AISettings(tasks: aiTasks)
-            let text = try await host.claude.complete(task: Self.reviewTask.id, settings: settings, system: system, prompt: prompt,
+            let text = try await host.dashii.complete(task: Self.reviewTask.id, settings: settings, system: system, prompt: prompt,
                                                       outputSchema: Self.reviewSchema)
             let result = try JSONValue.parse(text)
             review.verdict = result["verdict"]?.string ?? "comment"
@@ -385,12 +385,12 @@ final class PullRequestsFeature: DashExtension {
     private struct ReviewInput: Decodable { let repo: String; let number: Int; let event: String; let body: String }
     private struct CreateInput: Decodable { let repo: String; let head: String; let base: String?; let title: String; let body: String; let draft: Bool? }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         let prProperties: [String: JSONValue] = [
             "repo": JSONSchema.string("owner/name"), "number": JSONSchema.integer("PR number"),
         ]
         return [
-            ClaudeTool(
+            DashiiTool(
                 name: "github_list_prs",
                 description: "List open pull requests on the watched repositories, each with its latest Claude review verdict and risk.",
                 properties: [
@@ -413,10 +413,10 @@ final class PullRequestsFeature: DashExtension {
                             "mine": .bool(pr.isMine), "review_requested": .bool(pr.reviewRequested),
                             "approvals": .number(Double(pr.approvals)), "changes_requested": .number(Double(pr.changesRequested)),
                             "branch": .string(pr.headRef),
-                            "claude_review": review.map { ["status": .string($0.status), "verdict": .string($0.verdict), "risk": .string($0.risk)] } ?? .null]
+                            "dashii_review": review.map { ["status": .string($0.status), "verdict": .string($0.verdict), "risk": .string($0.risk)] } ?? .null]
                 })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "github_get_pr",
                 description: "Fetch a pull request live: description, changed files, human reviews, recent comments, and the latest Claude review with its findings.",
                 properties: prProperties, required: ["repo", "number"]
@@ -435,10 +435,10 @@ final class PullRequestsFeature: DashExtension {
                     "files": .array(files.map { ["file": $0["filename"] ?? .null, "status": $0["status"] ?? .null, "additions": $0["additions"] ?? .null, "deletions": $0["deletions"] ?? .null] }),
                     "reviews": .array(reviews.map { ["user": $0["user"]?["login"] ?? .null, "state": $0["state"] ?? .null, "body": $0["body"] ?? .null] }),
                     "comments": .array(comments.suffix(20).map { ["user": $0["user"]?["login"] ?? .null, "body": $0["body"] ?? .null] }),
-                    "claude_review": latestReview(PullRequest.uid(request.repo, request.number))?.json ?? .null,
+                    "dashii_review": latestReview(PullRequest.uid(request.repo, request.number))?.json ?? .null,
                 ]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "github_get_diff",
                 description: "Fetch a pull request's unified diff. Large diffs are cut at 200,000 characters and marked as truncated.",
                 properties: prProperties, required: ["repo", "number"]
@@ -450,7 +450,7 @@ final class PullRequestsFeature: DashExtension {
                     ? ["truncated": true, "total_characters": .number(Double(diff.count)), "diff": .string(String(diff.prefix(200_000)))]
                     : ["truncated": false, "diff": .string(diff)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "github_rerun_review",
                 description: "Queue a fresh automatic Claude review of a pull request's current head commit.",
                 properties: prProperties, required: ["repo", "number"]
@@ -461,7 +461,7 @@ final class PullRequestsFeature: DashExtension {
                 requestReview(pr)
                 return "queued"
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "github_create_pr",
                 description: "Open a pull request from a branch that is already pushed.",
                 properties: [

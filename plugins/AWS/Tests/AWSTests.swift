@@ -105,7 +105,7 @@ extension AWSPluginTests {
             return aws
         }
 
-        func tool(_ aws: AWSIntegration, _ name: String) throws -> ClaudeTool {
+        func tool(_ aws: AWSIntegration, _ name: String) throws -> DashiiTool {
             try #require(aws.tools.first { $0.name == name })
         }
 
@@ -126,7 +126,6 @@ extension AWSPluginTests {
         @Test func pluginEntryPoint() {
             let extensions = AWSPlugin.makeExtensions()
             #expect(extensions.map(\.id) == ["aws"])
-            #expect(NSStringFromClass(AWSPlugin.self) == "AWSDashPlugin")
         }
 
         // MARK: Storage

@@ -4,18 +4,18 @@ import SwiftData
 
 @MainActor
 final class FakePermissions: PermissionAsking {
-    func ask(icon: String, title: String, message: String, details: [PermissionDetail], allowLabel: String, denyLabel: String) async -> Bool { false }
+    func ask(_ prompt: PermissionPrompt) async -> Bool { false }
 }
 
 /// Answers every request with `response` and keeps the prompts it was sent.
 @MainActor
-final class FakeClaude: ClaudeService {
+final class FakeDashii: DashiiService {
     var response = ""
     private(set) var prompts: [String] = []
     var model: String { "test" }
 
-    func complete(system: String, prompt: String, outputSchema: JSONValue?, effort: String?) async throws -> String {
-        prompts.append(prompt)
+    func complete(_ request: DashiiRequest) async throws -> String {
+        prompts.append(request.prompt)
         return response
     }
 }
@@ -26,10 +26,10 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     let context: ModelContext
     var extensions: [any DashExtension]
     let permissions: any PermissionAsking = FakePermissions()
-    let fakeClaude = FakeClaude()
-    var claude: any ClaudeService { fakeClaude }
+    let fakeDashii = FakeDashii()
+    var dashii: any DashiiService { fakeDashii }
     let activity = ActivityLog()
-    private(set) var askedClaude: [String] = []
+    private(set) var askedDashii: [String] = []
 
     init(_ extensions: [any DashExtension] = []) {
         let container = try! ModelContainer(
@@ -39,7 +39,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     }
 
     func isEnabled(_ item: any DashExtension) -> Bool { true }
-    func askClaude(_ prompt: String) { askedClaude.append(prompt) }
+    func askDashii(_ prompt: String) { askedDashii.append(prompt) }
     func openManager(_ extensionID: String?) {}
     func addWidget(kind: String) throws {}
 }
@@ -73,7 +73,7 @@ func insertMeeting(_ host: FakeHost, title: String, startedAt: Date, lines: [(se
 }
 
 extension ZoomExtension {
-    func tool(_ name: String) throws -> ClaudeTool {
+    func tool(_ name: String) throws -> DashiiTool {
         guard let tool = tools.first(where: { $0.name == name }) else { throw ToolError("no tool \(name)") }
         return tool
     }

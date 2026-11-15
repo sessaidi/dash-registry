@@ -15,7 +15,7 @@ struct DatadogIntegrationTests {
         return (integration, "api.\(site)")
     }
 
-    private func tool(_ integration: DatadogIntegration, _ name: String) throws -> ClaudeTool {
+    private func tool(_ integration: DatadogIntegration, _ name: String) throws -> DashiiTool {
         try #require(integration.tools.first { $0.name == name })
     }
 

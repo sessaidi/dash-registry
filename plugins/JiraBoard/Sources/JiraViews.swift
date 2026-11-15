@@ -497,11 +497,11 @@ struct JiraIssueSheet: View {
     private var jira: JiraBoardFeature? { host.ext(JiraBoardFeature.self) }
 
     /// The Agents feature's tools, reached by id so this plugin doesn't link another plugin.
-    private func agentsTool(_ name: String) -> ClaudeTool? {
+    private func agentsTool(_ name: String) -> DashiiTool? {
         host.extensions.first { $0.id == "agents" && host.isEnabled($0) }?.tools.first { $0.name == name }
     }
 
-    private var startAgent: ClaudeTool? { agentsTool("agents_start") }
+    private var startAgent: DashiiTool? { agentsTool("agents_start") }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -547,8 +547,8 @@ struct JiraIssueSheet: View {
                 }
                 .fixedSize()
                 .disabled(transitions.isEmpty || busy)
-                Button("Ask Claude", systemImage: "sparkles") {
-                    host.askClaude("Look at Jira issue \(issue.key) and suggest how to approach it.")
+                Button("Ask Dashii", systemImage: "sparkles") {
+                    host.askDashii("Look at Jira issue \(issue.key) and suggest how to approach it.")
                     dismiss()
                 }
                 Spacer()

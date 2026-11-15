@@ -144,7 +144,7 @@ final class DatadogIntegration: Integration {
         return text.count > maxToolCharacters ? .string(String(text.prefix(maxToolCharacters)) + "\n[truncated]") : value
     }
 
-    var tools: [ClaudeTool] { DatadogTools.tools(self) }
+    var tools: [DashiiTool] { DatadogTools.tools(self) }
 }
 
 private struct DatadogSettings: View {

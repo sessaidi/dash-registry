@@ -121,7 +121,7 @@ struct ZoomExtensionTests {
         let meeting = try #require(zoom.meeting(meetingID))
         #expect(meeting.endedAt != nil)
         #expect(host.activity.events.map(\.kind) == ["meeting.started", "meeting.ended"])
-        #expect(host.fakeClaude.prompts.isEmpty)
+        #expect(host.fakeDashii.prompts.isEmpty)
     }
 
     @Test func emptyMeetingsAreDropped() async throws {
@@ -149,7 +149,7 @@ struct ZoomExtensionTests {
 
     @Test func summarizeOnStop() async throws {
         let (zoom, host) = makeZoom(summarizeOnStop: true)
-        host.fakeClaude.response = """
+        host.fakeDashii.response = """
             {"title":"Release sync","summary":"Migration ships Thursday.","decisions":["Ship Thursday"],
              "action_items":[{"owner":"Ada","task":"Post the numbers"}]}
             """
@@ -164,7 +164,7 @@ struct ZoomExtensionTests {
         #expect(meeting.decisions == ["Ship Thursday"])
         #expect(meeting.actionItems == [.init(owner: "Ada", task: "Post the numbers")])
         #expect(host.activity.events.last?.kind == "meeting.summarized")
-        let prompt = try #require(host.fakeClaude.prompts.first)
+        let prompt = try #require(host.fakeDashii.prompts.first)
         #expect(prompt.contains("Participants seen in Zoom: Ada"))
         #expect(prompt.contains("Lines from \"Sadik\" are the user's microphone"))
         #expect(prompt.contains("Others: The backfill finished."))
@@ -173,13 +173,13 @@ struct ZoomExtensionTests {
     @Test func summarizeTool() async throws {
         let (zoom, host) = makeZoom()
         let meeting = insertMeeting(host, title: "Zoom meeting", startedAt: .now, lines: [(1, "Sadik", "Let's ship it.")])
-        host.fakeClaude.response = #"{"title":"Ship it","summary":"Agreed to ship.","decisions":[],"action_items":[]}"#
+        host.fakeDashii.response = #"{"title":"Ship it","summary":"Agreed to ship.","decisions":[],"action_items":[]}"#
         let result = try await zoom.tool("meeting_summarize").run(["meeting_id": .string(meeting.id.uuidString)])
         #expect(result["title"]?.string == "Ship it")
         #expect(result["summary"]?.string == "Agreed to ship.")
         #expect(result["action_items"] == [])
 
-        host.fakeClaude.response = "not json"
+        host.fakeDashii.response = "not json"
         await #expect(throws: (any Error).self) { try await zoom.tool("meeting_summarize").run([:]) }
         #expect(!zoom.isSummarizing)
     }

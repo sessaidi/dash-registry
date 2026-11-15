@@ -166,10 +166,10 @@ extension DockerIntegration {
         return data.isEmpty ? .null : try JSONValue.parse(data)
     }
 
-    var granularTools: [ClaudeTool] {
+    var granularTools: [DashiiTool] {
         let idProperty = JSONSchema.string("Container id, id prefix or name.")
         return [
-            ClaudeTool(name: "docker_info", description: "The Docker engine: version, OS, CPUs, memory, how many containers run, are paused or stopped, how many images. Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_info", description: "The Docker engine: version, OS, CPUs, memory, how many containers run, are paused or stopped, how many images. Read-only.") { [weak self] _ in
                 guard let self else { return .null }
                 let info = try await json("/info")
                 return ["server_version": info["ServerVersion"] ?? .null, "os": info["OperatingSystem"] ?? .null, "architecture": info["Architecture"] ?? .null,
@@ -177,7 +177,7 @@ extension DockerIntegration {
                         "containers": ["running": info["ContainersRunning"] ?? 0, "paused": info["ContainersPaused"] ?? 0, "stopped": info["ContainersStopped"] ?? 0],
                         "images": info["Images"] ?? 0, "storage_driver": info["Driver"] ?? .null, "socket": socketPath.map { .string($0) } ?? .null]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_find_containers",
                 description: "Containers matching filters (docker ps --filter): name, image (ancestor), label, status, Compose project. Read-only.",
                 properties: ["name": JSONSchema.string("Part of the name."), "image": JSONSchema.string("Image the container was made from."),
@@ -195,12 +195,12 @@ extension DockerIntegration {
                 let query = ["all=1"] + (Self.filtersQuery(filters).map { [$0] } ?? [])
                 return .array(DockerContainer.list(try await json("/containers/json?" + query.joined(separator: "&"))).map(\.json))
             },
-            ClaudeTool(name: "docker_compose_projects", description: "Docker Compose projects running here: their services, each service's containers and how many are up. Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_compose_projects", description: "Docker Compose projects running here: their services, each service's containers and how many are up. Read-only.") { [weak self] _ in
                 guard let self else { return [] }
                 let filter = Self.filtersQuery(["label": ["com.docker.compose.project"]]) ?? ""
                 return Self.composeProjects(try await json("/containers/json?all=1&\(filter)"))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_stats", description: "CPU, memory, network and disk I/O, and process count of a running container right now (docker stats --no-stream). Without an id: every running container. Read-only.",
                 properties: ["id": JSONSchema.string("Container id, id prefix or name. Omit for all running containers.")]
             ) { [weak self] input in
@@ -215,7 +215,7 @@ extension DockerIntegration {
                 }
                 return .array(rows)
             },
-            ClaudeTool(name: "docker_top", description: "Processes running inside a container (docker top). Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
+            DashiiTool(name: "docker_top", description: "Processes running inside a container (docker top). Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
                 guard let self else { return .null }
                 let top = try await json(try Self.containerPath(try id(input), "top"))
                 let titles = top["Titles"]?.array?.compactMap(\.string) ?? []
@@ -223,7 +223,7 @@ extension DockerIntegration {
                     .object(Dictionary(zip(titles, row.array ?? []), uniquingKeysWith: { first, _ in first }))
                 })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_logs_search",
                 description: "A container's logs over a time window, optionally only lines containing some text (docker logs --since --until | grep), with timestamps. Read-only.",
                 properties: ["id": idProperty, "since_minutes": JSONSchema.integer("How far back, in minutes (default 60)."),
@@ -244,19 +244,19 @@ extension DockerIntegration {
                 let (text, truncated) = DockerLogs.truncate(lines.joined(separator: "\n"))
                 return ["lines": .number(Double(lines.count)), "logs": .string(text), "truncated": .bool(truncated)]
             },
-            ClaudeTool(name: "docker_health", description: "A container's health check: status, failing streak and the last checks' output. Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
+            DashiiTool(name: "docker_health", description: "A container's health check: status, failing streak and the last checks' output. Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
                 guard let self else { return .null }
                 let info = try await json(try Self.containerPath(try id(input), "json"))
                 guard let health = info["State"]?["Health"] else { return ["health": "none", "note": "This container has no health check."] }
                 return ["status": health["Status"] ?? .null, "failing_streak": health["FailingStreak"] ?? 0,
                         "test": info["Config"]?["Healthcheck"]?["Test"] ?? .null, "checks": health["Log"] ?? []]
             },
-            ClaudeTool(name: "docker_env_names", description: "Names of a container's environment variables, never their values. Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
+            DashiiTool(name: "docker_env_names", description: "Names of a container's environment variables, never their values. Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
                 guard let self else { return .null }
                 let info = try await json(try Self.containerPath(try id(input), "json"))
                 return .array((info["Config"]?["Env"]?.array ?? []).compactMap { $0.string?.split(separator: "=", maxSplits: 1).first.map { .string(String($0)) } })
             },
-            ClaudeTool(name: "docker_ports", description: "Published ports of running containers: host address and port to container port. Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_ports", description: "Published ports of running containers: host address and port to container port. Read-only.") { [weak self] _ in
                 guard let self else { return [] }
                 return .array((try await json("/containers/json").array ?? []).flatMap { container -> [JSONValue] in
                     let name = DockerContainer(json: container)?.name ?? ""
@@ -266,14 +266,14 @@ extension DockerIntegration {
                     }
                 })
             },
-            ClaudeTool(name: "docker_diff", description: "Files a container added (A), changed (C) or deleted (D) compared to its image (docker diff). Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
+            DashiiTool(name: "docker_diff", description: "Files a container added (A), changed (C) or deleted (D) compared to its image (docker diff). Read-only.", properties: ["id": idProperty], required: ["id"]) { [weak self] input in
                 guard let self else { return .null }
                 let changes = try await json(try Self.containerPath(try id(input), "changes")).array ?? []
                 let kinds = ["C", "A", "D"]
                 return ["count": .number(Double(changes.count)),
                         "changes": .array(changes.prefix(500).map { .string("\(kinds[min(max($0["Kind"]?.int ?? 0, 0), 2)]) \($0["Path"]?.string ?? "")") })]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_images", description: "Local images (docker images): tags, size, age, and which are dangling. Read-only.",
                 properties: ["dangling": JSONSchema.boolean("Only dangling (untagged) images."), "reference": JSONSchema.string("Only images matching, e.g. postgres or redis:7*.")]
             ) { [weak self] input in
@@ -284,7 +284,7 @@ extension DockerIntegration {
                 let path = "/images/json" + (Self.filtersQuery(filters).map { "?" + $0 } ?? "")
                 return .array((try await json(path).array ?? []).map(Self.imageSummary))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_image_inspect", description: "One image: entrypoint, command, exposed ports, working dir, labels, environment variable names (no values), architecture, size, layers. Read-only.",
                 properties: ["image": JSONSchema.string("Image reference or id, e.g. postgres:16.")], required: ["image"]
             ) { [weak self] input in
@@ -299,7 +299,7 @@ extension DockerIntegration {
                         "env_names": .array((config?["Env"]?.array ?? []).compactMap { $0.string?.split(separator: "=").first.map { .string(String($0)) } }),
                         "labels": config?["Labels"] ?? .null, "layers": .number(Double(info["RootFS"]?["Layers"]?.array?.count ?? 0))]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_image_history", description: "How an image was built, newest layer first: each step's instruction and size (docker history). Read-only.",
                 properties: ["image": JSONSchema.string("Image reference or id.")], required: ["image"]
             ) { [weak self] input in
@@ -310,7 +310,7 @@ extension DockerIntegration {
                      "created": $0["Created"]?.double.map { .string(Date(timeIntervalSince1970: $0).formatted(.iso8601)) } ?? .null]
                 })
             },
-            ClaudeTool(name: "docker_volumes", description: "Volumes (docker volume ls): driver, mountpoint, labels, and whether a container uses them. Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_volumes", description: "Volumes (docker volume ls): driver, mountpoint, labels, and whether a container uses them. Read-only.") { [weak self] _ in
                 guard let self else { return [] }
                 let volumes = try await json("/volumes")["Volumes"]?.array ?? []
                 let containers = try await json("/containers/json?all=1").array ?? []
@@ -321,7 +321,7 @@ extension DockerIntegration {
                             "created": $0["CreatedAt"] ?? .null, "labels": $0["Labels"] ?? .null, "in_use": .bool(used.contains(name))]
                 })
             },
-            ClaudeTool(name: "docker_networks", description: "Networks (docker network ls) with their driver, subnet and the containers attached. Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_networks", description: "Networks (docker network ls) with their driver, subnet and the containers attached. Read-only.") { [weak self] _ in
                 guard let self else { return [] }
                 var rows: [JSONValue] = []
                 for network in try await json("/networks").array ?? [] {
@@ -337,11 +337,11 @@ extension DockerIntegration {
                 }
                 return .array(rows)
             },
-            ClaudeTool(name: "docker_disk_usage", description: "Space used by images, containers, volumes and build cache (docker system df). Read-only.") { [weak self] _ in
+            DashiiTool(name: "docker_disk_usage", description: "Space used by images, containers, volumes and build cache (docker system df). Read-only.") { [weak self] _ in
                 guard let self else { return .null }
                 return Self.diskUsage(try await json("/system/df", timeout: 120))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_events",
                 description: "What happened recently (docker events): containers created, started, died (with exit code), killed by OOM, health changes, images pulled… Read-only.",
                 properties: ["since_minutes": JSONSchema.integer("How far back, in minutes (default 30)."),
@@ -361,7 +361,7 @@ extension DockerIntegration {
 
             // MARK: Changes (approval)
 
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_container_state", description: "Pause, unpause or kill (with a signal) a Docker container.",
                 properties: ["id": idProperty, "action": JSONSchema.string("What to do.", enum: ["pause", "unpause", "kill"]),
                              "signal": JSONSchema.string("For kill: SIGTERM, SIGINT, SIGHUP… (default SIGKILL).")],
@@ -380,7 +380,7 @@ extension DockerIntegration {
                 host?.emit("docker.container.\(action)", from: self, title: "Claude ran \(action) on container \(id)")
                 return ["ok": true, "id": .string(id), "action": .string(action)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_remove_container", description: "Remove a stopped container (docker rm). With force, a running one too; with volumes, its anonymous volumes as well.",
                 properties: ["id": idProperty, "force": JSONSchema.boolean("Kill and remove a running container."),
                              "volumes": JSONSchema.boolean("Also remove its anonymous volumes.")],
@@ -394,7 +394,7 @@ extension DockerIntegration {
                 host?.emit("docker.container.removed", from: self, title: "Claude removed container \(id)")
                 return ["ok": true, "removed": .string(id)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_exec", description: "Run a command inside a running container (docker exec, no TTY) and return its output and exit code. Times out after 60 seconds.",
                 properties: ["id": idProperty, "command": ["type": "array", "items": ["type": "string"], "description": "The command and its arguments, e.g. [\"ls\", \"-la\", \"/app\"]."],
                              "workdir": JSONSchema.string("Working directory."), "user": JSONSchema.string("User to run as.")],
@@ -415,7 +415,7 @@ extension DockerIntegration {
                 host?.emit("docker.container.exec", from: self, title: "Claude ran \(command.joined(separator: " ")) in \(id)")
                 return ["exit_code": result["ExitCode"] ?? .null, "output": .string(text), "truncated": .bool(truncated)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_image_pull", description: "Pull an image from its registry (docker pull). Waits up to 10 minutes.",
                 properties: ["image": JSONSchema.string("e.g. postgres:16 or ghcr.io/org/app:1.2. Without a tag, latest.")], required: ["image"], requiresApproval: true
             ) { [weak self] input in
@@ -430,7 +430,7 @@ extension DockerIntegration {
                 host?.emit("docker.image.pulled", from: self, title: "Claude pulled \(image)")
                 return ["ok": true, "image": .string(image), "status": lines.last?["status"] ?? .null]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "docker_prune", description: "Free space: remove stopped containers, dangling images, unused networks or build cache (docker … prune). Volumes are never pruned.",
                 properties: ["what": JSONSchema.string("What to remove.", enum: ["containers", "images", "networks", "build_cache"])],
                 required: ["what"], requiresApproval: true

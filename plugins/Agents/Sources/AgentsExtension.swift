@@ -156,13 +156,13 @@ final class AgentsExtension: DashExtension {
 
     static let agentTask = AITask(
         id: "agent", title: "Coding agent",
-        summary: "The Claude Code session that plans with you, then implements with extreme TDD in the ticket's worktree.",
-        models: [.opus, .fable, .sonnet], defaultModel: .opus, efforts: [.high, .xhigh, .max, .medium], defaultEffort: .high)
+        summary: "The Dashii session that plans with you, then implements with extreme TDD in the ticket's worktree.",
+        models: [.strong, .deep, .balanced], defaultModel: .strong, efforts: [.high, .xhigh, .max, .medium], defaultEffort: .high)
 
     static let pullRequestTask = AITask(
         id: "pull-request", title: "Opening pull requests",
         summary: "When the agent is done, Dash drafts the PR from these templates (a repository can have its own in Agents settings); you review it, then confirm to push and open it.",
-        models: [.sonnet, .haiku, .opus], enabledByDefault: true,
+        models: [.balanced, .fast, .strong], enabledByDefault: true,
         templates: [
             AITemplate(id: "title", title: "PR title", defaultText: "[{{issue_key}}] {{issue_title}}",
                        variables: pullRequestVariables),
@@ -472,7 +472,7 @@ final class AgentsExtension: DashExtension {
     /// Answers a question about the drafted PR (why a sentence is there, what a change does)
     /// from the branch's commits, diff summary and the agent's last report. Read-only.
     func explain(_ draft: PullRequestDraft, question: String, session: AgentSession) async throws -> String {
-        guard let claude = host?.claude else { throw ToolError("Agents are not ready.") }
+        guard let claude = host?.dashii else { throw ToolError("Agents are not ready.") }
         let worktree = URL(filePath: session.worktreePath)
         let log = (try? await Git.git(["log", "--oneline", "\(session.baseRef)..HEAD"], in: worktree)) ?? ""
         let stat = (try? await Git.git(["diff", "--stat", "\(session.baseRef)...HEAD"], in: worktree)) ?? ""
@@ -521,14 +521,14 @@ final class AgentsExtension: DashExtension {
 
     private struct OpenInput: Decodable { let session_id: String }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(name: "agents_list", description: "List coding-agent sessions with their ticket, branch, phase (planning or implementing), status and cost.") { [weak self] _ in
+            DashiiTool(name: "agents_list", description: "List coding-agent sessions with their ticket, branch, phase (planning or implementing), status and cost.") { [weak self] _ in
                 guard let self, let host else { return [] }
                 let sessions = (try? host.context.fetch(FetchDescriptor<AgentSession>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []
                 return .array(sessions.map(\.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "agents_start",
                 description: "Start a Claude Code agent on a Jira ticket: creates a git worktree and branch, then the agent proposes a TDD plan.",
                 properties: [
@@ -541,7 +541,7 @@ final class AgentsExtension: DashExtension {
                 let request = try input.toolInput(StartInput.self)
                 return try await start(issueKey: request.issue_key, repoPath: request.repo_path).json
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "agents_open",
                 description: "Open an agent session's chat window so the user can follow and talk to the agent.",
                 properties: ["session_id": JSONSchema.string("Session id.")],
@@ -552,7 +552,7 @@ final class AgentsExtension: DashExtension {
                 openWindow(session.id)
                 return .string("opened")
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "agents_send",
                 description: "Send a message to an agent session (it must be idle). The agent answers in its own window; read the reply with agents_read.",
                 properties: ["session_id": JSONSchema.string("Session id."), "message": JSONSchema.string("Message to the agent.")],
@@ -565,7 +565,7 @@ final class AgentsExtension: DashExtension {
                 send(session, message: request.message)
                 return "sent"
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "agents_read",
                 description: "Read an agent session's recent transcript.",
                 properties: ["session_id": JSONSchema.string("Session id."), "last": JSONSchema.integer("Number of recent messages (default 30).")],

@@ -52,13 +52,13 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class FakePermissions: PermissionAsking {
-    func ask(icon: String, title: String, message: String, details: [PermissionDetail], allowLabel: String, denyLabel: String) async -> Bool { false }
+    func ask(_ prompt: PermissionPrompt) async -> Bool { false }
 }
 
 @MainActor
-final class FakeClaude: ClaudeService {
+final class FakeDashii: DashiiService {
     var model: String { "test" }
-    func complete(system: String, prompt: String, outputSchema: JSONValue?, effort: String?) async throws -> String { "" }
+    func complete(_ request: DashiiRequest) async throws -> String { "" }
 }
 
 /// Stands in for an integration (`atlassian`, `github`) with a stubbed connection.
@@ -86,7 +86,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     let context: ModelContext
     var extensions: [any DashExtension]
     let permissions: any PermissionAsking = FakePermissions()
-    let claude: any ClaudeService = FakeClaude()
+    let dashii: any DashiiService = FakeDashii()
     let activity = ActivityLog()
     /// Extensions hold their host weakly; keep test hosts alive for the whole run.
     static var alive: [FakeHost] = []
@@ -98,7 +98,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     }
 
     func isEnabled(_ item: any DashExtension) -> Bool { true }
-    func askClaude(_ prompt: String) {}
+    func askDashii(_ prompt: String) {}
     func openManager(_ extensionID: String?) {}
     func addWidget(kind: String) throws {}
 }

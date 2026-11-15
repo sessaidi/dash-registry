@@ -304,7 +304,7 @@ final class ZoomExtension: DashExtension {
             \(transcript)
             </transcript>
             """
-        let text = try await host.claude.complete(
+        let text = try await host.dashii.complete(
             system: "You summarise work meetings for an engineer: what was discussed, what was decided, and who owes what.",
             prompt: prompt, outputSchema: Self.summarySchema, effort: "low")
         let result = try JSONValue.parse(text)
@@ -330,15 +330,15 @@ final class ZoomExtension: DashExtension {
         return latest
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(name: "meetings_list", description: "List recorded meetings, newest first, with their summaries and action items.") { [weak self] _ in
+            DashiiTool(name: "meetings_list", description: "List recorded meetings, newest first, with their summaries and action items.") { [weak self] _ in
                 guard let self, let host else { return [] }
                 var descriptor = FetchDescriptor<MeetingRecord>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)])
                 descriptor.fetchLimit = 30
                 return .array(((try? host.context.fetch(descriptor)) ?? []).map(\.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "meeting_transcript",
                 description: "Read a meeting's transcript. With Zoom's captions on, each line has the participant's name; otherwise lines are the user (microphone) or \"Others\" (everyone else).",
                 properties: ["meeting_id": JSONSchema.string("Meeting id, or \"current\". Defaults to the current or latest meeting.")]
@@ -347,7 +347,7 @@ final class ZoomExtension: DashExtension {
                 let meeting = try resolve(try input.toolInput(MeetingInput.self).meeting_id)
                 return meeting.json.merging(["transcript": .string(Self.transcriptText(namedSegments(meeting.id), since: meeting.startedAt))])
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "meeting_speakers",
                 description: "Who spoke in a meeting, in the order they first spoke, with when, how many lines and words, and who is speaking now. Names come from Zoom's captions (turn on captions or the live transcript in Zoom); without them only the user is named.",
                 properties: ["meeting_id": JSONSchema.string("Meeting id, or \"current\". Defaults to the current or latest meeting.")]
@@ -365,13 +365,13 @@ final class ZoomExtension: DashExtension {
                         }),
                         "not_heard_yet": .array(meeting.participants.filter { name in !speakers.contains { $0.name == name } }.map { .string($0) })]
             },
-            ClaudeTool(name: "meeting_participants", description: "Who is in the Zoom meeting right now, read from Zoom's Participants panel.") { [weak self] _ in
+            DashiiTool(name: "meeting_participants", description: "Who is in the Zoom meeting right now, read from Zoom's Participants panel.") { [weak self] _ in
                 guard let self else { return nil }
                 return ["in_meeting": .bool(inMeeting), "recording": .bool(isRecording),
                         "participants": .array(participants.map { .string($0) }),
                         "note": participants.isEmpty && inMeeting ? "Open Zoom's Participants panel so Dash can read it." : ""]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "meeting_summarize",
                 description: "Regenerate a meeting's title, summary, decisions and action items from its transcript.",
                 properties: ["meeting_id": JSONSchema.string("Meeting id. Defaults to the latest meeting.")]

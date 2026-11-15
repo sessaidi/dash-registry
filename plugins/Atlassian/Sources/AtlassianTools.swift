@@ -90,13 +90,13 @@ extension AtlassianIntegration {
         text.count > maxText ? String(text.prefix(maxText)) + "\n[truncated]" : text
     }
 
-    var tools: [ClaudeTool] { confluenceTools + jiraTools + [cacheTool] }
+    var tools: [DashiiTool] { confluenceTools + jiraTools + [cacheTool] }
 
     // MARK: Confluence
 
-    private var confluenceTools: [ClaudeTool] {
+    private var confluenceTools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "confluence_search",
                 description: "Search Confluence pages by text (CQL siteSearch). Call when the user asks about docs, runbooks, designs or decisions that might be written down.",
                 properties: ["query": JSONSchema.string("Words to search for."), "space": JSONSchema.string("Optional space key to search in."),
@@ -119,7 +119,7 @@ extension AtlassianIntegration {
                 for hit in hits { if let id = hit["id"]?.string { remember("confluence.hit", key: id, value: hit) } }
                 return Sanitizer.clean(.array(hits))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "confluence_get_page",
                 description: "Read a Confluence page by id (from confluence_search): title, space, version, last update, labels, ancestors (breadcrumb) and the body as Markdown (cut at 60,000 characters). Reuses a recent copy unless fresh is true.",
                 properties: ["id": JSONSchema.string("Page id."), "fresh": Self.freshProperty], required: ["id"]
@@ -134,7 +134,7 @@ extension AtlassianIntegration {
                     return Self.pageRecord(page, site: self.siteBase)
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "confluence_page_children",
                 description: "The child pages of a Confluence page (id, title), e.g. to walk a runbook section.",
                 properties: ["id": JSONSchema.string("Parent page id."), "fresh": Self.freshProperty], required: ["id"]
@@ -150,7 +150,7 @@ extension AtlassianIntegration {
                     })]
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "confluence_page_attachments",
                 description: "Attachments of a Confluence page: file name, type, size, last update and download link (metadata only, files aren't downloaded).",
                 properties: ["id": JSONSchema.string("Page id."), "fresh": Self.freshProperty], required: ["id"]
@@ -168,7 +168,7 @@ extension AtlassianIntegration {
                     })]
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "confluence_spaces",
                 description: "Confluence spaces (key, name, type), to know where to search.",
                 properties: ["fresh": Self.freshProperty]
@@ -202,9 +202,9 @@ extension AtlassianIntegration {
     static let issueFields = "summary,status,assignee,reporter,priority,issuetype,description,created,updated,labels,components,fixVersions,parent,subtasks,issuelinks,comment"
     static let hitFields: JSONValue = ["summary", "status", "assignee", "priority", "issuetype", "updated"]
 
-    private var jiraTools: [ClaudeTool] {
+    private var jiraTools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_myself_issues",
                 description: "List the open Jira issues assigned to the signed-in user (not Done), most recently updated first, up to 50. Returns key, summary, status and url.",
                 properties: [:]
@@ -217,7 +217,7 @@ extension AtlassianIntegration {
                     return ["key": hit["key"] ?? .null, "summary": hit["summary"] ?? .null, "status": hit["status"] ?? .null, "url": hit["url"] ?? .null]
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_jql_search",
                 description: "Search Jira with JQL (read-only), e.g. project = LAF AND status = \"In Progress\" ORDER BY updated DESC. Returns key, summary, status, type, priority, assignee, updated and url, up to 50.",
                 properties: ["jql": JSONSchema.string("JQL query."), "limit": JSONSchema.integer("How many (default 25, at most 50).")],
@@ -234,7 +234,7 @@ extension AtlassianIntegration {
                     return hit
                 }))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_issue",
                 description: "Read a Jira issue by key: summary, status, type, priority, assignee, reporter, description (as text), labels, components, fix versions, parent, subtasks, linked issues and the latest comments. Reuses a recent copy unless fresh is true.",
                 properties: ["key": JSONSchema.string("Issue key, e.g. LAF-1234."), "fresh": Self.freshProperty], required: ["key"]
@@ -247,7 +247,7 @@ extension AtlassianIntegration {
                     return Self.issueRecord(issue, site: self.siteBase)
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_issue_comments",
                 description: "A Jira issue's comments, newest first (author, date, text).",
                 properties: ["key": JSONSchema.string("Issue key."), "limit": JSONSchema.integer("How many (default 20, at most 100)."), "fresh": Self.freshProperty],
@@ -264,7 +264,7 @@ extension AtlassianIntegration {
                     return ["key": .string(key), "total": result["total"] ?? .null, "comments": .array((result["comments"]?.array ?? []).map(Self.commentRecord))]
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_issue_changelog",
                 description: "A Jira issue's history: who changed which field from what to what, and when (newest first, up to 50 changes).",
                 properties: ["key": JSONSchema.string("Issue key."), "fresh": Self.freshProperty], required: ["key"]
@@ -283,7 +283,7 @@ extension AtlassianIntegration {
                     return ["key": .string(key), "changes": .array(changes)]
                 }
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "jira_projects",
                 description: "Jira projects (key, name, type, lead).",
                 properties: ["fresh": Self.freshProperty]
@@ -345,8 +345,8 @@ extension AtlassianIntegration {
 
     // MARK: Offline lookup
 
-    private var cacheTool: ClaudeTool {
-        ClaudeTool(
+    private var cacheTool: DashiiTool {
+        DashiiTool(
             name: "atlassian_cached",
             description: "What's already mirrored from Jira and Confluence on this Mac (pages and issues read before, search hits, lists), searchable by text, without going online. Use it when offline or to find something read earlier.",
             properties: ["kind": JSONSchema.string("Only this kind.", enum: Self.cacheKinds.map(\.kind)),

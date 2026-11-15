@@ -203,9 +203,9 @@ final class WorkspacesFeature: DashExtension {
          "git_branch": workspace.gitBranch.map(JSONValue.string) ?? .null, "url": .string("https://\(workspace.url)")]
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "workspaces_list",
                 description: "List backend workspaces in the configured environment and region (namespace, owner, node pool, last deploy, persist flag, URL).",
                 properties: ["mine": JSONSchema.boolean("Only workspaces deployed by the user.")]
@@ -215,7 +215,7 @@ final class WorkspacesFeature: DashExtension {
                 let list = try await client().list()
                 return .array(list.filter { !mine || $0.deployedBy == username }.map(Self.json))
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspaces_for_branch",
                 description: "Workspaces deployed from a git branch, looked up in both dev and qa (name, environment, owner, last deploy, URL). Read-only.",
                 properties: ["branch": JSONSchema.string("Branch name, e.g. feature/LAF-123-retries.")], required: ["branch"]
@@ -234,7 +234,7 @@ final class WorkspacesFeature: DashExtension {
                 }
                 return ["branch": .string(branch), "workspaces": .array(found), "errors": .object(errors)]
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_status",
                 description: "A workspace's deployments (ready/desired, images), pods (phase, restarts, problems like CrashLoopBackOff) and hostnames.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"]
@@ -247,14 +247,14 @@ final class WorkspacesFeature: DashExtension {
                     "hostnames": .array(status.hostnames.map { .string($0) }),
                 ])
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspaces_clean_candidates",
                 description: "Workspaces that `clean` would delete (not deployed for a week, created over a month ago without deploys, or on legacy/unknown node pools), excluding persisted ones. Read-only."
             ) { [weak self] _ in
                 guard let self else { return [] }
                 return .array(try await client().cleanCandidates().map { Self.json($0.workspace).merging(["reason": .string($0.reason)]) })
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_set_persist",
                 description: "Mark a workspace as persisted (never cleaned) or not.",
                 properties: ["name": JSONSchema.string("Workspace name."), "persist": JSONSchema.boolean("true to protect it from clean.")],
@@ -265,7 +265,7 @@ final class WorkspacesFeature: DashExtension {
                 try await setPersist(request.name, request.persist)
                 return "done"
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_delete",
                 description: "Delete a workspace (its whole namespace). The user confirms in a dialog.",
                 properties: ["name": JSONSchema.string("Workspace name.")], required: ["name"], writesRemotely: true
@@ -274,7 +274,7 @@ final class WorkspacesFeature: DashExtension {
                 try await delete(try input.toolInput(NameInput.self).name)
                 return "deleted"
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "workspace_deploy_image",
                 description: "Point a workspace app at an image already in Artifact Registry (strategic-merge patch, like `up-toolbox workspace run` after its build) and wait until every pod runs it.",
                 properties: [

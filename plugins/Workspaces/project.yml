@@ -31,7 +31,6 @@ targets:
       path: Info.plist
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSPrincipalClass: WorkspacesDashPlugin
         DashPluginID: workspaces
         DashPluginVersion: "2.5.0"
         DashKitMinimumVersion: "1.5.0"

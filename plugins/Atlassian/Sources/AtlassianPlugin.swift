@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Entry point of Atlassian.dashplugin (matches NSPrincipalClass in Info.plist).
-@objc(AtlassianDashPlugin)
-final class AtlassianPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [AtlassianIntegration()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum AtlassianPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [AtlassianIntegration()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

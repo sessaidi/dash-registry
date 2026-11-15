@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Principal class of GitHubPlugin.dashplugin (`NSPrincipalClass` = GitHubDashPlugin).
-@objc(GitHubDashPlugin)
-final class GitHubPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [GitHubIntegration()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum GitHubPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [GitHubIntegration()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

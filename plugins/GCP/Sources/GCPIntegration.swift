@@ -120,9 +120,9 @@ final class GCPIntegration: Integration {
         return connection
     }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_api_get",
                 description: "Read any Google Cloud REST API as the user (GET only), e.g. https://container.googleapis.com/v1/projects/PROJECT/locations/-/clusters or https://logging.googleapis.com/... Responses are cut at 100,000 characters.",
                 properties: ["url": JSONSchema.string("Full https URL on *.googleapis.com.")], required: ["url"]
@@ -130,7 +130,7 @@ final class GCPIntegration: Integration {
                 guard let self else { throw ToolError("Google Cloud is unavailable.") }
                 return try await self.apiGet(input.toolInput(GetInput.self).url)
             },
-            ClaudeTool(
+            DashiiTool(
                 name: "gcp_list_projects",
                 description: "List the Google Cloud projects the user can see: projectId, name and state.",
                 properties: [:]

@@ -22,7 +22,7 @@ struct JiraBoardFeatureTests {
         Dictionary(uniqueKeysWithValues: try host.context.fetch(FetchDescriptor<JiraIssue>()).map { ($0.key, $0) })
     }
 
-    func tool(_ feature: JiraBoardFeature, _ name: String) throws -> ClaudeTool {
+    func tool(_ feature: JiraBoardFeature, _ name: String) throws -> DashiiTool {
         try #require(feature.tools.first { $0.name == name })
     }
 

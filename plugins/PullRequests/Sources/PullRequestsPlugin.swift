@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Principal class of PullRequestsPlugin.dashplugin (`NSPrincipalClass` = PullRequestsDashPlugin).
-@objc(PullRequestsDashPlugin)
-final class PullRequestsPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [PullRequestsFeature()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum PullRequestsPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [PullRequestsFeature()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

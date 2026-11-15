@@ -9,7 +9,7 @@ struct ToolTests {
     /// Three open PRs on acme/api: #1 mine, #2 requests my review (reviewed by Claude), #3 neither.
     func seeded() async throws -> Harness {
         let harness = Harness(autoReview: false)
-        harness.claude.reply = Fixtures.review
+        harness.dashii.reply = Fixtures.review
         harness.serve([
             "/repos/acme/api/pulls": .json(Fixtures.list(
                 Fixtures.pull(1, sha: "a1", author: "me", updated: "2026-11-10T09:00:00Z"),
@@ -28,8 +28,8 @@ struct ToolTests {
         let list = try harness.tool("github_list_prs")
         let all = try #require(try await list.run([:]).array)
         #expect(all.map { $0["number"]?.int } == [2, 3, 1])
-        #expect(all[0]["claude_review"] == ["status": "done", "verdict": "request_changes", "risk": "high"])
-        #expect(all[1]["claude_review"] == .null)
+        #expect(all[0]["dashii_review"] == ["status": "done", "verdict": "request_changes", "risk": "high"])
+        #expect(all[1]["dashii_review"] == .null)
         #expect(all[0]["url"] == "https://github.com/acme/api/pull/2" && all[0]["draft"] == false)
         #expect(try await list.run(["filter": "mine"]).array?.map { $0["number"]?.int } == [1])
         #expect(try await list.run(["filter": "review_requested"]).array?.map { $0["number"]?.int } == [2])
@@ -52,8 +52,8 @@ struct ToolTests {
         #expect(result["reviews"] == [["user": "bob", "state": "CHANGES_REQUESTED", "body": "no"]])
         // Only the last 20 comments.
         #expect(result["comments"]?.array?.count == 20 && result["comments"]?[0]?["body"] == "c6")
-        #expect(result["claude_review"]?["verdict"] == "request_changes")
-        #expect(result["claude_review"]?["findings"]?.array?.count == 2)
+        #expect(result["dashii_review"]?["verdict"] == "request_changes")
+        #expect(result["dashii_review"]?["findings"]?.array?.count == 2)
     }
 
     @Test func getDiffTruncatesLargeDiffs() async throws {

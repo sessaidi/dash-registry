@@ -27,7 +27,6 @@ targets:
       path: Info.plist
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSPrincipalClass: DailyStandupDashPlugin
         DashPluginID: daily-standup
         DashPluginVersion: "1.4.0"
         DashKitMinimumVersion: "1.5.0"

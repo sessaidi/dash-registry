@@ -453,9 +453,9 @@ final class FakeGitHub: Integration {
 
     static func iso(_ day: Double) -> JSONValue { .string(TempRepo.day(day).formatted(.iso8601)) }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(name: "github_sync_tags", description: "") { [weak self] _ in
+            DashiiTool(name: "github_sync_tags", description: "") { [weak self] _ in
                 guard let self, let store = self.hostStore else { return nil }
                 calls.append("github_sync_tags")
                 let scope = "github:acme/api"
@@ -466,7 +466,7 @@ final class FakeGitHub: Integration {
                 store.replace(kind: "git.repo", scope: scope, with: [SyncedRecord(kind: "git.repo", scope: scope, key: "info", value: ["default_branch": "main"], source: "github")])
                 return ["tags": 3]
             },
-            ClaudeTool(name: "github_sync_compare", description: "") { [weak self] input in
+            DashiiTool(name: "github_sync_compare", description: "") { [weak self] input in
                 guard let self, let store = self.hostStore else { return nil }
                 calls.append("github_sync_compare")
                 let base = input["base"]?.string ?? "", head = input["head"]?.string ?? ""

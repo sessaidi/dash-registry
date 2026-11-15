@@ -1,4 +1,4 @@
-import DashKit
+@_spi(DashHost) import DashKit
 import Foundation
 import Testing
 
@@ -73,11 +73,11 @@ final class Sandbox {
         defaults = UserDefaults(suiteName: suiteName)!
         legacyAccount = "atlassian-test-legacy-\(unique)"
         jiraAccount = "jira-test-\(unique)"
-        secrets = SecretStore(extensionID: "atlassian-test-\(unique)", legacy: ["token": legacyAccount])
+        secrets = SecretStore(extensionID: "atlassian-test-\(unique)", legacy: ["token": [legacyAccount, jiraAccount]])
     }
 
     func integration() -> AtlassianIntegration {
-        AtlassianIntegration(defaults: defaults, secrets: secrets, legacyTokenAccount: jiraAccount, session: StubURLProtocol.session())
+        AtlassianIntegration(defaults: defaults, secrets: secrets, session: StubURLProtocol.session())
     }
 
     func configure(site: String = "https://acme.atlassian.net", email: String = "me@acme.dev", token: String = "s3cret") {
@@ -120,7 +120,7 @@ struct AtlassianIntegrationTests {
     @Test func productionStorageContract() {
         let atlassian = AtlassianIntegration()
         #expect(atlassian.secrets?.extensionID == "atlassian")
-        #expect(atlassian.secrets?.legacy == ["token": "atlassian"])
+        #expect(atlassian.secrets?.legacy == ["token": ["atlassian", "jira"]])
         #expect(atlassian.secrets?.account("token") == "atlassian.token")
     }
 

@@ -248,8 +248,8 @@ private struct MeetingSheet: View {
                     }
                 }
                 .disabled(zoom?.isSummarizing == true)
-                Button("Ask Claude", systemImage: "sparkles") {
-                    host.askClaude("Read the transcript of meeting \(meeting.id.uuidString) (\(meeting.title)). Which action items should become Jira tickets?")
+                Button("Ask Dashii", systemImage: "sparkles") {
+                    host.askDashii("Read the transcript of meeting \(meeting.id.uuidString) (\(meeting.title)). Which action items should become Jira tickets?")
                     dismiss()
                 }
                 Spacer()

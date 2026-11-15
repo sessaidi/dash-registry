@@ -15,17 +15,17 @@ extension WorkspacesFeature {
     private struct LinkInput: Decodable { let name: String; let worktree: String; let service: String? }
     private struct TrainInput: Decodable { let name: String?; let limit: Int? }
 
-    var granularTools: [ClaudeTool] {
+    var granularTools: [DashiiTool] {
         let name = JSONSchema.string("Workspace name.")
         return [
-            ClaudeTool(name: "workspace_deployments", description: "A workspace's deployments: ready/desired replicas and images. Read-only.",
+            DashiiTool(name: "workspace_deployments", description: "A workspace's deployments: ready/desired replicas and images. Read-only.",
                        properties: ["name": name], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let status = try await client().status(try input.toolInput(Name.self).name)
                 return .array(status.deployments.map { ["name": .string($0.name), "ready": .number(Double($0.ready)), "desired": .number(Double($0.desired)),
                                                          "images": .array($0.images.map { .string($0) })] })
             },
-            ClaudeTool(name: "workspace_pods", description: "A workspace's pods: app, phase, readiness, restarts, problem (CrashLoopBackOff…), pod-level reason (Evicted…) and node. Filter by app. Read-only.",
+            DashiiTool(name: "workspace_pods", description: "A workspace's pods: app, phase, readiness, restarts, problem (CrashLoopBackOff…), pod-level reason (Evicted…) and node. Filter by app. Read-only.",
                        properties: ["name": name, "app": JSONSchema.string("Only this app's pods.")], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(PodFilter.self)
@@ -37,7 +37,7 @@ extension WorkspacesFeature {
                      "failing_conditions": .array(pod.failingConditions.map { .string($0) })]
                 })
             },
-            ClaudeTool(name: "workspace_containers", description: "Containers of a workspace's pods: state, last termination (reason such as OOMKilled, exit code, start/end times, message), restarts, requests/limits and current usage. Filter by pod. Read-only.",
+            DashiiTool(name: "workspace_containers", description: "Containers of a workspace's pods: state, last termination (reason such as OOMKilled, exit code, start/end times, message), restarts, requests/limits and current usage. Filter by pod. Read-only.",
                        properties: ["name": name, "pod": JSONSchema.string("Only this pod.")], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(PodFilter.self)
@@ -55,7 +55,7 @@ extension WorkspacesFeature {
                      } ?? .null]
                 } })
             },
-            ClaudeTool(name: "workspace_events", description: "Kubernetes events in a workspace, newest first (scheduling, pulls, probes, kills, evictions). Filter to warnings or one object (e.g. Pod/api-7f9c). Read-only.",
+            DashiiTool(name: "workspace_events", description: "Kubernetes events in a workspace, newest first (scheduling, pulls, probes, kills, evictions). Filter to warnings or one object (e.g. Pod/api-7f9c). Read-only.",
                        properties: ["name": name, "warningsOnly": JSONSchema.boolean("Only Warning events (default true)."),
                                     "object": JSONSchema.string("Kind/name, e.g. Pod/api-7f9c.")], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
@@ -67,21 +67,21 @@ extension WorkspacesFeature {
                          "last_seen": event.lastSeen.map { .string($0.formatted(.iso8601)) } ?? .null, "message": .string(event.message)]
                     })
             },
-            ClaudeTool(name: "workspace_findings", description: "Likely causes of a workspace's problems (OOMKilled, evictions for disk or memory, unschedulable pods, image pulls, missing config, failing probes, node pressure), each with its reference and verbatim evidence. Read-only.",
+            DashiiTool(name: "workspace_findings", description: "Likely causes of a workspace's problems (OOMKilled, evictions for disk or memory, unschedulable pods, image pulls, missing config, failing probes, node pressure), each with its reference and verbatim evidence. Read-only.",
                        properties: ["name": name], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let diagnosis = try await client().diagnose(try input.toolInput(Name.self).name)
                 return .array(diagnosis.findings.map { ["severity": .string($0.severity), "title": .string($0.title), "reference": .string($0.reference),
                                                         "evidence": .string($0.evidence), "hint": .string($0.hint)] })
             },
-            ClaudeTool(name: "workspace_nodes", description: "The nodes a workspace's pods run on: pressure conditions (MemoryPressure, DiskPressure, PIDPressure, NotReady) and allocatable resources. Read-only.",
+            DashiiTool(name: "workspace_nodes", description: "The nodes a workspace's pods run on: pressure conditions (MemoryPressure, DiskPressure, PIDPressure, NotReady) and allocatable resources. Read-only.",
                        properties: ["name": name], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let diagnosis = try await client().diagnose(try input.toolInput(Name.self).name)
                 return .array(diagnosis.nodes.map { ["name": .string($0.name), "pressures": .array($0.pressures.map { .string($0) }),
                                                      "allocatable": .object($0.allocatable.mapValues { .string($0) })] })
             },
-            ClaudeTool(name: "workspace_metrics", description: "Cloud Monitoring time series for a workspace's containers: memory (bytes), memory_limit and cpu_limit (fraction of the limit), cpu (cores), restarts, ephemeral_storage. Read-only.",
+            DashiiTool(name: "workspace_metrics", description: "Cloud Monitoring time series for a workspace's containers: memory (bytes), memory_limit and cpu_limit (fraction of the limit), cpu (cores), restarts, ephemeral_storage. Read-only.",
                        properties: ["name": name, "metric": JSONSchema.string("What to read.", enum: ["memory", "memory_limit", "cpu", "cpu_limit", "restarts", "ephemeral_storage"]),
                                     "pod": JSONSchema.string("Pod name."), "container": JSONSchema.string("Container name."),
                                     "since": JSONSchema.string("1h, 6h, 24h, 7d (default 6h).")], required: ["name", "metric"]) { [weak self] input in
@@ -99,7 +99,7 @@ extension WorkspacesFeature {
                                                    output: "\(result["series"]?.array?.count ?? 0) series", failed: false))
                 return result
             },
-            ClaudeTool(name: "workspace_config", description: "A workspace's configuration: its ConfigMaps' names, or one ConfigMap's files. Read-only.",
+            DashiiTool(name: "workspace_config", description: "A workspace's configuration: its ConfigMaps' names, or one ConfigMap's files. Read-only.",
                        properties: ["name": name, "configMap": JSONSchema.string("ConfigMap name; omit to list them.")], required: ["name"]) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(ConfigInput.self)
@@ -108,13 +108,13 @@ extension WorkspacesFeature {
                 }
                 return .array(try await client().configMaps(workspace: request.name).map { .string($0) })
             },
-            ClaudeTool(name: "workspace_env", description: "An app's environment variables in a workspace (secret values are shown as references, never revealed). Read-only.",
+            DashiiTool(name: "workspace_env", description: "An app's environment variables in a workspace (secret values are shown as references, never revealed). Read-only.",
                        properties: ["name": name, "app": JSONSchema.string("Deployment/container name.")], required: ["name", "app"]) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(AppInput.self)
                 return .object(try await client().environment(workspace: request.name, app: request.app).mapValues { .string($0) })
             },
-            ClaudeTool(name: "workspace_set_env", description: "Set or remove environment variables on an app in a workspace (its pods restart with them).",
+            DashiiTool(name: "workspace_set_env", description: "Set or remove environment variables on an app in a workspace (its pods restart with them).",
                        properties: ["name": name, "app": JSONSchema.string("Deployment/container name."),
                                     "set": JSONSchema.object("Variables to set: {\"NAME\": \"value\"}."),
                                     "remove": JSONSchema.object("Names to remove: [\"NAME\"].")],
@@ -127,7 +127,7 @@ extension WorkspacesFeature {
                 finish(car)
                 return "updated"
             },
-            ClaudeTool(name: "workspace_restart", description: "Restart an app in a workspace (new pods, same spec), like kubectl rollout restart.",
+            DashiiTool(name: "workspace_restart", description: "Restart an app in a workspace (new pods, same spec), like kubectl rollout restart.",
                        properties: ["name": name, "app": JSONSchema.string("Deployment name.")], required: ["name", "app"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(AppInput.self)
@@ -135,7 +135,7 @@ extension WorkspacesFeature {
                 host?.emit("workspace.restarted", from: self, title: "\(request.app) restarted in \(request.name)", importance: .info)
                 return "restarted"
             },
-            ClaudeTool(name: "workspace_link_worktree", description: "Link a workspace to a worktree (folder) so it can be deployed from it; service is the app folder in a monorepo (apps/<service>).",
+            DashiiTool(name: "workspace_link_worktree", description: "Link a workspace to a worktree (folder) so it can be deployed from it; service is the app folder in a monorepo (apps/<service>).",
                        properties: ["name": name, "worktree": JSONSchema.string("Worktree path."), "service": JSONSchema.string("Service folder path, optional.")],
                        required: ["name", "worktree"]) { [weak self] input in
                 guard let self else { return nil }
@@ -143,7 +143,7 @@ extension WorkspacesFeature {
                 link(request.name, worktree: (request.worktree as NSString).expandingTildeInPath, service: request.service.map { ($0 as NSString).expandingTildeInPath })
                 return ["worktree": .string(links[request.name]?.worktree ?? ""), "service": .string(links[request.name]?.service ?? "")]
             },
-            ClaudeTool(name: "workspace_train", description: "Deployment history (the train): what was deployed to a workspace (or all), with app, version, branch, who, when, duration and result. Read-only.",
+            DashiiTool(name: "workspace_train", description: "Deployment history (the train): what was deployed to a workspace (or all), with app, version, branch, who, when, duration and result. Read-only.",
                        properties: ["name": JSONSchema.string("Workspace name; omit for all."), "limit": JSONSchema.integer("How many (default 20).")]) { [weak self] input in
                 guard let self else { return [] }
                 let request = try input.toolInput(TrainInput.self)

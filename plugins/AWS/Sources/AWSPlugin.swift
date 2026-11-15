@@ -1,10 +1,9 @@
 import DashKit
 import Foundation
 
-/// Principal class of AWSPlugin.dashplugin (`NSPrincipalClass` = AWSDashPlugin).
-@objc(AWSDashPlugin)
-final class AWSPlugin: DashPlugin {
-    override class func makeExtensions() -> [any DashExtension] { [AWSIntegration()] }
+/// The extensions this plugin adds; Dash gets them through `dash_plugin_entry`.
+enum AWSPlugin {
+    @MainActor static func makeExtensions() -> [any DashExtension] { [AWSIntegration()] }
 }
 
 /// The C entry point Dash loads (see docs/PLUGINS.md).

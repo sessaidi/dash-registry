@@ -20,7 +20,7 @@ struct GitLabIntegrationTests {
         return GitLabIntegration(defaults: defaults, token: { token }, session: StubURLProtocol.session())
     }
 
-    func tool(_ gitlab: GitLabIntegration, _ name: String) throws -> ClaudeTool {
+    func tool(_ gitlab: GitLabIntegration, _ name: String) throws -> DashiiTool {
         try #require(gitlab.tools.first { $0.name == name })
     }
 
@@ -69,7 +69,7 @@ struct GitLabIntegrationTests {
         #expect(gitlab.metadata.category == .sourceControl)
         #expect(gitlab.metadata.homepage == "https://github.com/sessaidi/dash")
         #expect(gitlab.secrets?.extensionID == "gitlab")
-        #expect(gitlab.secrets?.legacy == ["token": "gitlab"])
+        #expect(gitlab.secrets?.legacy == ["token": ["gitlab"]])
         #expect(gitlab.secretKeys.map(\.key) == ["token"])
         #expect(gitlab.tools.map(\.name) == ["gitlab_merge_requests", "gitlab_api_get", "gitlab_sync_tags", "gitlab_sync_compare"])
     }
@@ -77,7 +77,6 @@ struct GitLabIntegrationTests {
     @Test func pluginEntryPoint() {
         let extensions = GitLabPlugin.makeExtensions()
         #expect(extensions.map(\.id) == ["gitlab"])
-        #expect(NSStringFromClass(GitLabPlugin.self) == "GitLabDashPlugin")
     }
 
     // MARK: Connection

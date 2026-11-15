@@ -249,9 +249,9 @@ final class GitHubIntegration: Integration {
 
     static let maxToolCharacters = 100_000
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(
+            DashiiTool(
                 name: "github_api_get",
                 description: "Read any GitHub REST endpoint as the user (GET only), e.g. /repos/owner/name/actions/runs?per_page=10. Use when no more specific GitHub tool fits. Large responses are cut at 100,000 characters.",
                 properties: ["path": JSONSchema.string("Path and query after the API root, starting with /.")], required: ["path"]

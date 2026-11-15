@@ -20,7 +20,7 @@ struct GitHubIntegrationTests {
         return GitHubIntegration(defaults: defaults, token: { token }, session: StubURLProtocol.session())
     }
 
-    func tool(_ github: GitHubIntegration) throws -> ClaudeTool {
+    func tool(_ github: GitHubIntegration) throws -> DashiiTool {
         try #require(github.tools.first { $0.name == "github_api_get" })
     }
 
@@ -35,14 +35,13 @@ struct GitHubIntegrationTests {
         #expect(github.metadata.author == .dash)
         #expect(github.metadata.homepage == "https://github.com/sessaidi/dash")
         #expect(github.secrets?.extensionID == "github")
-        #expect(github.secrets?.legacy == ["token": "github"])
+        #expect(github.secrets?.legacy == ["token": ["github"]])
         #expect(github.secretKeys.map(\.key) == ["token"])
     }
 
     @Test func pluginEntryPoint() {
         let extensions = GitHubPlugin.makeExtensions()
         #expect(extensions.map(\.id) == ["github"])
-        #expect(NSStringFromClass(GitHubPlugin.self) == "GitHubDashPlugin")
     }
 
     // MARK: Connection

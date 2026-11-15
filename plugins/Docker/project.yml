@@ -28,7 +28,6 @@ targets:
       path: Info.plist
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
-        NSPrincipalClass: DockerDashPlugin
         DashPluginID: docker
         DashPluginVersion: "1.3.0"
         DashKitMinimumVersion: "1.5.0"

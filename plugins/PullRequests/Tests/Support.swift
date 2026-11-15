@@ -87,12 +87,12 @@ extension URLRequest {
 
 @MainActor
 final class FakePermissions: PermissionAsking {
-    func ask(icon: String, title: String, message: String, details: [PermissionDetail], allowLabel: String, denyLabel: String) async -> Bool { false }
+    func ask(_ prompt: PermissionPrompt) async -> Bool { false }
 }
 
 /// Answers every review with `reply` (or throws `error`) and records what it was asked.
 @MainActor
-final class FakeClaude: ClaudeService {
+final class FakeDashii: DashiiService {
     struct Call {
         let system: String
         let prompt: String
@@ -106,12 +106,8 @@ final class FakeClaude: ClaudeService {
     var error: (any Error)?
     private(set) var calls: [Call] = []
 
-    func complete(system: String, prompt: String, outputSchema: JSONValue?, effort: String?) async throws -> String {
-        try await complete(system: system, prompt: prompt, outputSchema: outputSchema, effort: effort, model: nil)
-    }
-
-    func complete(system: String, prompt: String, outputSchema: JSONValue?, effort: String?, model: String?) async throws -> String {
-        calls.append(Call(system: system, prompt: prompt, outputSchema: outputSchema, effort: effort, model: model))
+    func complete(_ request: DashiiRequest) async throws -> String {
+        calls.append(Call(system: request.system, prompt: request.prompt, outputSchema: request.outputSchema, effort: request.effort, model: request.model))
         if let error { throw error }
         return reply
     }
@@ -146,8 +142,8 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     let context: ModelContext
     var extensions: [any DashExtension]
     let permissions: any PermissionAsking = FakePermissions()
-    let fakeClaude = FakeClaude()
-    var claude: any ClaudeService { fakeClaude }
+    let fakeDashii = FakeDashii()
+    var dashii: any DashiiService { fakeDashii }
     let activity = ActivityLog()
     private(set) var asked: [String] = []
     private(set) var opened: [String?] = []
@@ -159,7 +155,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     }
 
     func isEnabled(_ item: any DashExtension) -> Bool { true }
-    func askClaude(_ prompt: String) { asked.append(prompt) }
+    func askDashii(_ prompt: String) { asked.append(prompt) }
     func openManager(_ extensionID: String?) { opened.append(extensionID) }
     func addWidget(kind: String) throws {}
 }
@@ -185,12 +181,12 @@ struct Harness {
         feature.stop()
     }
 
-    var claude: FakeClaude { host.fakeClaude }
+    var dashii: FakeDashii { host.fakeDashii }
     var requests: [URLRequest] { StubProtocol.requests(apiHost) }
 
     func serve(_ routes: [String: StubProtocol.Reply]) { StubProtocol.serve(apiHost, routes: routes) }
 
-    func tool(_ name: String) throws -> ClaudeTool {
+    func tool(_ name: String) throws -> DashiiTool {
         guard let tool = feature.tools.first(where: { $0.name == name }) else { throw ToolError("no tool \(name)") }
         return tool
     }

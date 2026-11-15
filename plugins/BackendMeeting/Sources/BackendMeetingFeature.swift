@@ -71,7 +71,7 @@ final class BackendMeetingFeature: DashExtension {
     static let reportTask = AITask(
         id: "report", title: "Backend meeting report",
         summary: "Groups your PRs, tickets and activity over the cycle into a few themed highlights.",
-        models: [.sonnet, .opus, .haiku], defaultModel: .sonnet, efforts: [.low, .medium, .high], defaultEffort: .medium,
+        models: [.balanced, .strong, .fast], defaultModel: .balanced, efforts: [.low, .medium, .high], defaultEffort: .medium,
         templates: [AITemplate(id: "language", title: "Language", defaultText: "English")])
 
     var aiTasks: [AITask] { [Self.reportTask] }
@@ -116,7 +116,7 @@ final class BackendMeetingFeature: DashExtension {
         do {
             let data = try await evidence(range: range)
             progress = "Writing the report…"
-            let text = try await host.claude.complete(
+            let text = try await host.dashii.complete(
                 task: Self.reportTask.id, settings: ai,
                 system: Self.systemPrompt(language: ai.render(Self.reportTask.id, "language", [:])),
                 prompt: data.jsonString())
@@ -261,8 +261,8 @@ final class BackendMeetingFeature: DashExtension {
 
     // MARK: Claude tools (read-only)
 
-    var tools: [ClaudeTool] {
-        [ClaudeTool(name: "backend_meeting_reports",
+    var tools: [DashiiTool] {
+        [DashiiTool(name: "backend_meeting_reports",
                     description: "The user's past backend meeting reports (highlights per cycle), newest first, with their date ranges.",
                     properties: ["limit": JSONSchema.integer("How many (default 3).")]) { [weak self] input in
             guard let self else { return nil }

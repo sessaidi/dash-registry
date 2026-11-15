@@ -170,13 +170,13 @@ final class DailyStandupFeature: DashExtension {
     static let prepareTask = AITask(
         id: "prepare", title: "Your update",
         summary: "Writes your standup update (since the last standup, today, blockers) from your commits, PRs, tickets, agents, deploys, notes and meetings.",
-        models: [.sonnet, .haiku, .opus], defaultModel: .sonnet, efforts: [.low, .medium], defaultEffort: .low,
+        models: [.balanced, .fast, .strong], defaultModel: .balanced, efforts: [.low, .medium], defaultEffort: .low,
         templates: [AITemplate(id: "style", title: "Style", defaultText: "Short bullets in the first person, the way I'd say them in the standup. Group related work. No jargon nobody else knows.", multiline: true)])
 
     static let reportTask = AITask(
         id: "report", title: "Meeting report",
         summary: "After a Zoom standup: each person's update, blockers and action items, from the transcript and who spoke.",
-        models: [.sonnet, .opus, .haiku], defaultModel: .sonnet, efforts: [.low, .medium, .high], defaultEffort: .medium)
+        models: [.balanced, .strong, .fast], defaultModel: .balanced, efforts: [.low, .medium, .high], defaultEffort: .medium)
 
     var aiTasks: [AITask] { [Self.prepareTask, Self.reportTask] }
     var ai: AISettings { host?.aiSettings(.extension(id), tasks: aiTasks) ?? AISettings(tasks: aiTasks) }
@@ -257,7 +257,7 @@ final class DailyStandupFeature: DashExtension {
         let evidence = await evidence(since: since)
         let style = ai.render(Self.prepareTask.id, "style", [:])
         do {
-            let text = try await host.claude.complete(
+            let text = try await host.dashii.complete(
                 task: Self.prepareTask.id, settings: ai,
                 system: """
                     You write \(myName)'s daily standup update from their activity, as they'd say it: "Yesterday I did…", "Today I will…". \
@@ -326,7 +326,7 @@ final class DailyStandupFeature: DashExtension {
         let speakers = try await tool("meeting_speakers", ["meeting_id": .string(meetingID)])
         let named = speakers?["named"]?.bool ?? false
         let started = transcript["started"]?.string.flatMap { ISO8601DateFormatter().date(from: $0) } ?? .now
-        let text = try await host.claude.complete(
+        let text = try await host.dashii.complete(
             task: Self.reportTask.id, settings: ai,
             system: """
                 You write the report of a daily standup from its transcript. For each participant: what they did, what they'll do, what blocks them. \
@@ -408,22 +408,22 @@ final class DailyStandupFeature: DashExtension {
 
     private struct DayInput: Decodable { let date: String? }
 
-    var tools: [ClaudeTool] {
+    var tools: [DashiiTool] {
         [
-            ClaudeTool(name: "standup_today", description: "Today's standup: my update (yesterday, today, blockers with references), and on Zoom days the meeting report (each person's update, blockers, action items).") { [weak self] _ in
+            DashiiTool(name: "standup_today", description: "Today's standup: my update (yesterday, today, blockers with references), and on Zoom days the meeting report (each person's update, blockers, action items).") { [weak self] _ in
                 guard let self, let record = day() else { return ["prepared": false] }
                 return ["prepared": .bool(record.preparedAt != nil), "update": .string(record.update?.text ?? ""),
                         "report": (try? JSONValue(encoding: record.report)) ?? .null, "on_zoom": .bool(record.onZoom)]
             },
-            ClaudeTool(name: "standup_prepare", description: "Prepare (or redo) my standup update now from my commits, PRs, tickets, agents, deploys, notes and meetings since the last standup.") { [weak self] _ in
+            DashiiTool(name: "standup_prepare", description: "Prepare (or redo) my standup update now from my commits, PRs, tickets, agents, deploys, notes and meetings since the last standup.") { [weak self] _ in
                 guard let self else { return nil }
                 return .string(try await prepare().text)
             },
-            ClaudeTool(name: "standup_blockers", description: "Open blockers from past standups (mine and the team's), with how long they've been open.") { [weak self] _ in
+            DashiiTool(name: "standup_blockers", description: "Open blockers from past standups (mine and the team's), with how long they've been open.") { [weak self] _ in
                 guard let self else { return [] }
                 return .array(openBlockers().map { ["text": .string($0.text), "owner": .string($0.owner), "days_open": .number(Double($0.daysOpen)), "reference": .string($0.reference)] })
             },
-            ClaudeTool(name: "standup_history", description: "Past standups (date, my update, meeting summary).",
+            DashiiTool(name: "standup_history", description: "Past standups (date, my update, meeting summary).",
                        properties: ["date": JSONSchema.string("Optional yyyy-MM-dd.")]) { [weak self] input in
                 guard let self else { return [] }
                 let wanted = try input.toolInput(DayInput.self).date

@@ -91,8 +91,8 @@ struct PodDetailSheet: View {
                     .help("kubectl exec -it in Terminal")
                 Button("Follow Logs", systemImage: "text.alignleft") { PodCommands.runInTerminal(PodCommands.logs(pod, context: contextName)) }
                     .help("kubectl logs -f in Terminal")
-                Button("Ask Claude", systemImage: "sparkles") {
-                    host.askClaude("Look at pod \(pod.name) in namespace \(pod.namespace) (context \(contextName ?? "current")): describe it, check its events and logs, and tell me what's wrong if anything.")
+                Button("Ask Dashii", systemImage: "sparkles") {
+                    host.askDashii("Look at pod \(pod.name) in namespace \(pod.namespace) (context \(contextName ?? "current")): describe it, check its events and logs, and tell me what's wrong if anything.")
                     dismiss()
                 }
                 Spacer()
