@@ -99,14 +99,14 @@
       "id": "daily-standup",
       "name": "Daily Standup",
       "kind": "feature",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "plugin": {
-        "download": "dist/daily-standup-1.6.0.dashplugin.zip",
+        "download": "dist/daily-standup-1.7.0.dashplugin.zip",
         "minimumDashKit": "2.0.0",
         "provides": [
           "daily-standup"
         ],
-        "sha256": "bc7244575843d2fb03c353c3937c6b923c4d0c33fd9627abe84af346d87063d9"
+        "sha256": "3cf3eeb03ff35d772258b8166667232699820160ac2b5f3ab34ef35f47a10e9d"
       },
       "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
       "icon": "person.3.sequence",
