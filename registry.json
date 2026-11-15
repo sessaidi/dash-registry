@@ -27,14 +27,14 @@
       "id": "agents",
       "name": "Agents",
       "kind": "feature",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "plugin": {
-        "download": "dist/agents-1.5.0.dashplugin.zip",
+        "download": "dist/agents-1.6.0.dashplugin.zip",
         "minimumDashKit": "1.3.0",
         "provides": [
           "agents"
         ],
-        "sha256": "6a3c558e86728dcabdb5de68052201c92bf2b6ba6f10b1e978cf4d9cf61c86d6"
+        "sha256": "5d921191f439314f2845a07cd4b14995ac9f6132021daca1852b922e1c28ad3e"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
@@ -101,15 +101,15 @@
       "id": "docker",
       "name": "Docker",
       "kind": "integration",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "plugin": {
-        "download": "dist/docker-1.1.0.dashplugin.zip",
+        "download": "dist/docker-1.2.0.dashplugin.zip",
         "minimumDashKit": "1.3.0",
         "provides": [
           "docker",
           "docker-containers"
         ],
-        "sha256": "837688a74fdaad10b94b8ab692f19c2c9aec051313f67d3ca393c666d00cd135"
+        "sha256": "dcef3675d3545cb5eb9046f16683ff07e6a24396e676ea39d34fcd6cd19845e6"
       },
       "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
       "icon": "shippingbox",
@@ -144,14 +144,14 @@
       "id": "github",
       "name": "GitHub",
       "kind": "integration",
-      "version": "1.1.0",
+      "version": "1.3.0",
       "plugin": {
-        "download": "dist/github-1.1.0.dashplugin.zip",
+        "download": "dist/github-1.3.0.dashplugin.zip",
         "minimumDashKit": "1.0.0",
         "provides": [
           "github"
         ],
-        "sha256": "31e9539da024ee9c4420d7fd9ae7ff8dd83fd518567e0b82719ce6b766d0b9f0"
+        "sha256": "f6f45d773923501e814d7c803b1bae499effd62d1f6a4263658c8cb9d63e97f7"
       },
       "description": "GitHub account, API URL and the repositories you watch.",
       "icon": "chevron.left.forwardslash.chevron.right",
@@ -210,15 +210,15 @@
       "id": "kubernetes",
       "name": "Kubernetes",
       "kind": "integration",
-      "version": "1.1.0",
+      "version": "1.5.1",
       "plugin": {
-        "download": "dist/kubernetes-1.1.0.dashplugin.zip",
-        "minimumDashKit": "1.3.0",
+        "download": "dist/kubernetes-1.5.1.dashplugin.zip",
+        "minimumDashKit": "1.4.0",
         "provides": [
           "kubernetes",
           "kubernetes-pods"
         ],
-        "sha256": "ce4eb66f63b197da32835b8e72b1d3d613cb05fc0228e7514ec7e63d56c0fd43"
+        "sha256": "803bbda3be2ab768399474819e93ed7a19c9b2effa9751d61cd857096b735c9e"
       },
       "description": "Your kubeconfig's clusters, read in-process, with a Pods widget and crash-loop alerts.",
       "icon": "circle.hexagongrid",
@@ -232,14 +232,14 @@
       "id": "pull-requests",
       "name": "Pull Requests",
       "kind": "feature",
-      "version": "1.3.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/pull-requests-1.3.0.dashplugin.zip",
+        "download": "dist/pull-requests-1.5.0.dashplugin.zip",
         "minimumDashKit": "1.2.0",
         "provides": [
           "pull-requests"
         ],
-        "sha256": "6c1b9c0eac45f29a423dde61b174472872a178db3b92603e87c5f89bcc4d7c7c"
+        "sha256": "53563413822682f78b238b6699661a22a10aee5e3516c18ff77bf39834c9ff52"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
@@ -253,17 +253,36 @@
       "readme": "plugins/PullRequests/README.md"
     },
     {
+      "id": "releases",
+      "name": "Releases",
+      "kind": "feature",
+      "version": "1.0.0",
+      "plugin": {
+        "download": "dist/releases-1.0.0.dashplugin.zip",
+        "minimumDashKit": "1.3.0",
+        "provides": [
+          "releases"
+        ],
+        "sha256": "603a5277b3f825d98e9d6f6be8b5f57c9b083f1aafac910a29b756aa83b85a3b"
+      },
+      "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
+      "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
+      "author": {
+        "name": "Dash"
+      }
+    },
+    {
       "id": "workspaces",
       "name": "Workspaces",
       "kind": "feature",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "plugin": {
-        "download": "dist/workspaces-2.1.0.dashplugin.zip",
+        "download": "dist/workspaces-2.2.0.dashplugin.zip",
         "minimumDashKit": "1.3.0",
         "provides": [
           "workspaces"
         ],
-        "sha256": "14a437d6447abad360c170e21cc65a92a7696ae562d354f05d7900e08c026182"
+        "sha256": "ea1bfce67240e0cc9f37fb8c0752a727a2470cd38008eb7bc902f48be5e8c345"
       },
       "description": "Backend workspaces on GKE linked to your worktrees: create, build, deploy, configure, logs and diagnosis.",
       "icon": "shippingbox",
