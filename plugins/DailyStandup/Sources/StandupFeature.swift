@@ -51,7 +51,7 @@ final class DailyStandupFeature: DashExtension {
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var reportedMeetings = Set<String>()
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
         time = defaults.string(forKey: "daily-standup.time") ?? "10:00"
         workdays = Set(defaults.array(forKey: "daily-standup.workdays") as? [Int] ?? [2, 3, 4, 5, 6])
@@ -59,7 +59,7 @@ final class DailyStandupFeature: DashExtension {
         keywords = defaults.string(forKey: "daily-standup.keywords") ?? "standup, stand-up, daily, scrum"
         myName = defaults.string(forKey: "daily-standup.myName") ?? NSFullUserName()
         gitEmail = defaults.string(forKey: "daily-standup.gitEmail") ?? ""
-        codeRoot = defaults.string(forKey: "daily-standup.codeRoot") ?? (UserDefaults.standard.string(forKey: "agents.codeRoot") ?? "~/Codes")
+        codeRoot = defaults.string(forKey: "daily-standup.codeRoot") ?? (DashStorage.defaults.string(forKey: "agents.codeRoot") ?? "~/Codes")
         prepareMinutesBefore = defaults.object(forKey: "daily-standup.prepareBefore") as? Int ?? 20
     }
 

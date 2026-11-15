@@ -74,7 +74,7 @@ private struct TrainView: View {
 
     var body: some View {
         let cars = deployments.filter { car in
-            (config.workspace.isEmpty || car.workspace == config.workspace) && (!config.onlyMine || car.by == (UserDefaults.standard.string(forKey: "workspaces.username") ?? NSUserName()))
+            (config.workspace.isEmpty || car.workspace == config.workspace) && (!config.onlyMine || car.by == (DashStorage.defaults.string(forKey: "workspaces.username") ?? NSUserName()))
         }.prefix(100).map { car in
             TrainCar(id: car.id.uuidString, workspace: car.workspace, kind: car.kind, app: car.app, version: car.commit.isEmpty ? car.tag : car.commit,
                      branch: car.branch, by: car.by, at: car.startedAt, duration: car.duration, status: car.status, error: car.error)

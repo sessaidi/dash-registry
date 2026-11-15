@@ -109,7 +109,7 @@ final class JiraBoardFeature: DashExtension {
     static let defaultJQL = "(assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done ORDER BY updated DESC"
 
     /// `defaults` is injectable for tests; Dash uses the standard suite (the built-in feature's keys).
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
         if let data = defaults.data(forKey: "jira-board.boards"), let saved = try? JSONDecoder().decode([Board].self, from: data) {
             boards = saved

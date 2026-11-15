@@ -38,7 +38,7 @@ final class GitHubIntegration: Integration {
     private(set) var isChecking = false
 
     /// `token` and `session` exist for tests; the app uses the Keychain and the shared session.
-    init(defaults: UserDefaults = .standard, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
+    init(defaults: UserDefaults = DashStorage.defaults, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
         let store = SecretStore(extensionID: "github", legacy: ["token": "github"])
         let readToken = token ?? { store.read("token") }
         self.defaults = defaults

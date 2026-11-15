@@ -48,7 +48,7 @@ final class PullRequestsFeature: DashExtension {
     private let defaults: UserDefaults
 
     /// `defaults` is injectable for tests; the keys are the ones the built-in feature used.
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
         pollMinutes = defaults.object(forKey: "pull-requests.poll") as? Int ?? 2
         autoReview = defaults.object(forKey: "pull-requests.autoReview") as? Bool ?? true

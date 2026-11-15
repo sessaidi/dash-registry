@@ -54,7 +54,7 @@ final class WorkspacesFeature: DashExtension {
     var connectedClient: WorkspaceClient? { connected }
     @ObservationIgnored private let connect: Connector
 
-    init(defaults: UserDefaults = .standard, connect: @escaping Connector = { env, region, credentials in
+    init(defaults: UserDefaults = DashStorage.defaults, connect: @escaping Connector = { env, region, credentials in
         try await WorkspaceClient.connect(env: env, region: region, credentials: credentials)
     }) {
         self.defaults = defaults

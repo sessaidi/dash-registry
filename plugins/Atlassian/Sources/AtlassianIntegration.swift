@@ -31,7 +31,7 @@ final class AtlassianIntegration: Integration {
 
     /// Defaults are the production storage; tests inject their own suite, keychain accounts and session.
     init(
-        defaults: UserDefaults = .standard,
+        defaults: UserDefaults = DashStorage.defaults,
         secrets: SecretStore = SecretStore(extensionID: "atlassian", legacy: ["token": "atlassian"]),
         legacyTokenAccount: String = "jira",
         session: URLSession? = nil

@@ -196,7 +196,7 @@ enum Editor: String, CaseIterable, Identifiable, Sendable {
 
     /// The user's choice (Settings › Agents), else the first installed.
     static var preferred: Editor {
-        if let saved = UserDefaults.standard.string(forKey: "agents.editor").flatMap(Editor.init(rawValue:)) { return saved }
+        if let saved = DashStorage.defaults.string(forKey: "agents.editor").flatMap(Editor.init(rawValue:)) { return saved }
         return allCases.first { $0.isInstalled } ?? .vscode
     }
 }

@@ -35,7 +35,7 @@ final class AWSIntegration: Integration {
     @ObservationIgnored let provider: AWSCredentialsProvider
 
     /// Everything but the defaults exists for tests; the app reads ~/.aws and uses the shared session.
-    init(defaults: UserDefaults = .standard, environment: [String: String] = ShellEnvironment.current,
+    init(defaults: UserDefaults = DashStorage.defaults, environment: [String: String] = ShellEnvironment.current,
          provider: AWSCredentialsProvider = AWSCredentialsProvider(), session: URLSession? = nil) {
         self.defaults = defaults
         self.provider = provider

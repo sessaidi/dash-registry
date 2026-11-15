@@ -56,7 +56,7 @@ final class AgentsExtension: DashExtension {
         Do not push, open pull requests, or change git remotes; Dash does that after the user reviews the branch.
         """
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
         claudePath = defaults.string(forKey: "agents.claudePath") ?? ""
         codeRoot = defaults.string(forKey: "agents.codeRoot") ?? "~/Codes"
@@ -548,7 +548,7 @@ private struct AgentsSettingsView: View {
                 TextField("Code folder", text: $agents.codeRoot, prompt: Text("~/Codes"))
                 Picker("Open files in", selection: Binding(
                     get: { Editor.preferred },
-                    set: { UserDefaults.standard.set($0.rawValue, forKey: "agents.editor") })) {
+                    set: { DashStorage.defaults.set($0.rawValue, forKey: "agents.editor") })) {
                     ForEach(Editor.allCases) { editor in
                         Text(editor.name + (editor.isInstalled ? "" : " (not installed)")).tag(editor)
                     }

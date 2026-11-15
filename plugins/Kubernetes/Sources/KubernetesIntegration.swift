@@ -51,7 +51,7 @@ final class KubernetesIntegration: Integration {
     /// Where gke-gcloud-auth-plugin contexts get their Google token. Default: the `gcp` integration.
     @ObservationIgnored var googleConnection: @MainActor @Sendable () -> IntegrationConnection?
 
-    init(configURL: URL = KubeConfig.defaultPath(), defaults: UserDefaults = .standard, sessionConfiguration: URLSessionConfiguration = .ephemeral) {
+    init(configURL: URL = KubeConfig.defaultPath(), defaults: UserDefaults = DashStorage.defaults, sessionConfiguration: URLSessionConfiguration = .ephemeral) {
         self.configURL = configURL
         self.defaults = defaults
         self.sessionConfiguration = sessionConfiguration

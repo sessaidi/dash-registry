@@ -53,7 +53,7 @@ final class ZoomExtension: DashExtension {
     @ObservationIgnored private var recorder: MeetingRecorder?
     @ObservationIgnored private var missedMeetingChecks = 0
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
         myName = defaults.string(forKey: "zoom.myName") ?? NSFullUserName()
         localeIdentifier = defaults.string(forKey: "zoom.locale") ?? Locale.current.identifier

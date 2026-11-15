@@ -46,7 +46,7 @@ final class ReleasesFeature: DashExtension {
     @ObservationIgnored var now: () -> Date = { .now }
 
     /// `cacheFile`: where commit ranges are kept between launches (nil keeps them in memory only).
-    init(defaults: UserDefaults = .standard, cacheFile: URL? = ReleaseLoader.defaultCacheFile) {
+    init(defaults: UserDefaults = DashStorage.defaults, cacheFile: URL? = ReleaseLoader.defaultCacheFile) {
         self.defaults = defaults
         loader = ReleaseLoader(cacheFile: cacheFile)
         repositories = Self.load([RepositoryConfig].self, "repositories", defaults) ?? []

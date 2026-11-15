@@ -36,7 +36,7 @@ final class GitLabIntegration: Integration {
     private(set) var lastError: String?
 
     /// `token` and `session` exist for tests; the app uses the Keychain and the shared session.
-    init(defaults: UserDefaults = .standard, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
+    init(defaults: UserDefaults = DashStorage.defaults, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
         let store = SecretStore(extensionID: "gitlab", legacy: ["token": "gitlab"])
         let readToken = token ?? { store.read("token") }
         self.defaults = defaults
