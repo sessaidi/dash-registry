@@ -15,8 +15,8 @@ extension PullRequest {
         .init("branch", "string", "Head branch", aliases: ["head"]),
         .init("base", "string", "Target branch"),
         .init("tickets", "list", "Ticket keys in the title or branch (joins jira.key)", aliases: ["ticket"]),
-        .init("review_verdict", "string", "Claude's verdict: approve, comment or request_changes", aliases: ["verdict"]),
-        .init("risk", "string", "Claude's risk: low, medium or high"),
+        .init("review_verdict", "string", "Dashii's verdict: approve, comment or request_changes", aliases: ["verdict"]),
+        .init("risk", "string", "Dashii's risk: low, medium or high"),
         .init("review_status", "string", "queued, running, done or failed"),
         .init("approvals", "number", "Approving reviews"),
         .init("changes_requested", "number", "Reviews requesting changes"),
@@ -54,7 +54,7 @@ extension PullRequest {
 
 extension PullRequestsFeature {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "prs", summary: "Open pull requests on the watched repositories, with Claude's latest review.",
+        [QueryDataset(name: "prs", aliases: ["pulls", "pull_requests"], summary: "Open pull requests on the watched repositories, with Dashii's latest review.",
                       fields: PullRequest.queryFields) { [weak self] _ in
             guard let context = self?.host?.context else { return [] }
             let pulls = (try? context.fetch(FetchDescriptor<PullRequest>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []

@@ -77,12 +77,12 @@ extension TimelineModel {
 extension ReleasesFeature {
     var datasets: [QueryDataset] {
         [
-            QueryDataset(name: "releases", summary: "Releases of the repositories set up in Releases (trains, eras, builds, the tickets and commits each brought).",
+            QueryDataset(name: "releases", aliases: ["trains"], summary: "Releases of the repositories set up in Releases (trains, eras, builds, the tickets and commits each brought).",
                          fields: Release.queryFields) { [weak self] _ in
                 guard let self else { return [] }
                 return timelines.values.flatMap { timeline in timeline.releases.map { $0.queryRow(repository: timeline.repository.name) } }
             },
-            QueryDataset(name: "builds", summary: "Release build tags, one row per tag.", fields: Build.queryFields) { [weak self] _ in
+            QueryDataset(name: "builds", aliases: ["tags"], summary: "Release build tags, one row per tag.", fields: Build.queryFields) { [weak self] _ in
                 guard let self else { return [] }
                 return timelines.values.flatMap { timeline in
                     timeline.releases.flatMap { release in release.builds.map { $0.queryRow(release: release, repository: timeline.repository.name) } }

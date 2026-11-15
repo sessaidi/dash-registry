@@ -27,7 +27,7 @@ extension BackendReport {
 
 extension BackendMeetingFeature {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "reports", summary: "Backend Meeting reports (fait marquant per cycle), newest first.",
+        [QueryDataset(name: "reports", aliases: ["backend_reports", "fait_marquant"], summary: "Backend Meeting reports (fait marquant per cycle), newest first.",
                       fields: BackendReport.queryFields) { [weak self] _ in
             guard let context = self?.host?.context else { return [] }
             return ((try? context.fetch(FetchDescriptor<BackendReport>(sortBy: [SortDescriptor(\.end, order: .reverse)]))) ?? []).map(\.queryRow)

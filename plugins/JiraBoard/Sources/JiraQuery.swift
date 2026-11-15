@@ -34,7 +34,7 @@ extension JiraIssue {
 
 extension JiraBoardFeature {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "jira", summary: "Jira issues in Dash's local copy: the followed boards' issues and the tickets the user follows.",
+        [QueryDataset(name: "jira", aliases: ["tickets", "issues"], summary: "Jira issues in Dash's local copy: the followed boards' issues and the tickets the user follows.",
                       fields: JiraIssue.queryFields) { [weak self] _ in
             guard let context = self?.host?.context else { return [] }
             let issues = (try? context.fetch(FetchDescriptor<JiraIssue>(sortBy: [SortDescriptor(\.updated, order: .reverse)]))) ?? []

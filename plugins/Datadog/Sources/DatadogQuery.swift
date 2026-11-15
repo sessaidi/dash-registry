@@ -32,7 +32,7 @@ extension DatadogMonitor {
 
 extension DatadogMonitorsFeature {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "monitors", summary: "Datadog monitors not OK (Alert, Warn, No Data), checked every minute.",
+        [QueryDataset(name: "monitors", aliases: ["alerts", "datadog"], summary: "Datadog monitors not OK (Alert, Warn, No Data), checked every minute.",
                       fields: DatadogMonitor.queryFields) { [weak self] _ in
             guard let self else { return [] }
             return monitors.map { $0.queryRow(url: monitorURL($0)) }

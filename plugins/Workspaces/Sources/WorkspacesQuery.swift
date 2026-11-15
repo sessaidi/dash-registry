@@ -65,11 +65,11 @@ extension TrainCar {
 extension WorkspacesFeature {
     var datasets: [QueryDataset] {
         [
-            QueryDataset(name: "workspaces", summary: "Backend workspaces on GKE (the configured env and region), with owner, branch and last deploy.",
+            QueryDataset(name: "workspaces", aliases: ["ws"], summary: "Backend workspaces on GKE (the configured env and region), with owner, branch and last deploy.",
                          fields: WorkspaceItem.queryFields) { [weak self] _ in
                 (self?.workspaces ?? []).map { WorkspaceItem($0).queryRow }
             },
-            QueryDataset(name: "deploys", summary: "Deployments to workspaces (the train), newest first.", fields: TrainCar.queryFields) { [weak self] _ in
+            QueryDataset(name: "deploys", aliases: ["deployments", "train"], summary: "Deployments to workspaces (the train), newest first.", fields: TrainCar.queryFields) { [weak self] _ in
                 guard let context = self?.host?.context else { return [] }
                 return ((try? context.fetch(FetchDescriptor<WorkspaceDeployment>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)]))) ?? [])
                     .map { TrainCar($0).queryRow }

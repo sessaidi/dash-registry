@@ -7,7 +7,7 @@ import Foundation
 extension AtlassianIntegration {
     var datasets: [QueryDataset] {
         [
-            QueryDataset(name: "confluence", summary: "Confluence pages Dashii read (full pages, else search hits), from the local mirror.",
+            QueryDataset(name: "confluence", aliases: ["wiki", "pages"], summary: "Confluence pages Dashii read (full pages, else search hits), from the local mirror.",
                          fields: [.init("id", "string", "Page id"), .init("title"), .init("space.key", "string", "Space key", aliases: ["space"]),
                                   .init("updated", "date", "Last edit"), .init("updated_by", "string", "Who edited it last"),
                                   .init("labels", "list"), .init("ancestors.title", "list", "Parent pages", aliases: ["parents"]),
@@ -15,7 +15,7 @@ extension AtlassianIntegration {
                                   .init("url"), .init("full", "bool", "A full page, not just a hit"), .init("synced_at", "date", "When Dash read it")]) { [weak self] _ in
                 self?.mirrorRows(page: "confluence.page", hit: "confluence.hit", key: "id") ?? []
             },
-            QueryDataset(name: "jira_cache", summary: "Jira issues Dashii read through the Atlassian tools (with description, links and comments when read in full), from the local mirror. For the board and followed tickets, use `jira`.",
+            QueryDataset(name: "jira_cache", aliases: ["issues_read"], summary: "Jira issues Dashii read through the Atlassian tools (with description, links and comments when read in full), from the local mirror. For the board and followed tickets, use `jira`.",
                          fields: [.init("key", "string", "Issue key (joins prs.tickets)", aliases: ["ticket"]), .init("summary"), .init("status"),
                                   .init("type"), .init("priority"), .init("assignee"), .init("updated", "date"), .init("labels", "list"),
                                   .init("description"), .init("links.key", "list", "Linked issues"), .init("url"),

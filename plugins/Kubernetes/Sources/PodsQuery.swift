@@ -40,7 +40,7 @@ extension PodSummary {
 extension PodsFeature {
     /// Every pod Dash has loaded: the configured namespace's, and each Pods widget's view.
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "pods", summary: "Kubernetes pods Dash has loaded (the Pods widgets' contexts and namespaces), refreshed every 30 seconds.",
+        [QueryDataset(name: "pods", aliases: ["k8s"], summary: "Kubernetes pods Dash has loaded (the Pods widgets' contexts and namespaces), refreshed every 30 seconds.",
                       fields: PodSummary.queryFields) { [weak self] _ in
             guard let self else { return [] }
             var rows: [String: JSONValue] = [:]

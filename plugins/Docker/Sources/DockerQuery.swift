@@ -23,7 +23,7 @@ extension DockerContainer {
 
 extension DockerContainersFeature {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "containers", summary: "Local Docker containers, running and stopped.", fields: DockerContainer.queryFields) { [weak self] _ in
+        [QueryDataset(name: "containers", aliases: ["docker"], summary: "Local Docker containers, running and stopped.", fields: DockerContainer.queryFields) { [weak self] _ in
             (self?.containers ?? []).map(\.queryRow)
         }]
     }

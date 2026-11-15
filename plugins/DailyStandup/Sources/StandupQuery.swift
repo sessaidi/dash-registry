@@ -55,12 +55,12 @@ extension StandupBlocker {
 extension DailyStandupFeature {
     var datasets: [QueryDataset] {
         [
-            QueryDataset(name: "standups", summary: "Daily standups: the user's prepared update and the meeting report, per day (newest first).",
+            QueryDataset(name: "standups", aliases: ["standup"], summary: "Daily standups: the user's prepared update and the meeting report, per day (newest first).",
                          fields: StandupDay.queryFields) { [weak self] _ in
                 guard let context = self?.host?.context else { return [] }
                 return ((try? context.fetch(FetchDescriptor<StandupDay>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? []).map(\.queryRow)
             },
-            QueryDataset(name: "blockers", summary: "Blockers raised in standups, carried until resolved.", fields: StandupBlocker.queryFields) { [weak self] _ in
+            QueryDataset(name: "blockers", aliases: ["blocked"], summary: "Blockers raised in standups, carried until resolved.", fields: StandupBlocker.queryFields) { [weak self] _ in
                 guard let context = self?.host?.context else { return [] }
                 return ((try? context.fetch(FetchDescriptor<StandupBlocker>(sortBy: [SortDescriptor(\.since, order: .reverse)]))) ?? []).map(\.queryRow)
             },

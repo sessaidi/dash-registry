@@ -37,7 +37,7 @@ extension MeetingRecord {
 
 extension ZoomExtension {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "meetings", summary: "Zoom meetings Dash transcribed, with summary, decisions and action items (newest first).",
+        [QueryDataset(name: "meetings", aliases: ["calls"], summary: "Zoom meetings Dash transcribed, with summary, decisions and action items (newest first).",
                       fields: MeetingRecord.queryFields) { [weak self] _ in
             guard let context = self?.host?.context else { return [] }
             return ((try? context.fetch(FetchDescriptor<MeetingRecord>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)]))) ?? []).map(\.queryRow)

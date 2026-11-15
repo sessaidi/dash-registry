@@ -14,7 +14,7 @@ extension AgentSession {
         .init("base", "string", "What it branched from"),
         .init("repo", "string", "Repository path"),
         .init("worktree", "string", "Worktree path"),
-        .init("cost_usd", "number", "Claude cost so far", aliases: ["cost"]),
+        .init("cost_usd", "number", "Dashii cost so far", aliases: ["cost"]),
         .init("has_pr", "bool", "A PR was opened"),
         .init("pr_url", "string", "Its PR"),
         .init("error", "string", "The last error"),
@@ -34,7 +34,7 @@ extension AgentSession {
 
 extension AgentsExtension {
     var datasets: [QueryDataset] {
-        [QueryDataset(name: "agents", summary: "Claude Code agent sessions on Jira tickets (newest first).",
+        [QueryDataset(name: "agents", aliases: ["sessions"], summary: "Dashii agent sessions on Jira tickets (newest first).",
                       fields: AgentSession.queryFields) { [weak self] _ in
             guard let context = self?.host?.context else { return [] }
             return ((try? context.fetch(FetchDescriptor<AgentSession>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []).map(\.queryRow)
