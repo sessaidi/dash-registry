@@ -30,14 +30,18 @@ struct StandupSettings: View {
     var body: some View {
         Form {
             Section {
-                TextField("Standup time", text: $standup.time, prompt: Text("10:00"))
+                Toggle("Take the time from my calendar", isOn: $standup.useCalendar)
+                if let event = standup.calendarStandup(on: .now) {
+                    LabeledContent("Today", value: "\(event.title) at \(event.start.formatted(date: .omitted, time: .shortened))")
+                }
+                TextField(standup.useCalendar ? "Otherwise at" : "Standup time", text: $standup.time, prompt: Text("10:00"))
                 Stepper("Prepare my update \(standup.prepareMinutesBefore) min before", value: $standup.prepareMinutesBefore, in: 5...120, step: 5)
                 dayToggles("Working days (an update every one)", $standup.workdays)
                 dayToggles("On Zoom (followed and reported)", $standup.zoomDays)
             } header: {
                 Text("When")
             } footer: {
-                Text("Every working day you get your update: since the last standup, next steps, blockers. On Zoom days the meeting is also followed live and reported at the end.")
+                Text("Every working day you get your update: since the last standup, next steps, blockers. On Zoom days the meeting is also followed live and reported at the end. With the calendar, today's event titled like a standup (the words under Meeting) sets the time and the Join link, and a day it has one with a Zoom link counts as a Zoom day; it needs the Zoom plugin's calendar (Settings › Zoom).")
             }
             Section {
                 Picker("Sprint length", selection: $standup.calendar.sprintWeeks) {

@@ -22,6 +22,8 @@ struct StandupState: Equatable {
     /// Without an update: "Not prepared yet", or why there's no standup today.
     var unpreparedTitle = "Not prepared yet"
     var time = "09:30"
+    /// The standup's Zoom link, from its calendar event.
+    var joinURL: URL?
     var prepareMinutesBefore = 15
     var isZoomDay = true
     var isPreparing = false
@@ -182,7 +184,10 @@ struct StandupGlance: View {
                 Label("Report ready · \(report.actionItems.count) action item\(report.actionItems.count == 1 ? "" : "s")", systemImage: "doc.text")
                     .font(.callout).foregroundStyle(.secondary).lineLimit(1)
             } else {
-                Label(state.isZoomDay ? "Standup at \(state.time)" : "Not on Zoom today", systemImage: "video").font(.callout).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Label(state.isZoomDay ? "Standup at \(state.time)" : "Not on Zoom today", systemImage: "video").font(.callout).foregroundStyle(.secondary)
+                    if let link = state.joinURL { JoinButton(link: link) }
+                }
             }
             Label(state.blockers.isEmpty ? "No open blockers" : "\(state.blockers.count) open blocker\(state.blockers.count == 1 ? "" : "s")",
                   systemImage: state.blockers.isEmpty ? "checkmark.seal" : "exclamationmark.octagon")

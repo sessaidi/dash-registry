@@ -12,11 +12,15 @@ private final class FakeZoom: DashExtension {
     let name = "Zoom"
     let systemImage = "video"
     var meetingStart = Date.now
+    /// What `zoom_upcoming_meetings` returns: the calendar.
+    var upcoming: [JSONValue] = []
     func settingsView() -> AnyView { AnyView(EmptyView()) }
     func start(host: any ExtensionContext) {}
     var tools: [DashiiTool] {
         let started = meetingStart.formatted(.iso8601)
+        let upcoming = upcoming
         return [
+            DashiiTool(name: "zoom_upcoming_meetings", description: "") { _ in ["calendar": true, "meetings": .array(upcoming)] },
             DashiiTool(name: "meetings_list", description: "") { _ in [["id": "m1", "title": "Daily standup", "started": .string(started)]] },
             DashiiTool(name: "meeting_transcript", description: "") { _ in
                 ["id": "m1", "started": .string(started), "participants": ["Sadik", "Ada", "Sam"],
@@ -40,6 +44,41 @@ struct DailyStandupTests {
         standup.stop()
         standup.myName = "Sadik"
         return (standup, zoom, host)
+    }
+
+    private static func event(_ title: String, at start: Date, link: String? = "https://acme.zoom.us/j/1") -> JSONValue {
+        ["title": .string(title), "start": .string(start.formatted(.iso8601)), "end": .string(start.addingTimeInterval(900).formatted(.iso8601)),
+         "calendar": "Work", "join_url": link.map(JSONValue.string) ?? .null]
+    }
+
+    @Test func theCalendarSetsTheStandupTimeAndLink() async throws {
+        let (standup, zoom, host) = try make()
+        defer { _ = host }
+        standup.workdays = Set(1...7)
+        standup.zoomDays = []
+        let now = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: .now)!  // whole seconds: ISO 8601 drops the rest
+        let start = now.addingTimeInterval(95 * 60)
+        zoom.upcoming = [Self.event("1:1 with Ada", at: now.addingTimeInterval(30 * 60)), Self.event("Team Daily", at: start)]
+        await standup.refreshCalendar(now: now)
+        #expect(standup.standupDate(on: now) == start)
+        #expect(standup.calendarStandup(on: now)?.joinURL?.absoluteString == "https://acme.zoom.us/j/1")
+        // A calendar standup with a Zoom link makes it a Zoom day, whatever the weekdays say.
+        #expect(standup.isZoomDay(now))
+        // Kept once the event is over (the calendar lists only what's ahead) and across launches.
+        zoom.upcoming = []
+        await standup.refreshCalendar(now: now.addingTimeInterval(600))
+        #expect(standup.standupDate(on: now) == start)
+        standup.useCalendar = false
+        #expect(standup.standupDate(on: now) != start && !standup.isZoomDay(now))
+    }
+
+    @Test func meetingsNotTitledLikeAStandupAreIgnored() async throws {
+        let (standup, zoom, host) = try make()
+        defer { _ = host }
+        let now = Date.now
+        zoom.upcoming = [Self.event("Design review", at: now.addingTimeInterval(600))]
+        await standup.refreshCalendar(now: now)
+        #expect(standup.calendarStandup(on: now) == nil)
     }
 
     @Test func previousWorkdayOfMondayIsFriday() {
