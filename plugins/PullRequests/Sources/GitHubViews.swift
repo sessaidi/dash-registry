@@ -82,12 +82,22 @@ private struct PullRequestList: View {
     @State private var queryIDs: [PullRequest.ID]?
     @Query(sort: \PullRequest.updatedAt, order: .reverse) private var pulls: [PullRequest]
     @Query(sort: \PRReview.createdAt, order: .reverse) private var reviews: [PRReview]
-    @State private var selected: PullRequest?
+    /// The PR whose detail sheet is open.
+    @State private var opened: PullRequest?
+    /// The PR the user picked: highlighted and published for linked widgets until another is
+    /// picked or it's clicked again.
+    @State private var selectedUID: String?
     /// A search Dashii typed (title, author, branch, repo or #number); not saved.
     @State private var search = ""
+    /// What Dashii's actions changed for now (repo, filter); the saved settings stay. Resets when
+    /// they change.
+    @State private var override: PullRequestsWidget.Config?
+
+    private var effective: PullRequestsWidget.Config { override ?? config }
 
     private var narrowed: [PullRequest] {
-        pulls.filter { PullRequestsWidget.matches($0, config) && PullRequestsWidgetActions.matches($0, search: search) }
+        let config = effective
+        return pulls.filter { PullRequestsWidget.matches($0, config) && PullRequestsWidgetActions.matches($0, search: search) }
     }
 
     /// What the widget lists: the repo, filter and search, then the DashQL query.
@@ -98,15 +108,36 @@ private struct PullRequestList: View {
     var body: some View {
         list
             .handlesWidgetActions { name, input in
-                let outcome = try PullRequestsWidgetActions.perform(name, input, config: &config, search: &search, pulls: visible)
-                if let pr = outcome.select { selected = pr }
+                if name == "clear_selection" {
+                    selectedUID = nil
+                    return "cleared"
+                }
+                if name == "clear" {
+                    // Back to the widget's own settings.
+                    search = ""
+                    override = nil
+                    return "cleared"
+                }
+                // Actions change what's shown for now, never the saved settings.
+                var view = effective
+                let outcome = try PullRequestsWidgetActions.perform(name, input, config: &view, search: &search, pulls: visible)
+                override = view == config ? nil : view
+                if let pr = outcome.select {
+                    selectedUID = pr.uid
+                    opened = pr
+                }
                 return outcome.reply
             }
+            .onChange(of: config) { override = nil }
+            .onExitCommand { selectedUID = nil }
+            .reportsSelection(selectedUID.flatMap { uid in pulls.first { $0.uid == uid }.map(row) })
             .reportsWidgetState([
-                "repo": config.repo.isEmpty ? "all watched" : .string(config.repo), "filter": .string(config.filter),
+                "repo": effective.repo.isEmpty ? "all watched" : .string(effective.repo), "filter": .string(effective.filter),
+                "selected": selectedUID.flatMap { uid in pulls.first { $0.uid == uid }.map { .string("\($0.repo)#\($0.number)") } } ?? .null,
+                "temporary_changes": .bool(override != nil),
                 "search": search.isEmpty ? .null : .string(search),
                 "shown": .array(visible.prefix(30).map { .string("\($0.repo)#\($0.number) \($0.title)") }),
-                "open_pr": selected.map { .string("\($0.repo)#\($0.number)") } ?? .null,
+                "open_pr": opened.map { .string("\($0.repo)#\($0.number)") } ?? .null,
             ])
             .task(id: QueryRows.key(queryText, narrowed, row: row)) {
                 queryIDs = await QueryRows.ids(query, narrowed, row: row)
@@ -135,11 +166,21 @@ private struct PullRequestList: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
-                    PullRequestRows(pulls: visible, reviews: latest) { selected = $0 }
+                    PullRequestRows(pulls: visible, reviews: latest, selectedUID: selectedUID) { pick($0) }
                 }
             }
         }
-        .sheet(item: $selected) { PullRequestSheet(pr: $0, host: host) }
+        .sheet(item: $opened) { PullRequestSheet(pr: $0, host: host) }
+    }
+
+    /// Clicking a PR selects it and opens its detail; clicking the selected one again unselects it.
+    private func pick(_ pr: PullRequest) {
+        if selectedUID == pr.uid {
+            selectedUID = nil
+        } else {
+            selectedUID = pr.uid
+            opened = pr
+        }
     }
 }
 
@@ -148,6 +189,7 @@ private struct PullRequestRows: View {
     let pulls: [PullRequest]
     /// Latest review per PR uid.
     let reviews: [String: PRReview]
+    var selectedUID: String? = nil
     /// nil: rows don't open (previews).
     let onSelect: ((PullRequest) -> Void)?
 
@@ -156,6 +198,7 @@ private struct PullRequestRows: View {
             PullRequestRow(pr: pr, review: reviews[pr.uid])
                 .contentShape(.rect)
                 .onTapGesture { onSelect?(pr) }
+                .listRowBackground(selectedUID == pr.uid ? Color.accentColor.opacity(0.18) : Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -279,13 +322,14 @@ enum PullRequestsWidgetActions {
     static let actions = [
         WidgetAction(name: "search", description: "Narrow the list to PRs whose title, author, branch or repository contains the text (or \"#123\"). Empty clears it.",
                      properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
-        WidgetAction(name: "set_filter", description: "Show all open PRs, the ones the user is asked to review, or the user's own.",
+        WidgetAction(name: "set_filter", description: "Show all open PRs, the ones the user is asked to review, or the user's own. Temporary: the widget's saved filter stays.",
                      properties: ["filter": JSONSchema.string("all, review_requested or mine.", enum: ["all", "review_requested", "mine"])], required: ["filter"]),
-        WidgetAction(name: "set_repo", description: "Show one repository (owner/name), or \"\" for every watched one.",
+        WidgetAction(name: "set_repo", description: "Show one repository (owner/name), or \"\" for every watched one. Temporary: the widget's saved repository stays.",
                      properties: ["repo": JSONSchema.string("owner/name.")], required: ["repo"]),
-        WidgetAction(name: "select", description: "Open a PR's detail (Claude's review, diff, checks): owner/name#123, #123, 123, or a unique part of its title.",
+        WidgetAction(name: "select", description: "Select a PR and open its detail (Claude's review, diff, checks); linked widgets follow the selection. owner/name#123, #123, 123, or a unique part of its title.",
                      properties: ["pr": JSONSchema.string("Which PR.")], required: ["pr"]),
-        WidgetAction(name: "clear", description: "Clear the search and show all open PRs of every watched repository."),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected PR."),
+        WidgetAction(name: "clear", description: "Clear the search and Dashii's temporary repository and filter (back to the widget's settings)."),
     ]
 
     struct Outcome {

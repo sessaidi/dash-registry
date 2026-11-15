@@ -133,7 +133,8 @@ struct ToolTests {
     }
 
     @Test func dashiiSearchesFiltersAndOpensPRs() throws {
-        #expect(PullRequestsWidget.actions.map(\.name) == ["search", "set_filter", "set_repo", "select", "clear"])
+        #expect(PullRequestsWidget.actions.map(\.name) == ["search", "set_filter", "set_repo", "select", "clear_selection", "clear"])
+        #expect(PullRequestsWidget.actions.filter { ["set_filter", "set_repo"].contains($0.name) }.allSatisfy { $0.description.contains("Temporary") })
         let pulls = PullRequestSamples.pulls()
         var config = PullRequestsWidget.defaultConfig
         var search = ""
