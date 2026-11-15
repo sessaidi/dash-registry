@@ -109,8 +109,10 @@ struct DatadogMonitorsWidget: DashboardWidget {
         WidgetAction(name: "refresh", description: "Check Datadog now."),
     ]
 
+    static let queryFields = DatadogMonitor.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        MonitorsView(config: config, host: context.host)
+        MonitorsView(config: config, host: context.host, query: context.query(fields: DatadogMonitor.queryFields), queryText: context.queryText)
     }
 
     static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
@@ -145,15 +147,22 @@ struct DatadogMonitorsWidget: DashboardWidget {
 private struct MonitorsView: View {
     @Binding var config: DatadogMonitorsWidget.Config
     let host: any ExtensionContext
+    /// The widget's DashQL query (its query bar), applied after the settings' filters.
+    let query: WidgetQuery?
+    let queryText: String
     @Environment(\.widgetLayout) private var layout
     @State private var selected: Int?
+    @State private var queryIDs: [Int]?
 
     var body: some View {
         Group {
             if let feature = host.ext(DatadogMonitorsFeature.self) {
                 content(feature)
                     .reportsWidgetState(["filter": .string(config.filter), "selected": selected.map { .number(Double($0)) } ?? .null,
-                                         "layout": .string(layout.family.rawValue)])
+                                         "layout": .string(layout.family.rawValue), "query": queryText.isEmpty ? .null : .string(queryText)])
+                    .task(id: QueryRows.key(queryText, DatadogMonitorsWidget.shown(feature.monitors, config)) { $0.queryRow(url: feature.monitorURL($0)) }) {
+                        queryIDs = await QueryRows.ids(query, DatadogMonitorsWidget.shown(feature.monitors, config)) { $0.queryRow(url: feature.monitorURL($0)) }
+                    }
                     .handlesWidgetActions { name, input in
                         switch name {
                         case "filter":
@@ -178,7 +187,8 @@ private struct MonitorsView: View {
 
     @ViewBuilder
     private func content(_ feature: DatadogMonitorsFeature) -> some View {
-        let shown = DatadogMonitorsWidget.shown(feature.monitors, config)
+        let filtered = DatadogMonitorsWidget.shown(feature.monitors, config)
+        let shown = QueryRows.ordered(filtered, by: queryIDs)
         if let error = feature.error, feature.monitors.isEmpty {
             StateView(.failed(message: error))
         } else if feature.lastUpdated == nil {
@@ -186,7 +196,10 @@ private struct MonitorsView: View {
         } else if shown.isEmpty {
             StateView(.empty(title: "All clear", systemImage: "checkmark.seal", message: config.filter.isEmpty ? "No monitor is alerting." : "Nothing matches “\(config.filter)”."))
         } else if layout.family == .narrow {
-            MonitorCounts(monitors: shown)
+            VStack(alignment: .leading, spacing: 4) {
+                QueryCount(shown: shown.count, total: filtered.count, query: queryText)
+                MonitorCounts(monitors: shown)
+            }
         } else if layout.family == .large || layout.family == .wide, let monitor = shown.first(where: { $0.id == selected }) {
             HStack(alignment: .top, spacing: 12) {
                 MonitorsList(monitors: shown, selected: $selected, open: open(feature))

@@ -29,7 +29,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         NSPrincipalClass: DatadogDashPlugin
         DashPluginID: datadog
-        DashPluginVersion: "1.0.0"
+        DashPluginVersion: "1.1.0"
         DashKitMinimumVersion: "1.5.0"
     settings:
       base:
