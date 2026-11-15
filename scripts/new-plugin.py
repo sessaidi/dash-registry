@@ -67,7 +67,7 @@ options:
   deploymentTarget: { macOS: "26.0" }
   createIntermediateGroups: true
 packages:
-  DashKit: { path: ../../../perso/dash/Packages/DashKit }
+  DashKit: { path: "${DASH_ROOT}/Packages/DashKit" }
 settings:
   base:
     SWIFT_VERSION: "6.0"

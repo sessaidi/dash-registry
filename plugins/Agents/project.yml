@@ -5,8 +5,8 @@ options:
   deploymentTarget: { macOS: "26.0" }
   createIntermediateGroups: true
 packages:
-  DashKit: { path: ../../../perso/dash/Packages/DashKit }
-  ClaudeCodeKit: { path: ../../../perso/dash/Packages/ClaudeCodeKit }
+  DashKit: { path: "${DASH_ROOT}/Packages/DashKit" }
+  ClaudeCodeKit: { path: "${DASH_ROOT}/Packages/ClaudeCodeKit" }
 settings:
   base:
     SWIFT_VERSION: "6.0"

@@ -6,11 +6,11 @@
 #   scripts/build-plugins.sh GitHub Docker   # some
 #   TEST=1 scripts/build-plugins.sh          # also run each plugin's tests
 #
-# DashKit comes from the Dash repository at ../perso/dash; see
-# each plugin's project.yml.
+# DashKit comes from a Dash checkout: DASH_ROOT, see scripts/dash-root.sh.
 set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
+. scripts/dash-root.sh
 mkdir -p dist build
 names="${*:-$(ls plugins)}"
 for name in $names; do

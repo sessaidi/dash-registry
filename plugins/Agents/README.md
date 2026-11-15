@@ -119,8 +119,8 @@ Configure these in the feature's AI tab.
 
 ## Build & test
 
-From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (`project.yml` says where
-it expects it). The project also links `Packages/ClaudeCodeKit` from that repository, statically.
+From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (point `DASH_ROOT` at it; see
+`scripts/dash-root.sh`). The project also links `Packages/ClaudeCodeKit` from that repository, statically.
 
 ```sh
 TEST=1 scripts/build-plugins.sh Agents   # generate the project, run AgentsPluginTests, build, zip
