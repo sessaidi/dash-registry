@@ -24,6 +24,40 @@ struct GitLabIntegrationTests {
         try #require(gitlab.tools.first { $0.name == name })
     }
 
+    // MARK: Release sync
+
+    @Test func syncTagsMirrorsTagsWithTheirBranch() async throws {
+        StubURLProtocol.reset([
+            "/api/v4/projects/acme%2Fapi": .json(#"{"default_branch":"main"}"#),
+            "/api/v4/projects/acme%2Fapi/repository/tags": .json(#"""
+                [{"name":"v1","message":"","created_at":null,"commit":{"id":"aaa","committed_date":"2026-10-01T10:00:00Z","title":"Ship v1"}}]
+                """#),
+            "/api/v4/projects/acme%2Fapi/repository/merge_base": .json(#"{"id":"aaa"}"#),
+        ])
+        let gitlab = make()
+        let store = MemorySyncedStore()
+        #expect(try await gitlab.syncTags("acme/api", store: store) == 1)
+        #expect(store.record(kind: "git.tag", scope: "gitlab:acme/api", key: "v1")?.value
+                == ["commit": "aaa", "date": "2026-10-01T10:00:00Z", "subject": "Ship v1", "on_base": true])
+        #expect(store.record(kind: "git.repo", scope: "gitlab:acme/api", key: "info")?.value["default_branch"] == "main")
+    }
+
+    @Test func syncRangeSkipsMergesAndIsCached() async throws {
+        StubURLProtocol.reset([
+            "/api/v4/projects/acme%2Fapi/repository/compare": .json(#"""
+                {"commits":[{"id":"c1","parent_ids":["p"],"author_name":"Ann","authored_date":"2026-10-02T00:00:00Z","title":"Fix bug"},
+                            {"id":"m1","parent_ids":["p","q"],"author_name":"Bot","authored_date":"2026-10-02T01:00:00Z","title":"Merge"}]}
+                """#),
+        ])
+        let gitlab = make()
+        let store = MemorySyncedStore()
+        #expect(try await gitlab.syncRange("acme/api", base: "aaa", head: "bbb", store: store)
+                == [["sha": "c1", "author": "Ann", "date": "2026-10-02T00:00:00Z", "subject": "Fix bug"]])
+        let before = StubURLProtocol.requests.count
+        _ = try await gitlab.syncRange("acme/api", base: "aaa", head: "bbb", store: store)
+        #expect(StubURLProtocol.requests.count == before)
+    }
+
     // MARK: Identity
 
     @Test func identityAndMetadata() {
@@ -31,13 +65,13 @@ struct GitLabIntegrationTests {
         #expect(gitlab.id == "gitlab")
         #expect(gitlab.name == "GitLab")
         #expect(gitlab.layer == .integration)
-        #expect(gitlab.metadata.version == "1.1.0")
+        #expect(gitlab.metadata.version == "1.2.0")
         #expect(gitlab.metadata.category == .sourceControl)
         #expect(gitlab.metadata.homepage == "https://github.com/sessaidi/dash")
         #expect(gitlab.secrets?.extensionID == "gitlab")
         #expect(gitlab.secrets?.legacy == ["token": "gitlab"])
         #expect(gitlab.secretKeys.map(\.key) == ["token"])
-        #expect(gitlab.tools.map(\.name) == ["gitlab_merge_requests", "gitlab_api_get"])
+        #expect(gitlab.tools.map(\.name) == ["gitlab_merge_requests", "gitlab_api_get", "gitlab_sync_tags", "gitlab_sync_compare"])
     }
 
     @Test func pluginEntryPoint() {

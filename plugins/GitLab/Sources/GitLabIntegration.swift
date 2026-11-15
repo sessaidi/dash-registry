@@ -17,7 +17,7 @@ final class GitLabIntegration: Integration {
     let id = "gitlab"
     let name = "GitLab"
     let systemImage = "point.3.connected.trianglepath.dotted"
-    let metadata = ExtensionMetadata(version: "1.1.0", summary: "gitlab.com or self-managed: token, instance URL and watched projects.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.2.0", summary: "gitlab.com or self-managed: token, instance URL and watched projects.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "1.5.0")
     let secretKeys = [SecretKey("token", "Personal access token")]
     let secrets: SecretStore? = SecretStore(extensionID: "gitlab", legacy: ["token": "gitlab"])
 
@@ -51,6 +51,11 @@ final class GitLabIntegration: Integration {
 
     var isConnected: Bool { connection != nil }
     var connectionState: ConnectionState { state(error: lastError, configured: isConnected, account: username.isEmpty ? nil : username) }
+
+    /// What features may read: the instance, the watched projects and who is signed in.
+    var exports: JSONValue {
+        ["instance": .string(instanceURL), "projects": .array(projects.map { .string($0) }), "login": .string(username)]
+    }
 
     var projects: [String] {
         projectsText.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.contains("/") }
@@ -148,6 +153,6 @@ final class GitLabIntegration: Integration {
                 return text.count > Self.maxToolCharacters
                     ? ["truncated": true, "json": .string(String(text.prefix(Self.maxToolCharacters)))] : json
             },
-        ]
+        ] + syncTools
     }
 }
