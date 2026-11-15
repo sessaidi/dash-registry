@@ -1,3 +1,4 @@
+import AppKit
 import DashKit
 import DashKitUI
 import SwiftUI
@@ -477,6 +478,18 @@ struct ReleaseTimelineView: View {
                     domain = zoom(start, by: value.magnification, around: anchor, full: full)
                 }
                 .onEnded { _ in zoomStart = nil })
+            // Mouse wheel and trackpad scrolling: up and down zoom around the pointer, sideways (or
+            // with Shift) pans. Hold Option to scroll the lanes instead.
+            .modifier(ScrollWheelZoom { delta, horizontal, point in
+                let current = domain ?? shown
+                if horizontal != 0 {
+                    let perPoint = current.upperBound.timeIntervalSince(current.lowerBound) / Double(layout.plot.upperBound - layout.plot.lowerBound)
+                    domain = clamp(current, shift: -Double(horizontal) * perPoint, full: full)
+                } else if delta != 0 {
+                    let anchor = TimelineLayout(size: layout.size, domain: current, compact: compact, lanes: model.lanes).date(point.x)
+                    domain = zoom(current, by: CGFloat(exp(Double(delta) * 0.02)), around: anchor, full: full)
+                }
+            })
             .onTapGesture { point in
                 if let release = layout.release(at: point) {
                     selection = ReleaseSelection(repository: release.repository, release: release.id)
@@ -542,7 +555,7 @@ struct ReleaseTimelineView: View {
                 // Narrow: what's live now, in place of the header badges.
                 Text(liveNow(now).map { "\($0.train) \($0.name)" }.joined(separator: " · ")).lineLimit(1)
             } else {
-                Text("Pinch to zoom, drag to pan, click a release for details.").foregroundStyle(.tertiary)
+                Text("Scroll or pinch to zoom, drag to pan, click a release for details.").foregroundStyle(.tertiary)
             }
         }
         .font(.caption)
@@ -645,5 +658,44 @@ enum ReleaseSamples {
         [ReleaseEvent(date: now.addingTimeInterval(-40 * 86_400), kind: .launch, title: "Web launch"),
          ReleaseEvent(date: now.addingTimeInterval(-22 * 86_400), kind: .incident, title: "Pods crash-loop"),
          ReleaseEvent(date: now.addingTimeInterval(-60 * 86_400), kind: .milestone, title: "Train split")]
+    }
+}
+
+/// Scroll-wheel zoom for the timeline: while the pointer is over the view, wheel and trackpad
+/// scrolling go to `action` (vertical delta, horizontal delta, pointer in the view) instead of
+/// scrolling the page. Option lets the scroll through.
+private struct ScrollWheelZoom: ViewModifier {
+    let action: (_ vertical: CGFloat, _ horizontal: CGFloat, _ point: CGPoint) -> Void
+    @State private var pointer: CGPoint?
+    @State private var monitor: Any?
+
+    func body(content: Content) -> some View {
+        content
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let point): pointer = point
+                case .ended: pointer = nil
+                }
+            }
+            .onAppear {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                    guard !event.modifierFlags.contains(.option) else { return event }
+                    let shift = event.modifierFlags.contains(.shift)
+                    // Lines (mouse wheels) are much coarser than trackpad points.
+                    let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 8
+                    let vertical = shift ? 0 : event.scrollingDeltaY * scale
+                    let horizontal = (shift ? event.scrollingDeltaY : event.scrollingDeltaX) * scale
+                    let handled = MainActor.assumeIsolated { () -> Bool in
+                        guard let point = pointer else { return false }
+                        if abs(horizontal) > abs(vertical) { action(0, horizontal, point) } else { action(vertical, 0, point) }
+                        return true
+                    }
+                    return handled ? nil : event
+                }
+            }
+            .onDisappear {
+                if let monitor { NSEvent.removeMonitor(monitor) }
+                monitor = nil
+            }
     }
 }
