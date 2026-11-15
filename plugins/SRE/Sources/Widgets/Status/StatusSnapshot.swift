@@ -24,10 +24,15 @@ struct StatusSnapshot: Sendable, Equatable {
     static let sample = StatusSnapshot(
         signals: Signals(
             monitors: [Signal(id: "1201", title: "api 5xx rate", detail: "Alert · service api · env prod", level: .critical, since: nil),
-                       Signal(id: "1188", title: "checkout p95 latency", detail: "Warn · service checkout · env prod", level: .warning, since: nil)],
+                       Signal(id: "1188", title: "checkout p95 latency", detail: "Warn · service checkout · env prod", level: .warning, since: nil),
+                       Signal(id: "1093", title: "worker queue depth", detail: "Warn · service worker · env prod", level: .warning, since: nil)],
             pods: [Signal(id: "papi-eu/api-7d9f8-x2k", title: "Pod api-7d9f8-x2k", detail: "CrashLoopBackOff in papi-eu · 14 restarts · BackOff",
-                          level: .critical, since: nil)],
+                          level: .critical, since: nil),
+                   Signal(id: "papi-eu/api-7d9f8-q4m", title: "Pod api-7d9f8-q4m", detail: "CrashLoopBackOff in papi-eu · 9 restarts · BackOff",
+                          level: .critical, since: nil),
+                   Signal(id: "papi-us/worker-5c4b-mn3", title: "Pod worker-5c4b-mn3", detail: "Running in papi-us · 2 restarts · Unhealthy",
+                          level: .warning, since: nil)],
             sources: ["datadog", "kubernetes"]),
         lastReport: Report(summary: "5xx on api started at 10:02 with v1.42 rolling out; the new pods crash-loop on a missing config key.",
-                           at: .now.addingTimeInterval(-600), findings: ["Roll back api to v1.41", "Add the key to the config map"], critical: true))
+                           at: .now.addingTimeInterval(-600), findings: ["Roll back api to v1.41", "Add FEATURE_FLAGS_URL to the api config map", "Checkout latency follows the api errors"], critical: true))
 }

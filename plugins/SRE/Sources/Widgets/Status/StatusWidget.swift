@@ -19,8 +19,8 @@ struct StatusWidget: DashboardWidget {
     static let configSchema: JSONValue = ["type": "object", "properties": ["criticalOnly": ["type": "boolean", "description": "Only critical signals."]]]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        ProvidedWidget(StatusProvider(host: context.host), config: config.wrappedValue, loading: "Checking monitors and pods…") { snapshot, size in
-            StatusView(snapshot: snapshot, size: size) { question in
+        ProvidedWidget(StatusProvider(host: context.host), config: config.wrappedValue, loading: "Checking monitors and pods…") { snapshot, layout in
+            StatusView(snapshot: snapshot, family: layout.family) { question in
                 context.host.askDashii("Ask the on-call SRE (agent sre.oncall ask): \(question)")
             }
         }
@@ -31,7 +31,7 @@ struct StatusWidget: DashboardWidget {
     }
 
     static func preview(config: Config) -> some View {
-        StatusView(snapshot: .sample, size: .regular)
+        StatusPreview()
     }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
@@ -39,4 +39,10 @@ struct StatusWidget: DashboardWidget {
             snapshot.signals.json.merging(["last_report": snapshot.lastReport.map { .string($0.summary) } ?? .null])
         } ?? .null
     }
+}
+
+/// The sample snapshot at whatever size the gallery measures.
+private struct StatusPreview: View {
+    @Environment(\.widgetLayout) private var layout
+    var body: some View { StatusView(snapshot: .sample, family: layout.family) }
 }
