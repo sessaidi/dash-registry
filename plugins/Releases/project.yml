@@ -31,7 +31,7 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: releases
-        DashPluginVersion: "1.6.0"
+        DashPluginVersion: "1.7.0"
         DashKitMinimumVersion: "2.0.0"
     settings:
       base:

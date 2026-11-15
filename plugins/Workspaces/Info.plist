@@ -23,6 +23,6 @@
 	<key>DashPluginID</key>
 	<string>workspaces</string>
 	<key>DashPluginVersion</key>
-	<string>2.6.0</string>
+	<string>2.7.0</string>
 </dict>
 </plist>

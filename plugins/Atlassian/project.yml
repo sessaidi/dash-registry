@@ -32,7 +32,7 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: atlassian
-        DashPluginVersion: "1.5.0"
+        DashPluginVersion: "1.5.1"
         DashKitMinimumVersion: "2.0.0"
     settings:
       base:
