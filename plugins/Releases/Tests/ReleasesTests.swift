@@ -489,8 +489,9 @@ final class FakeGitHub: Integration {
 @MainActor
 struct ReleaseTimelineActionsTests {
     @Test func dashiiCanDriveTheTimeline() {
-        #expect(ReleaseTimelineWidget.actions.map(\.name) == ["search", "select_release", "set_train", "set_period", "zoom", "clear"])
-        #expect(WidgetType(ReleaseTimelineWidget.self).actions.count == 6)
+        #expect(ReleaseTimelineWidget.actions.map(\.name) == ["search", "select_release", "set_train", "set_period", "zoom", "clear_selection", "clear"])
+        #expect(ReleaseTimelineWidget.actions.filter { ["set_train", "set_period"].contains($0.name) }.allSatisfy { $0.description.contains("Temporary") })
+        #expect(WidgetType(ReleaseTimelineWidget.self).actions.count == 7)
     }
 
     @Test func trainsAndReleasesAreFoundByWhatTheUserSays() throws {

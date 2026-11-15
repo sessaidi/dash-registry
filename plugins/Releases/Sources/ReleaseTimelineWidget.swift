@@ -38,15 +38,16 @@ struct ReleaseTimelineWidget: DashboardWidget {
     static let actions = [
         WidgetAction(name: "search", description: "Search the timeline like the magnifier: a ticket key or text highlights matching releases and fits them; a date (2026-10-12, 12 Oct, W41) jumps there and marks the release live that day.",
                      properties: ["text": JSONSchema.string("Ticket, text or date.")], required: ["text"]),
-        WidgetAction(name: "select_release", description: "Open a release's detail (builds, commits, tickets), by name, short name or build tag.",
+        WidgetAction(name: "select_release", description: "Select a release by name, short name or build tag and open its detail (builds, commits, tickets); linked widgets follow the selection.",
                      properties: ["name": JSONSchema.string("e.g. release-2026W41-03-eu, W41-03-eu or a build tag.")], required: ["name"]),
-        WidgetAction(name: "set_train", description: "Show one train, or all.",
+        WidgetAction(name: "set_train", description: "Show one train, or all. Temporary: the widget's saved train stays.",
                      properties: ["train": JSONSchema.string("eu, us… ; \"shared\" for the shared one; \"all\" for every train.")], required: ["train"]),
-        WidgetAction(name: "set_period", description: "Show the last N days (30, 90, 180, 365); omit days for everything.",
+        WidgetAction(name: "set_period", description: "Show the last N days (30, 90, 180, 365); omit days for everything. Temporary: the widget's saved period stays.",
                      properties: ["days": JSONSchema.integer("Days, or omit for all.")]),
         WidgetAction(name: "zoom", description: "Show exactly this date range.",
                      properties: ["from": JSONSchema.string("Start date."), "to": JSONSchema.string("End date.")], required: ["from", "to"]),
-        WidgetAction(name: "clear", description: "Stop searching, close the detail and go back to the widget's period."),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected release."),
+        WidgetAction(name: "clear", description: "Stop searching, close the detail and drop Dashii's temporary train and period (back to the widget's settings)."),
     ]
 
     static let queryFields = Release.queryFields
@@ -498,7 +499,14 @@ struct ReleaseTimelineView: View {
     @State private var zoomStart: ClosedRange<Date>?
     @State private var hovered: Release?
     @State private var hoveredEvent: ReleaseEvent?
+    /// The release whose detail sheet is open.
     @State var selection: ReleaseSelection?
+    /// The release the user picked: highlighted and published for linked widgets until another
+    /// is picked or it's clicked again.
+    @State var picked: ReleaseSelection?
+    /// What Dashii's actions changed for now (train, period); the saved settings stay, and this
+    /// resets when they change.
+    @State var override: ReleaseTimelineWidget.Config?
     @State private var eventSelection: ReleaseEvent?
     @State var searching = false
     @State var query = ""
@@ -507,8 +515,11 @@ struct ReleaseTimelineView: View {
     /// The widget's size family from the dashboard: narrow widgets get the compact layout.
     @Environment(\.widgetLayout) private var widgetLayout
 
+    /// The settings with Dashii's temporary changes on top: what the timeline shows.
+    var shown: ReleaseTimelineWidget.Config { override ?? config }
+
     var repositories: [RepositoryConfig] {
-        feature.repositories.filter { config.repository == nil || $0.id == config.repository }
+        feature.repositories.filter { shown.repository == nil || $0.id == shown.repository }
     }
 
     var timelines: [RepositoryTimeline] { repositories.compactMap { feature.timelines[$0.id] } }
@@ -516,6 +527,9 @@ struct ReleaseTimelineView: View {
     var body: some View {
         main
             .handlesWidgetActions { name, input in try perform(name, input) }
+            .onChange(of: config) { override = nil }
+            .onExitCommand { picked = nil }
+            .reportsSelection(pickedRow)
             .reportsWidgetState(uiState)
             .task(id: QueryRows.key(queryText, allReleases, row: queryRow)) {
                 queryIDs = await QueryRows.ids(widgetQuery, allReleases, row: queryRow)
@@ -548,14 +562,14 @@ struct ReleaseTimelineView: View {
     }
 
     var currentModel: TimelineModel {
-        let model = TimelineModel(timelines: timelines, events: config.events ? feature.events(for: config.repository) : [],
-                                  train: config.train, showEvents: config.events)
+        let model = TimelineModel(timelines: timelines, events: shown.events ? feature.events(for: shown.repository) : [],
+                                  train: shown.train, showEvents: shown.events)
         return queryIDs.map { model.keeping(Set($0)) } ?? model
     }
 
     /// Every release the widget's repositories and train show, before its query.
     private var allReleases: [Release] {
-        timelines.flatMap { timeline in timeline.releases.filter { config.train == nil || $0.train == config.train } }
+        timelines.flatMap { timeline in timeline.releases.filter { shown.train == nil || $0.train == shown.train } }
     }
 
     private func queryRow(_ release: Release) -> JSONValue {
@@ -597,7 +611,7 @@ struct ReleaseTimelineView: View {
     private func chart(_ model: TimelineModel, layout: TimelineLayout, full: ClosedRange<Date>, now: Date, compact: Bool) -> some View {
         let shown = layout.domain
         let dateQuery = searching ? ReleaseDates.search(query, now: now) : nil
-        return TimelineChart(model: model, domain: shown, now: now, compact: compact, selected: selection?.release,
+        return TimelineChart(model: model, domain: shown, now: now, compact: compact, selected: picked?.release ?? selection?.release,
                              hovered: hovered?.id ?? focused(model)?.id, query: searching && dateQuery == nil ? query : "",
                              marker: searching ? focusDate : nil)
             .contentShape(.rect)
@@ -631,7 +645,14 @@ struct ReleaseTimelineView: View {
             })
             .onTapGesture { point in
                 if let release = layout.release(at: point) {
-                    selection = ReleaseSelection(repository: release.repository, release: release.id)
+                    // Clicking selects and opens; clicking the selected release again unselects it.
+                    let clicked = ReleaseSelection(repository: release.repository, release: release.id)
+                    if picked?.release == release.id && picked?.repository == release.repository {
+                        picked = nil
+                    } else {
+                        picked = clicked
+                        selection = clicked
+                    }
                 } else if let event = layout.event(at: point) {
                     eventSelection = event
                 }
@@ -718,7 +739,7 @@ struct ReleaseTimelineView: View {
 
     func liveNow(_ now: Date) -> [Live] {
         timelines.flatMap { timeline in
-            timeline.liveAt(now).filter { config.train == nil || $0.train == config.train }.map { live in
+            timeline.liveAt(now).filter { shown.train == nil || $0.train == shown.train }.map { live in
                 Live(id: timeline.repository.id + live.train, train: (timelines.count > 1 ? timeline.repository.name + " " : "") + timeline.trainTitle(live.train),
                      name: live.release.shortName, tag: live.build.tag, hotfix: !live.build.onBase)
             }
@@ -742,7 +763,7 @@ struct ReleaseTimelineView: View {
     }
 
     func initialDomain(_ full: ClosedRange<Date>, now: Date) -> ClosedRange<Date> {
-        guard let days = config.period else { return full }
+        guard let days = shown.period else { return full }
         let span = Double(days) * 86_400
         return max(full.lowerBound, now.addingTimeInterval(-span))...now.addingTimeInterval(span * 0.04)
     }
@@ -790,6 +811,17 @@ struct ReleaseTimelineView: View {
 // MARK: - Dashii
 
 extension ReleaseTimelineView {
+    /// The picked release as a `releases` dataset row, for linked widgets.
+    var pickedRow: JSONValue? {
+        guard let picked else { return nil }
+        for timeline in timelines where timeline.repository.id == picked.repository || timeline.releases.contains(where: { $0.id == picked.release }) {
+            if let release = timeline.releases.first(where: { $0.id == picked.release }) {
+                return release.queryRow(repository: timeline.repository.name)
+            }
+        }
+        return nil
+    }
+
     /// What the widget shows right now, for Dashii.
     var uiState: JSONValue {
         guard !timelines.isEmpty else { return ["state": feature.repositories.isEmpty ? "no repository" : "loading"] }
@@ -799,7 +831,7 @@ extension ReleaseTimelineView {
         let selected = selection.flatMap { selection in model.releases.first { $0.id == selection.release } }
         return [
             "repositories": .array(repositories.map { .string($0.name) }),
-            "train": config.train.map { .string($0.isEmpty ? "shared" : $0) } ?? "all",
+            "train": self.shown.train.map { .string($0.isEmpty ? "shared" : $0) } ?? "all",
             "visible_from": .string(ReleaseTimelineActions.day(shown.lowerBound)),
             "visible_to": .string(ReleaseTimelineActions.day(shown.upperBound)),
             "zoomed": .bool(domain != nil),
@@ -807,6 +839,8 @@ extension ReleaseTimelineView {
             "search_date": focusDate.map { .string(ReleaseTimelineActions.day($0)) } ?? .null,
             "highlighted_release": focused(model).map { .string($0.name) } ?? .null,
             "open_release": selected.map { .string($0.name) } ?? .null,
+            "selected": pickedRow?["name"] ?? .null,
+            "temporary_changes": .bool(override != nil),
             "live_now": .array(liveNow(now).map { .string("\($0.train): \($0.tag)") }),
         ]
     }
@@ -831,6 +865,7 @@ extension ReleaseTimelineView {
                 throw ToolError("No release matching “\(input["name"]?.string ?? "")” in this widget.")
             }
             selection = ReleaseSelection(repository: release.repository, release: release.id)
+            picked = selection
             return ["opened": .string(release.name)]
         case "set_train":
             let train = ReleaseTimelineActions.train(input["train"]?.string)
@@ -838,11 +873,15 @@ extension ReleaseTimelineView {
             if let train, !known.contains(train) {
                 throw ToolError("No train “\(train)”. Trains: \(known.sorted().map { $0.isEmpty ? "shared" : $0 }.joined(separator: ", ")).")
             }
-            config.train = train
+            var view = shown
+            view.train = train
+            override = view
             return ["train": train.map { .string($0.isEmpty ? "shared" : $0) } ?? "all"]
         case "set_period":
             let days = input["days"]?.int
-            config.period = days
+            var view = shown
+            view.period = days
+            override = view
             domain = nil
             return ["period_days": days.map { .number(Double($0)) } ?? "all"]
         case "zoom":
@@ -852,12 +891,16 @@ extension ReleaseTimelineView {
             }
             domain = from...to
             return ["visible_from": .string(ReleaseTimelineActions.day(from)), "visible_to": .string(ReleaseTimelineActions.day(to))]
+        case "clear_selection":
+            picked = nil
+            return "cleared"
         case "clear":
             searching = false
             query = ""
             focusDate = nil
             domain = nil
             selection = nil
+            override = nil
             return "cleared"
         default:
             throw ToolError("Unknown action \(name).")
