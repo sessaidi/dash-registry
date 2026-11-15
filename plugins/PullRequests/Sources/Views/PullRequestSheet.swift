@@ -134,12 +134,29 @@ struct PullRequestSheet: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: 14) {
             PRStatTiles(stats: stats, pr: pr)
-            DetailSection("Description") {
+            if let review = reviews.first {
+                Panel(title: "Dashii's review", systemImage: "sparkles", tint: Self.riskColor(review.risk)) { ReviewView(review: review) }
+            } else {
+                Panel(title: "Dashii's review", systemImage: "sparkles", tint: .secondary) {
+                    Text("No Dashii review yet.").foregroundStyle(.secondary)
+                }
+            }
+            if let files, !files.isEmpty {
+                Panel(title: "Changes by file", systemImage: "chart.bar.xaxis", tint: .purple) { ChangesChart(files: files) }
+            }
+            Panel(title: "Description", systemImage: "text.alignleft", tint: .blue) {
                 if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { InlineMarkdown(pr.body) }
             }
-            DetailSection("Dashii's review") {
-                if let review = reviews.first { ReviewView(review: review) } else { Text("No Dashii review yet.").foregroundStyle(.secondary) }
-            }
+        }
+        .task { if files == nil { files = (try? await github?.client.files(pr.repo, pr.number)) ?? [] } }
+    }
+
+    static func riskColor(_ risk: String) -> Color {
+        switch risk {
+        case "high": .red
+        case "medium": .orange
+        case "low": .green
+        default: .accentColor
         }
     }
 
