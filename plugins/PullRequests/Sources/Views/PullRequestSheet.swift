@@ -21,6 +21,7 @@ struct PullRequestSheet: View {
     @State private var workspaces: [JSONValue]?
     @State private var workspaceNote: String?
     @State private var files: [JSONValue]?
+    @State private var stats: PRStats?
     @State private var human: (reviews: [JSONValue], comments: [JSONValue])?
 
     init(pr: PullRequest, host: any ExtensionContext) {
@@ -67,6 +68,7 @@ struct PullRequestSheet: View {
         .padding(20)
         .frame(minWidth: 860, idealWidth: 980, minHeight: 640, idealHeight: 760)
         .task { await loadWorkspaces() }
+        .task { await loadStats() }
         .confirmationDialog("Merge \(pr.repo)#\(pr.number)?", isPresented: $confirmMerge) {
             Button("Squash and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "squash"); await github?.sync() } }
             Button("Merge Commit") { run { try await github?.client.merge(pr.repo, pr.number, method: "merge"); await github?.sync() } }
@@ -131,6 +133,7 @@ struct PullRequestSheet: View {
     @ViewBuilder
     private var overview: some View {
         VStack(alignment: .leading, spacing: 14) {
+            PRStatTiles(stats: stats, pr: pr)
             DetailSection("Description") {
                 if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { InlineMarkdown(pr.body) }
             }
@@ -210,6 +213,15 @@ struct PullRequestSheet: View {
                 }
             }
         }
+    }
+
+    /// GitHub's numbers for the tiles: the pull request, and the check runs of its head commit.
+    private func loadStats() async {
+        guard let github else { return }
+        let repo = pr.repo, number = pr.number, sha = pr.headSHA
+        let pull = (try? await github.client.pull(repo, number)) ?? .null
+        let runs = (try? await github.client.get("/repos/\(repo)/commits/\(sha)/check-runs?per_page=100"))?.json["check_runs"]?.array ?? []
+        stats = PRStats(pull: pull, checkRuns: runs)
     }
 
     private func loadWorkspaces() async {
