@@ -4,25 +4,23 @@ import DashKitUI
 import SwiftUI
 
 /// The Zoom standup: followed live while it runs, then its report.
-struct MeetingView: View {
-    let standup: DailyStandupFeature
+struct MeetingSection: View {
+    let state: StandupState
 
     var body: some View {
-        let _ = standup.revision
-        let day = standup.day()
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                if let live = standup.live, live["meeting_id"] != nil, day?.report == nil {
-                    LiveMeetingView(live: live, me: standup.myName)
-                } else if let report = day?.report {
-                    ReportView(report: report, notePath: day?.notePath ?? "")
-                } else if !standup.isZoomDay() {
-                    Text("Today's standup isn't on Zoom (Settings › Daily Standup › Zoom days). Your own update is under Me.").foregroundStyle(.secondary)
+                if let live = state.live {
+                    LiveMeetingView(live: live, me: state.myName)
+                } else if let report = state.report {
+                    ReportView(report: report, notePath: state.notePath)
+                } else if !state.isZoomDay {
+                    Text("Today's standup isn't on Zoom (Settings › Daily Standup › Zoom days). Your own update is under Me.").font(.callout).foregroundStyle(.secondary)
                 } else {
-                    Text("The standup at \(standup.time) is followed here while it runs, and reported when it ends. Turn on Zoom's captions so each line has its speaker's name.")
-                        .foregroundStyle(.secondary)
+                    Text("The standup at \(state.time) is followed here while it runs, and reported when it ends. Turn on Zoom's captions so each line has its speaker's name.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
-                if standup.isReporting { ProgressView("Writing the report…").controlSize(.small) }
+                if state.isReporting { ProgressView("Writing the report…").controlSize(.small) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -39,7 +37,7 @@ struct LiveMeetingView: View {
         let notHeard = (live["not_heard_yet"]?.array ?? []).compactMap(\.string)
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Circle().fill(.red).frame(width: 8, height: 8)
+                StatusDot(.danger)
                 Text("Live").font(.caption.bold())
                 if let now = live["speaking_now"]?.string { Text("· \(now) is speaking").font(.callout) }
             }

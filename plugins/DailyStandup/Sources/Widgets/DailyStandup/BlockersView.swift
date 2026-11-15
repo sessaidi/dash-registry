@@ -3,27 +3,28 @@ import DashKitUI
 import SwiftUI
 
 /// Open blockers, with Resolved.
-struct BlockersView: View {
-    let standup: DailyStandupFeature
+struct BlockersSection: View {
+    let blockers: [StandupBlockerRow]
+    let resolve: (UUID) -> Void
 
     var body: some View {
-        let _ = standup.revision
-        let blockers = standup.openBlockers()
         if blockers.isEmpty {
-            ContentUnavailableView("No open blockers", systemImage: "checkmark.seal")
+            Label("No open blockers", systemImage: "checkmark.seal")
+                .font(.callout).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(blockers) { blocker in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(blocker.text).font(.callout)
-                        Text("\(blocker.owner) · open \(blocker.daysOpen) day\(blocker.daysOpen == 1 ? "" : "s")\(blocker.reference.isEmpty ? "" : " · \(blocker.reference)")")
-                            .font(.caption).foregroundStyle(blocker.daysOpen >= 3 ? .red : .secondary)
-                    }
-                    Spacer()
-                    Button("Resolved", systemImage: "checkmark.circle") { standup.resolve(blocker) }.labelStyle(.iconOnly).buttonStyle(.borderless)
+                ItemRow(blocker.text, subtitle: blocker.subtitle) {
+                    StatusDot(blocker.daysOpen >= 3 ? .danger : .warning, help: blocker.daysOpen >= 3 ? "Open for days" : "Open")
+                } trailing: {
+                    Button("Resolved", systemImage: "checkmark.circle") { resolve(blocker.id) }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .help("Mark as resolved")
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 }

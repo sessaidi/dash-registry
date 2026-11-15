@@ -4,34 +4,30 @@ import DashKitUI
 import SwiftUI
 
 /// Your update for today, or Prepare Now.
-struct MeView: View {
-    let standup: DailyStandupFeature
-    @State private var error: String?
+struct MeSection: View {
+    let state: StandupState
+    let commands: StandupCommands
 
     var body: some View {
-        let _ = standup.revision
-        let day = standup.day()
         VStack(alignment: .leading, spacing: 8) {
-            if let update = day?.update {
-                StandupUpdateView(update: update, preparedAt: day?.preparedAt) { refresh() }
+            if let update = state.update {
+                StandupUpdateView(update: update, preparedAt: state.preparedAt, onRefresh: commands.prepare)
             } else {
-                ContentUnavailableView {
-                    Label(standup.isWorkday() ? "Not prepared yet" : standup.calendar.skip(on: .now)?.reason ?? "No standup today", systemImage: "person.3.sequence")
-                } description: {
-                    Text("Prepared \(standup.prepareMinutesBefore) min before \(standup.time) from your commits, PRs, tickets, agents and deploys since the last standup.")
-                } actions: {
-                    Button("Prepare Now") { refresh() }.disabled(standup.isPreparing)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(state.unpreparedTitle, systemImage: "person.3.sequence").font(.headline)
+                    Text(state.prepareHint).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if let prepare = commands.prepare {
+                        Button("Prepare Now", systemImage: "sparkles", action: prepare)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(state.isPreparing)
+                    }
                 }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
             }
-            if standup.isPreparing { ProgressView("Preparing…").controlSize(.small) }
-            if let error = error ?? standup.lastError { Text(error).font(.caption).foregroundStyle(.red) }
-        }
-    }
-
-    private func refresh() {
-        Task {
-            do { try await standup.prepare(); error = nil } catch { self.error = error.localizedDescription }
+            if state.isPreparing { ProgressView("Preparing…").controlSize(.small) }
+            if let error = state.error { Text(error).font(.caption).foregroundStyle(.red) }
         }
     }
 }
@@ -50,11 +46,7 @@ struct StandupUpdateView: View {
                 HStack {
                     if let preparedAt { Text("Prepared \(preparedAt.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(.tertiary) }
                     Spacer()
-                    Button("Copy", systemImage: "doc.on.doc") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(update.text, forType: .string)
-                    }
-                    .help("Copy for Slack")
+                    CopyUpdateButton(update: update)
                     if let onRefresh { Button("Redo", systemImage: "arrow.clockwise", action: onRefresh) }
                 }
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
@@ -82,5 +74,18 @@ struct StandupUpdateView: View {
                 }
             }
         }
+    }
+}
+
+/// Copies the update, ready for Slack.
+struct CopyUpdateButton: View {
+    let update: StandupUpdate
+
+    var body: some View {
+        Button("Copy", systemImage: "doc.on.doc") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(update.text, forType: .string)
+        }
+        .help("Copy for Slack")
     }
 }
