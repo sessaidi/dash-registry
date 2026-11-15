@@ -177,12 +177,18 @@ actor ReleaseLoader {
 
     var cachedRanges: Int { ranges.count }
 
-    func load(_ repository: RepositoryConfig, now: Date = .now) async throws -> RepositoryTimeline {
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: repository.url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            throw ToolError("\(repository.path) doesn't exist.")
+    /// Reads a timeline from `source`, or with git in the repository's checkout when nil.
+    func load(_ repository: RepositoryConfig, now: Date = .now, source: (any ReleaseSource)? = nil) async throws -> RepositoryTimeline {
+        let git: any ReleaseSource
+        if let source {
+            git = source
+        } else {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: repository.url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                throw ToolError("\(repository.path) doesn't exist.")
+            }
+            git = GitReader(directory: repository.url)
         }
-        let git = GitReader(directory: repository.url)
         let tags = try await git.tags()
         let base = await git.baseBranch(repository.baseBranch)
         // No base branch found: nothing counts as a hotfix.
@@ -195,7 +201,7 @@ actor ReleaseLoader {
     }
 
     /// One range per build: the release's base to its first build, then build to build.
-    private func fillCommits(_ timeline: inout RepositoryTimeline, git: GitReader) async throws {
+    private func fillCommits(_ timeline: inout RepositoryTimeline, git: any ReleaseSource) async throws {
         restore()
         let commitOf = Dictionary(timeline.releases.flatMap(\.builds).map { ($0.tag, $0.commit) }, uniquingKeysWith: { first, _ in first })
         var jobs: [(key: String, base: String?, head: String)] = []
@@ -213,12 +219,12 @@ actor ReleaseLoader {
             var pending = jobs[...]
             for _ in 0..<min(width, pending.count) {
                 let job = pending.removeFirst()
-                group.addTask { (job.key, try await git.commits(from: job.base, to: job.head)) }
+                group.addTask { (job.key, try await git.commits(from: job.base, to: job.head, limit: 1_000)) }
             }
             while let (key, commits) = try await group.next() {
                 ranges[key] = commits
                 if let job = pending.popFirst() {
-                    group.addTask { (job.key, try await git.commits(from: job.base, to: job.head)) }
+                    group.addTask { (job.key, try await git.commits(from: job.base, to: job.head, limit: 1_000)) }
                 }
             }
         }
@@ -238,6 +244,21 @@ actor ReleaseLoader {
                 from = build.commit
             }
             timeline.releases[index].commits = commits.sorted { $0.date > $1.date }
+        }
+        if !git.marksCherryPicks { Self.markCherryPicks(&timeline) }
+    }
+
+    /// Without patch ids: a commit counts as already shipped when the release it's compared with
+    /// had a commit with the same subject.
+    static func markCherryPicks(_ timeline: inout RepositoryTimeline) {
+        var releaseOf: [String: Int] = [:]
+        for (index, release) in timeline.releases.enumerated() { for build in release.builds { releaseOf[build.tag] = index } }
+        let subjects = timeline.releases.map { Set($0.commits.map(\.subject)) }
+        for index in timeline.releases.indices {
+            guard let base = timeline.releases[index].base, let baseIndex = releaseOf[base], baseIndex != index else { continue }
+            for commit in timeline.releases[index].commits.indices where subjects[baseIndex].contains(timeline.releases[index].commits[commit].subject) {
+                timeline.releases[index].commits[commit].alreadyShipped = true
+            }
         }
     }
 

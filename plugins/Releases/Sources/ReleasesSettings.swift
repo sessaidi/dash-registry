@@ -48,7 +48,7 @@ struct ReleasesSettingsView: View {
             } header: {
                 Text("Repositories")
             } footer: {
-                Text("Read with read-only git commands every 10 minutes. Tags matching the pattern are grouped into releases (builds .01, .02…) and trains (-eu, -us…). A build whose commit isn't on the base branch is a hotfix.")
+                Text("A local checkout is read with read-only git commands; a repository from GitHub or GitLab without one is read from the mirror its integration keeps in Dash (reads only). Each is checked for changes on its own interval (10 minutes by default). Tags matching the pattern are grouped into releases (builds .01, .02…) and trains (-eu, -us…). A build whose commit isn't on the base branch is a hotfix.")
             }
             Section {
                 ForEach(feature.timelineEvents.sorted { $0.date > $1.date }) { event in
@@ -107,9 +107,10 @@ struct ReleasesSettingsView: View {
 
     private func status(_ repository: RepositoryConfig) -> String {
         if let error = feature.errors[repository.id] { return error }
-        guard let timeline = feature.timelines[repository.id] else { return repository.path }
+        let place = repository.isRemote ? "\(repository.slug ?? "") via \(repository.service == "gitlab" ? "GitLab" : "GitHub")" : repository.path
+        guard let timeline = feature.timelines[repository.id] else { return place }
         let trains = timeline.trains.map(timeline.trainTitle).joined(separator: ", ")
-        return "\(repository.path) · \(timeline.releases.count) releases · \(trains.isEmpty ? "no matching tags" : trains)"
+        return "\(place) · \(timeline.releases.count) releases · \(trains.isEmpty ? "no matching tags" : trains)"
     }
 
     private func repositoryName(_ id: String?) -> String {
@@ -155,7 +156,10 @@ private struct RepositoryEditor: View {
 
     var body: some View {
         TextField("Name", text: $repository.name)
-        TextField("Checkout", text: $repository.path, prompt: Text("~/code/my-service"))
+        TextField("Checkout", text: $repository.path, prompt: Text(repository.source.map { "Empty: read \($0) from the integration" } ?? "~/code/my-service"))
+        Picker("Check for changes", selection: Binding(get: { repository.refreshMinutes ?? 10 }, set: { repository.refreshMinutes = $0 })) {
+            ForEach([1, 5, 10, 15, 30, 60], id: \.self) { Text($0 == 60 ? "Every hour" : "Every \($0) min").tag($0) }
+        }
         TextField("Tag pattern", text: $repository.tagPattern, prompt: Text("release-* or v*, or a regex starting with ^"))
         HStack {
             Button("release-* builds") { apply(.releaseTags) }

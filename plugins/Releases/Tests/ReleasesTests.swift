@@ -275,6 +275,55 @@ struct FeatureTests {
         #expect(again.events(for: "someone-else").isEmpty && again.events(for: nil).count == 1)
     }
 
+    @Test func remoteRepositoryReadsTheIntegrationMirror() async throws {
+        let github = FakeGitHub()
+        let feature = makeFeature()
+        feature.now = { TempRepo.day(40) }
+        let host = try TestHost([github, feature])
+        github.hostStore = host.synced
+        feature.start(host: host)
+        feature.stop()
+        let remote = try #require(RemoteRepository.available(host: host).first)
+        #expect(remote.source == "github:acme/api" && remote.host == "github.com")
+
+        let id = await feature.addRemote(remote)
+        #expect(await feature.addRemote(remote) == id)
+        let repository = try #require(feature.repositories.first)
+        #expect(repository.isRemote && repository.slug == "acme/api" && repository.service == "github")
+        await feature.refresh(id)
+        let timeline = try #require(feature.timelines[id])
+        #expect(timeline.releases.map(\.name) == ["release-2026W02-01", "release-2026W03-01", "release-2026W04-01"])
+        #expect(timeline.baseBranch == "main")
+        // The fix W03 shipped comes back in W04's range: counted as already shipped (same subject).
+        let latest = try #require(timeline.releases.last)
+        #expect(latest.newCommits.map(\.subject) == ["PPT-5: third"] && latest.commits.count == 2)
+        #expect(github.calls.filter { $0 == "github_sync_tags" }.count >= 1)
+        // Ranges are fetched once, then read from the mirror.
+        let compares = github.calls.filter { $0 == "github_sync_compare" }.count
+        await feature.refresh(id)
+        #expect(github.calls.filter { $0 == "github_sync_compare" }.count == compares)
+        // A repository can't be read without its integration.
+        var orphan = RepositoryConfig(name: "web", path: "")
+        orphan.source = "gitlab:acme/web"
+        await #expect(throws: ToolError.self) { try await feature.syncedSource(orphan) }
+    }
+
+    @Test func searchesParseDates() {
+        let now = TempRepo.day(300) // 2026-11-01
+        let utc = { () -> Calendar in var calendar = Calendar(identifier: .gregorian); calendar.timeZone = .gmt; return calendar }()
+        func day(_ date: Date?) -> String? { date.map { $0.formatted(Date.ISO8601FormatStyle(timeZone: .gmt).year().month().day()) } }
+        #expect(day(ReleaseDates.search("2026-10-12", now: now, calendar: utc)) == "2026-10-12")
+        #expect(day(ReleaseDates.search("12 Oct", now: now, calendar: utc)) == "2026-10-12")
+        #expect(day(ReleaseDates.search("Oct 12", now: now, calendar: utc)) == "2026-10-12")
+        // No year, in the future: last year's.
+        #expect(day(ReleaseDates.search("12 Dec", now: now, calendar: utc)) == "2025-12-12")
+        #expect(day(ReleaseDates.search("12 October 2025", now: now, calendar: utc)) == "2025-10-12")
+        #expect(day(ReleaseDates.search("W41", now: now, calendar: utc)) == "2026-10-05")
+        #expect(day(ReleaseDates.search("2026W02", now: now, calendar: utc)) == "2026-01-05")
+        #expect(ReleaseDates.search("LAF-5917", now: now, calendar: utc) == nil)
+        #expect(ReleaseDates.search("fix", now: now, calendar: utc) == nil)
+    }
+
     @Test func widgetContract() {
         #expect(ReleaseTimelineWidget.kind == "releases.timeline")
         let type = WidgetType(ReleaseTimelineWidget.self)
@@ -357,7 +406,7 @@ func renderWidget() async throws {
                               ReleaseEvent(date: feature.now().addingTimeInterval(-50 * 86_400), kind: .launch, title: "Launch")]
     for (name, size, period) in [("wide", CGSize(width: 900, height: 330), 90), ("narrow", CGSize(width: 300, height: 260), 90), ("all", CGSize(width: 900, height: 330), 0)] {
         let config = ReleaseTimelineWidget.Config(period: period == 0 ? nil : period)
-        let view = ReleaseTimelineView(feature: feature, host: host, config: config)
+        let view = ReleaseTimelineView(feature: feature, host: host, config: .constant(config))
             .padding(12).frame(width: size.width, height: size.height).background(Color.white).environment(\.colorScheme, .light)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
@@ -386,4 +435,76 @@ func renderWidget() async throws {
     renderer.scale = 1.5
     let tiff = try #require(renderer.nsImage?.tiffRepresentation)
     try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])).write(to: folder.appending(path: "releases-detail.png"))
+}
+
+/// A GitHub integration whose sync tools write a canned repository into the host's mirror.
+@MainActor
+final class FakeGitHub: Integration {
+    let id = "github"
+    let name = "GitHub"
+    let systemImage = "chevron.left.forwardslash.chevron.right"
+    var isConnected: Bool { true }
+    var connection: IntegrationConnection? { nil }
+    var exports: JSONValue { ["repos": ["acme/api"], "webURL": "https://github.com"] }
+    private(set) var calls: [String] = []
+
+    func settingsView() -> AnyView { AnyView(EmptyView()) }
+    func start(host: any ExtensionContext) {}
+
+    static func iso(_ day: Double) -> JSONValue { .string(TempRepo.day(day).formatted(.iso8601)) }
+
+    var tools: [ClaudeTool] {
+        [
+            ClaudeTool(name: "github_sync_tags", description: "") { [weak self] _ in
+                guard let self, let store = self.hostStore else { return nil }
+                calls.append("github_sync_tags")
+                let scope = "github:acme/api"
+                store.replace(kind: "git.tag", scope: scope, with: [("release-2026W02-01.01", "c1", 0.0), ("release-2026W03-01.01", "c2", 7), ("release-2026W04-01.01", "c3", 14)].map { tag in
+                    SyncedRecord(kind: "git.tag", scope: scope, key: tag.0,
+                                 value: ["commit": .string(tag.1), "date": Self.iso(tag.2), "subject": "", "on_base": true], source: "github")
+                })
+                store.replace(kind: "git.repo", scope: scope, with: [SyncedRecord(kind: "git.repo", scope: scope, key: "info", value: ["default_branch": "main"], source: "github")])
+                return ["tags": 3]
+            },
+            ClaudeTool(name: "github_sync_compare", description: "") { [weak self] input in
+                guard let self, let store = self.hostStore else { return nil }
+                calls.append("github_sync_compare")
+                let base = input["base"]?.string ?? "", head = input["head"]?.string ?? ""
+                let commits: JSONValue = switch (base, head) {
+                case ("c1", "c2"): [["sha": "x2", "author": "Ann", "date": Self.iso(6), "subject": "LAF-10: second"]]
+                case ("c2", "c3"): [["sha": "x3", "author": "Ann", "date": Self.iso(12), "subject": "LAF-10: second"],
+                                    ["sha": "x4", "author": "Bob", "date": Self.iso(13), "subject": "PPT-5: third"]]
+                default: []
+                }
+                store.upsert([SyncedRecord(kind: "git.range", scope: "github:acme/api", key: base + "..." + head, value: commits, source: "github")])
+                return commits
+            },
+        ]
+    }
+
+    /// The mirror of the host the feature runs in, set by the test.
+    var hostStore: (any SyncedStore)?
+}
+
+@MainActor
+struct ReleaseTimelineActionsTests {
+    @Test func dashiiCanDriveTheTimeline() {
+        #expect(ReleaseTimelineWidget.actions.map(\.name) == ["search", "select_release", "set_train", "set_period", "zoom", "clear"])
+        #expect(WidgetType(ReleaseTimelineWidget.self).actions.count == 6)
+    }
+
+    @Test func trainsAndReleasesAreFoundByWhatTheUserSays() throws {
+        #expect(ReleaseTimelineActions.train("All") == nil)
+        #expect(ReleaseTimelineActions.train(nil) == nil)
+        #expect(ReleaseTimelineActions.train("shared") == "")
+        #expect(ReleaseTimelineActions.train(" EU ") == "eu")
+
+        let releases = ReleaseSamples.timeline.releases
+        let release = try #require(releases.last)
+        #expect(ReleaseTimelineActions.find(release.name.uppercased(), in: releases)?.id == release.id)
+        #expect(ReleaseTimelineActions.find(release.shortName, in: releases)?.id == release.id)
+        #expect(ReleaseTimelineActions.find(try #require(release.builds.first?.tag), in: releases)?.id == release.id)
+        #expect(ReleaseTimelineActions.find("no-such-release", in: releases) == nil)
+        #expect(ReleaseTimelineActions.day(Date(timeIntervalSince1970: 0)) == "1970-01-01")
+    }
 }

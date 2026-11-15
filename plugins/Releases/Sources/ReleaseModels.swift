@@ -50,6 +50,19 @@ struct RepositoryConfig: Codable, Hashable, Identifiable, Sendable {
     var baseBranch: String = ""
     /// A train that goes quiet this long ends its last release's era.
     var idleDays: Int = 30
+    /// Where it came from when added from an integration: "github:owner/name" or
+    /// "gitlab:group/project". Empty for a checkout added by hand.
+    var source: String?
+    /// How often to check for new tags, in minutes (nil is every 10).
+    var refreshMinutes: Int?
+
+    /// Read from the integration's mirror in Dash (no local checkout): `path` is empty.
+    var isRemote: Bool { path.isEmpty && !(source ?? "").isEmpty }
+    /// "github" or "gitlab" for a remote repository.
+    var service: String? { source?.split(separator: ":").first.map(String.init) }
+    /// "owner/name" or "group/project" for a remote repository.
+    var slug: String? { source?.split(separator: ":", maxSplits: 1).dropFirst().first.map(String.init) }
+    var refreshInterval: TimeInterval { TimeInterval(max(1, refreshMinutes ?? 10) * 60) }
 
     var url: URL { URL(filePath: (path as NSString).expandingTildeInPath) }
 
@@ -145,8 +158,9 @@ struct ReleaseCommit: Hashable, Sendable, Identifiable, Codable {
     let author: String
     let date: Date
     let subject: String
-    /// The release before already shipped the same change (a cherry-pick with the same patch).
-    let alreadyShipped: Bool
+    /// The release before already shipped the same change (a cherry-pick with the same patch;
+    /// for a repository read from the mirror, the same subject).
+    var alreadyShipped: Bool
     /// The build that brought it.
     var build: String = ""
 
@@ -433,4 +447,45 @@ enum ReleaseDates {
     }
 
     static func day(_ date: Date) -> String { date.formatted(.iso8601.year().month().day()) }
+
+    /// A date typed in the timeline's search, as noon that day: "2026-10-12", "12 Oct", "Oct 12",
+    /// "12 October 2026", "12/10/2026", or an ISO week ("W41", "2026W41", "2026-W41", its Monday).
+    /// Without a year, the latest such day not after `now`. nil when the text isn't a date.
+    static func search(_ text: String, now: Date = .now, calendar: Calendar = .current) -> Date? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count >= 3, trimmed.count <= 20 else { return nil }
+        func noon(_ date: Date) -> Date { calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date }
+        let year = calendar.component(.year, from: now)
+        if let match = trimmed.wholeMatch(of: /(?i)(?:(\d{4})-?)?w(\d{1,2})/), let week = Int(match.2), (1...53).contains(week) {
+            var iso = Calendar(identifier: .iso8601)
+            iso.timeZone = calendar.timeZone
+            func monday(_ year: Int) -> Date? { iso.date(from: DateComponents(weekday: 2, weekOfYear: week, yearForWeekOfYear: year)) }
+            if let given = match.1.flatMap({ Int($0) }) { return monday(given).map(noon) }
+            guard let this = monday(iso.component(.yearForWeekOfYear, from: now)) else { return nil }
+            return noon(this > now ? (monday(iso.component(.yearForWeekOfYear, from: now) - 1) ?? this) : this)
+        }
+        if let match = trimmed.wholeMatch(of: /(\d{4})-(\d{1,2})-(\d{1,2})/),
+           let date = calendar.date(from: DateComponents(year: Int(match.1), month: Int(match.2), day: Int(match.3))) {
+            return noon(date)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.isLenient = false
+        for format in ["d MMM yyyy", "MMM d yyyy", "d MMMM yyyy", "MMMM d yyyy", "dd/MM/yyyy", "d/M/yyyy"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: trimmed.replacingOccurrences(of: ",", with: "")) { return noon(date) }
+        }
+        for format in ["d MMM", "MMM d", "d MMMM", "MMMM d", "d/M"] {
+            formatter.dateFormat = format
+            guard let parsed = formatter.date(from: trimmed.replacingOccurrences(of: ",", with: "")) else { continue }
+            var parts = calendar.dateComponents([.month, .day], from: parsed)
+            parts.year = year
+            guard var date = calendar.date(from: parts) else { continue }
+            if date > now { date = calendar.date(byAdding: .year, value: -1, to: date) ?? date }
+            return noon(date)
+        }
+        return nil
+    }
 }

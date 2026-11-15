@@ -20,7 +20,7 @@ struct ReleaseTimelineWidget: DashboardWidget {
 
     static let kind = "releases.timeline"
     static let displayName = "Release timeline"
-    static let summary = "Releases from git tags as eras on one lane per train, with build ticks, hotfixes, today and an events lane. Pinch to zoom, drag to pan, click a release for its builds, commits and tickets. Repository, period and train are set in the widget's settings."
+    static let summary = "Releases from git tags as eras on one lane per train, with build ticks, hotfixes, today and an events lane. Pinch or scroll to zoom, drag to pan, search a ticket, text or date, click a release for its builds, commits and tickets. Repository (a checkout or one from GitHub/GitLab), period, train and how often to check for changes are set in the widget's settings."
     static let systemImage = "point.bottomleft.forward.to.point.topright.scurvepath"
     static let defaultSize = WidgetSize.wide
     static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 20)
@@ -35,9 +35,23 @@ struct ReleaseTimelineWidget: DashboardWidget {
         ],
     ]
 
+    static let actions = [
+        WidgetAction(name: "search", description: "Search the timeline like the magnifier: a ticket key or text highlights matching releases and fits them; a date (2026-10-12, 12 Oct, W41) jumps there and marks the release live that day.",
+                     properties: ["text": JSONSchema.string("Ticket, text or date.")], required: ["text"]),
+        WidgetAction(name: "select_release", description: "Open a release's detail (builds, commits, tickets), by name, short name or build tag.",
+                     properties: ["name": JSONSchema.string("e.g. release-2026W41-03-eu, W41-03-eu or a build tag.")], required: ["name"]),
+        WidgetAction(name: "set_train", description: "Show one train, or all.",
+                     properties: ["train": JSONSchema.string("eu, us… ; \"shared\" for the shared one; \"all\" for every train.")], required: ["train"]),
+        WidgetAction(name: "set_period", description: "Show the last N days (30, 90, 180, 365); omit days for everything.",
+                     properties: ["days": JSONSchema.integer("Days, or omit for all.")]),
+        WidgetAction(name: "zoom", description: "Show exactly this date range.",
+                     properties: ["from": JSONSchema.string("Start date."), "to": JSONSchema.string("End date.")], required: ["from", "to"]),
+        WidgetAction(name: "clear", description: "Stop searching, close the detail and go back to the widget's period."),
+    ]
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         if let feature = context.host.ext(ReleasesFeature.self) {
-            ReleaseTimelineView(feature: feature, host: context.host, config: config.wrappedValue)
+            ReleaseTimelineView(feature: feature, host: context.host, config: config)
         } else {
             StateView(.failed(message: "Releases isn't loaded."))
         }
@@ -65,6 +79,13 @@ struct ReleaseTimelineWidget: DashboardWidget {
                 (config.train == nil || release.train == config.train) && (since.map { release.end >= $0 } ?? true)
             }
             return ["repo": .string(repository.name),
+                    "explanation": """
+                        Each release (a tag without its build number) is an era on its train's lane, from its first build until \
+                        the next release on that train replaced it (ended_by next), the train went quiet (idle) or another train \
+                        took over (handover). Builds are the tags of one release; a hotfix is a build cut off the default branch \
+                        (a cherry-pick). new_commits are the commits since the release live before it; tickets are the Jira keys \
+                        in them. live_now is what is deployed on each train today.
+                        """,
                     "live_now": .array(timeline.liveAt(.now).map { ["train": .string(timeline.trainTitle($0.train)), "tag": .string($0.build.tag)] }),
                     "releases": .array(releases.reversed().prefix(60).map { ReleasesFeature.summary($0, timeline) })]
         })
@@ -78,22 +99,27 @@ private struct ReleaseTimelineSettings: View {
     @Binding var config: ReleaseTimelineWidget.Config
 
     var body: some View {
-        let repositories = feature?.repositories ?? []
         Section("Source") {
-            if repositories.isEmpty {
-                LabeledContent("Repository") {
-                    Button("Add a repository in Settings…") { host.openManager("releases") }
-                }
-            } else {
-                Picker("Repository", selection: $config.repository) {
-                    Text("All repositories").tag(String?.none)
-                    ForEach(repositories) { Text($0.name).tag(String?.some($0.id)) }
-                }
+            if let feature {
+                RepositoryPicker(feature: feature, host: host, selection: $config.repository)
             }
             Picker("Train", selection: $config.train) {
                 Text("All trains").tag(String?.none)
                 ForEach(trains, id: \.self) { train in
                     Text(RepositoryTimeline.trainTitle(train, among: trains)).tag(String?.some(train))
+                }
+            }
+            if let feature, !shown.isEmpty {
+                Picker("Check for changes", selection: Binding(
+                    get: { shown.first?.refreshMinutes ?? 10 },
+                    set: { minutes in
+                        for index in feature.repositories.indices where shown.contains(where: { $0.id == feature.repositories[index].id }) {
+                            feature.repositories[index].refreshMinutes = minutes
+                        }
+                    })) {
+                    ForEach([1, 5, 10, 15, 30, 60], id: \.self) { minutes in
+                        Text(minutes == 1 ? "Every minute" : minutes == 60 ? "Every hour" : "Every \(minutes) minutes").tag(minutes)
+                    }
                 }
             }
         }
@@ -106,6 +132,11 @@ private struct ReleaseTimelineSettings: View {
         }
     }
 
+    /// The repositories this widget shows.
+    private var shown: [RepositoryConfig] {
+        (feature?.repositories ?? []).filter { config.repository == nil || $0.id == config.repository }
+    }
+
     /// Trains of the chosen repositories.
     private var trains: [String] {
         var trains: [String] = []
@@ -115,6 +146,65 @@ private struct ReleaseTimelineSettings: View {
         }
         if let train = config.train, !trains.contains(train) { trains.append(train) }
         return trains
+    }
+}
+
+/// The widget's repository: one already set up in Releases, or one the GitHub or GitLab
+/// integration watches (added when picked), or every configured one.
+struct RepositoryPicker: View {
+    let feature: ReleasesFeature
+    let host: any ExtensionContext
+    @Binding var selection: String?
+    @State private var adding: String?
+
+    private var remotes: [RemoteRepository] {
+        let added = Set(feature.repositories.compactMap(\.source))
+        return RemoteRepository.available(host: host).filter { !added.contains($0.source) }
+    }
+
+    var body: some View {
+        LabeledContent("Repository") {
+            HStack(spacing: 6) {
+                if adding != nil { ProgressView().controlSize(.small) }
+                Menu(label) {
+                    if !feature.repositories.isEmpty {
+                        Button { selection = nil } label: { check(selection == nil, "All repositories") }
+                        Section("Set up in Releases") {
+                            ForEach(feature.repositories) { repository in
+                                Button { selection = repository.id } label: {
+                                    check(selection == repository.id, repository.name + (repository.isRemote ? " · \(repository.service == "gitlab" ? "GitLab" : "GitHub")" : ""))
+                                }
+                            }
+                        }
+                    }
+                    let github = remotes.filter { $0.service == "github" }
+                    let gitlab = remotes.filter { $0.service == "gitlab" }
+                    if !github.isEmpty { Section("GitHub") { ForEach(github) { remote in Button(remote.slug) { add(remote) } } } }
+                    if !gitlab.isEmpty { Section("GitLab") { ForEach(gitlab) { remote in Button(remote.slug) { add(remote) } } } }
+                    Divider()
+                    Button("Add a Local Checkout…") { host.openManager("releases") }
+                }
+                .fixedSize()
+            }
+        }
+    }
+
+    private var label: String {
+        if let adding { return "Adding \(adding)…" }
+        guard let selection else { return feature.repositories.isEmpty ? "Choose…" : "All repositories" }
+        return feature.repositories.first { $0.id == selection }?.name ?? "Choose…"
+    }
+
+    @ViewBuilder private func check(_ on: Bool, _ title: String) -> some View {
+        if on { Label(title, systemImage: "checkmark") } else { Text(title) }
+    }
+
+    private func add(_ remote: RemoteRepository) {
+        adding = remote.name
+        Task {
+            selection = await feature.addRemote(remote)
+            adding = nil
+        }
     }
 }
 
@@ -265,6 +355,8 @@ struct TimelineChart: View {
     let selected: String?
     let hovered: String?
     let query: String
+    /// A date to mark with a dashed line (from a date search).
+    var marker: Date? = nil
 
     var body: some View {
         GeometryReader { geometry in
@@ -308,6 +400,12 @@ struct TimelineChart: View {
             var inner = context
             inner.clip(to: plotClip)
             if case .events = lane.kind { drawEvents(&inner, lane, rect, layout) } else { drawEras(&inner, lane, rect, layout) }
+        }
+        // The searched date.
+        if let marker, plot.contains(layout.x(marker)) {
+            let x = layout.x(marker)
+            context.stroke(Path { $0.move(to: CGPoint(x: x, y: layout.axisHeight - 2)); $0.addLine(to: CGPoint(x: x, y: bottom)) },
+                           with: .color(.accentColor), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
         }
         // Today.
         if plot.contains(today) {
@@ -386,33 +484,47 @@ struct TimelineChart: View {
 struct ReleaseTimelineView: View {
     let feature: ReleasesFeature
     let host: any ExtensionContext
-    let config: ReleaseTimelineWidget.Config
+    @Binding var config: ReleaseTimelineWidget.Config
 
-    @State private var domain: ClosedRange<Date>?
+    @State var domain: ClosedRange<Date>?
     @State private var dragStart: ClosedRange<Date>?
     @State private var zoomStart: ClosedRange<Date>?
     @State private var hovered: Release?
     @State private var hoveredEvent: ReleaseEvent?
-    @State private var selection: ReleaseSelection?
+    @State var selection: ReleaseSelection?
     @State private var eventSelection: ReleaseEvent?
-    @State private var searching = false
-    @State private var query = ""
+    @State var searching = false
+    @State var query = ""
+    /// A date the search jumped to: marked on the chart, its live release highlighted.
+    @State var focusDate: Date?
     /// The widget's size family from the dashboard: narrow widgets get the compact layout.
     @Environment(\.widgetLayout) private var widgetLayout
 
-    private var repositories: [RepositoryConfig] {
+    var repositories: [RepositoryConfig] {
         feature.repositories.filter { config.repository == nil || $0.id == config.repository }
     }
 
-    private var timelines: [RepositoryTimeline] { repositories.compactMap { feature.timelines[$0.id] } }
+    var timelines: [RepositoryTimeline] { repositories.compactMap { feature.timelines[$0.id] } }
 
     var body: some View {
-        if feature.repositories.isEmpty {
-            StateView(.empty(title: "No repositories", systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-                             message: "Add a repository in Settings › Releases."),
-                      action: ("Open Settings", { host.openManager("releases") }))
-        } else if repositories.isEmpty {
-            StateView(.failed(message: "This widget's repository was removed. Pick another in the widget's settings."))
+        main
+            .handlesWidgetActions { name, input in try perform(name, input) }
+            .reportsWidgetState(uiState)
+    }
+
+    @ViewBuilder private var main: some View {
+        if feature.repositories.isEmpty || repositories.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: ReleaseTimelineWidget.systemImage).font(.largeTitle).foregroundStyle(.tertiary)
+                Text(feature.repositories.isEmpty ? "Choose a repository" : "This widget's repository was removed").font(.headline)
+                Text("Pick one your GitHub or GitLab integration watches, or a local checkout.")
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                RepositoryPicker(feature: feature, host: host, selection: $config.repository)
+                    .labelsHidden()
+                    .fixedSize()
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if timelines.isEmpty {
             if let error = repositories.lazy.compactMap({ feature.errors[$0.id] }).first {
                 StateView(.failed(message: error), action: ("Retry", { Task { await feature.refresh() } }))
@@ -425,9 +537,13 @@ struct ReleaseTimelineView: View {
         }
     }
 
+    var currentModel: TimelineModel {
+        TimelineModel(timelines: timelines, events: config.events ? feature.events(for: config.repository) : [],
+                      train: config.train, showEvents: config.events)
+    }
+
     private var content: some View {
-        let model = TimelineModel(timelines: timelines, events: config.events ? feature.events(for: config.repository) : [],
-                                  train: config.train, showEvents: config.events)
+        let model = currentModel
         let now = feature.now()
         let full = fullDomain(model, now: now)
         let shown = domain ?? initialDomain(full, now: now)
@@ -460,7 +576,10 @@ struct ReleaseTimelineView: View {
 
     private func chart(_ model: TimelineModel, layout: TimelineLayout, full: ClosedRange<Date>, now: Date, compact: Bool) -> some View {
         let shown = layout.domain
-        return TimelineChart(model: model, domain: shown, now: now, compact: compact, selected: selection?.release, hovered: hovered?.id, query: searching ? query : "")
+        let dateQuery = searching ? ReleaseDates.search(query, now: now) : nil
+        return TimelineChart(model: model, domain: shown, now: now, compact: compact, selected: selection?.release,
+                             hovered: hovered?.id ?? focused(model)?.id, query: searching && dateQuery == nil ? query : "",
+                             marker: searching ? focusDate : nil)
             .contentShape(.rect)
             .gesture(DragGesture(minimumDistance: 4)
                 .onChanged { value in
@@ -516,11 +635,17 @@ struct ReleaseTimelineView: View {
     private func header(_ model: TimelineModel, compact: Bool, now: Date, zoomed: Bool) -> some View {
         HStack(spacing: 6) {
             if searching {
-                TextField("Ticket or text, e.g. LAF-5917", text: $query)
+                TextField("Ticket, text or date (12 Oct, 2026-10-12, W41)", text: $query)
                     .textFieldStyle(.roundedBorder).controlSize(.small)
-                    .onSubmit { revealMatches(model) }
-                let hits = query.isEmpty ? 0 : model.releases.filter { $0.matches(query) }.count
-                if !query.isEmpty { Text("\(hits)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).help("\(hits) releases match") }
+                    .onSubmit { revealMatches(model, now: now) }
+                    .onChange(of: query) { focusDate = nil }
+                if let date = ReleaseDates.search(query, now: now) {
+                    Text(date.formatted(.dateTime.day().month(.abbreviated).year())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        .help("Press Return to jump to this date")
+                } else if !query.isEmpty {
+                    let hits = model.releases.filter { $0.matches(query) }.count
+                    Text("\(hits)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).help("\(hits) releases match")
+                }
             } else {
                 Text(title(model)).font(.caption.bold()).lineLimit(1)
                 if !compact {
@@ -539,16 +664,17 @@ struct ReleaseTimelineView: View {
                 Button { withAnimation(.snappy) { domain = nil } } label: { Image(systemName: "arrow.uturn.backward") }
                     .buttonStyle(.borderless).help("Back to the widget's period")
             }
-            Button { searching.toggle(); if !searching { query = "" } } label: { Image(systemName: searching ? "xmark.circle.fill" : "magnifyingglass") }
-                .buttonStyle(.borderless).help(searching ? "Stop searching" : "Search releases by ticket or text")
+            Button { searching.toggle(); if !searching { query = ""; focusDate = nil } } label: { Image(systemName: searching ? "xmark.circle.fill" : "magnifyingglass") }
+                .buttonStyle(.borderless).help(searching ? "Stop searching" : "Search releases by ticket, text or date")
         }
         .font(.caption)
     }
 
     private func footer(_ model: TimelineModel, compact: Bool, now: Date) -> some View {
         Group {
-            if let hovered {
-                Text(hoverLine(hovered, now: now)).lineLimit(1).truncationMode(.tail)
+            if let hovered = hovered ?? focused(model) {
+                Text((hovered.id == focused(model)?.id && self.hovered == nil ? "Live on \(focusDate?.formatted(.dateTime.day().month(.abbreviated)) ?? ""): " : "")
+                     + hoverLine(hovered, now: now)).lineLimit(1).truncationMode(.tail)
             } else if let hoveredEvent {
                 Text("\(hoveredEvent.kind.title) · \(hoveredEvent.date.formatted(date: .abbreviated, time: .omitted)) · \(hoveredEvent.title)").lineLimit(1)
             } else if compact {
@@ -567,9 +693,9 @@ struct ReleaseTimelineView: View {
         return (repositories.count == 1 ? repositories[0].name + " · " : "") + "\(count) release\(count == 1 ? "" : "s")"
     }
 
-    private struct Live: Identifiable { let id: String; let train: String; let name: String; let tag: String; let hotfix: Bool }
+    struct Live: Identifiable { let id: String; let train: String; let name: String; let tag: String; let hotfix: Bool }
 
-    private func liveNow(_ now: Date) -> [Live] {
+    func liveNow(_ now: Date) -> [Live] {
         timelines.flatMap { timeline in
             timeline.liveAt(now).filter { config.train == nil || $0.train == config.train }.map { live in
                 Live(id: timeline.repository.id + live.train, train: (timelines.count > 1 ? timeline.repository.name + " " : "") + timeline.trainTitle(live.train),
@@ -589,12 +715,12 @@ struct ReleaseTimelineView: View {
 
     // MARK: Zoom and pan
 
-    private func fullDomain(_ model: TimelineModel, now: Date) -> ClosedRange<Date> {
+    func fullDomain(_ model: TimelineModel, now: Date) -> ClosedRange<Date> {
         let start = (model.earliest ?? now.addingTimeInterval(-90 * 86_400)).addingTimeInterval(-7 * 86_400)
         return min(start, now.addingTimeInterval(-86_400))...now.addingTimeInterval(3 * 86_400)
     }
 
-    private func initialDomain(_ full: ClosedRange<Date>, now: Date) -> ClosedRange<Date> {
+    func initialDomain(_ full: ClosedRange<Date>, now: Date) -> ClosedRange<Date> {
         guard let days = config.period else { return full }
         let span = Double(days) * 86_400
         return max(full.lowerBound, now.addingTimeInterval(-span))...now.addingTimeInterval(span * 0.04)
@@ -616,12 +742,127 @@ struct ReleaseTimelineView: View {
         return clamp(lower...lower.addingTimeInterval(newSpan), shift: 0, full: full)
     }
 
-    /// Fits the view to what the search found.
-    private func revealMatches(_ model: TimelineModel) {
+    /// The release live at the date the search jumped to (the first lane's, then any).
+    func focused(_ model: TimelineModel) -> Release? {
+        guard searching, let focusDate else { return nil }
+        return model.releases.first { $0.start <= focusDate && focusDate < $0.end }
+    }
+
+    /// Jumps to a searched date (keeping the zoom, at least three weeks wide), else fits the view
+    /// to the releases the text matches.
+    func revealMatches(_ model: TimelineModel, now: Date) {
+        if let date = ReleaseDates.search(query, now: now) {
+            let full = fullDomain(model, now: now)
+            let current = domain ?? initialDomain(full, now: now)
+            let span = max(current.upperBound.timeIntervalSince(current.lowerBound), 21 * 86_400)
+            focusDate = date
+            withAnimation(.snappy) { domain = clamp(date.addingTimeInterval(-span / 2)...date.addingTimeInterval(span / 2), shift: 0, full: full) }
+            return
+        }
         let hits = model.releases.filter { $0.matches(query) }
         guard let first = hits.map(\.start).min(), let last = hits.map(\.end).max() else { return }
         let pad = max(last.timeIntervalSince(first) * 0.15, 7 * 86_400)
         withAnimation(.snappy) { domain = first.addingTimeInterval(-pad)...last.addingTimeInterval(pad) }
+    }
+}
+
+// MARK: - Dashii
+
+extension ReleaseTimelineView {
+    /// What the widget shows right now, for Dashii.
+    var uiState: JSONValue {
+        guard !timelines.isEmpty else { return ["state": feature.repositories.isEmpty ? "no repository" : "loading"] }
+        let model = currentModel
+        let now = feature.now()
+        let shown = domain ?? initialDomain(fullDomain(model, now: now), now: now)
+        let selected = selection.flatMap { selection in model.releases.first { $0.id == selection.release } }
+        return [
+            "repositories": .array(repositories.map { .string($0.name) }),
+            "train": config.train.map { .string($0.isEmpty ? "shared" : $0) } ?? "all",
+            "visible_from": .string(ReleaseTimelineActions.day(shown.lowerBound)),
+            "visible_to": .string(ReleaseTimelineActions.day(shown.upperBound)),
+            "zoomed": .bool(domain != nil),
+            "search": searching ? .string(query) : .null,
+            "search_date": focusDate.map { .string(ReleaseTimelineActions.day($0)) } ?? .null,
+            "highlighted_release": focused(model).map { .string($0.name) } ?? .null,
+            "open_release": selected.map { .string($0.name) } ?? .null,
+            "live_now": .array(liveNow(now).map { .string("\($0.train): \($0.tag)") }),
+        ]
+    }
+
+    /// Runs one of `ReleaseTimelineWidget.actions`.
+    func perform(_ name: String, _ input: JSONValue) throws -> JSONValue {
+        let model = currentModel
+        let now = feature.now()
+        switch name {
+        case "search":
+            guard let text = input["text"]?.string, !text.isEmpty else { throw ToolError("Give the text, ticket or date to search.") }
+            searching = true
+            query = text
+            revealMatches(model, now: now)
+            if let date = ReleaseDates.search(text, now: now) {
+                let live = model.releases.first { $0.start <= date && date < $0.end }
+                return ["date": .string(ReleaseTimelineActions.day(date)), "live_release": live.map { .string($0.name) } ?? .null]
+            }
+            return ["matches": .array(model.releases.filter { $0.matches(text) }.prefix(20).map { .string($0.name) })]
+        case "select_release":
+            guard let wanted = input["name"]?.string, let release = ReleaseTimelineActions.find(wanted, in: model.releases) else {
+                throw ToolError("No release matching “\(input["name"]?.string ?? "")” in this widget.")
+            }
+            selection = ReleaseSelection(repository: release.repository, release: release.id)
+            return ["opened": .string(release.name)]
+        case "set_train":
+            let train = ReleaseTimelineActions.train(input["train"]?.string)
+            let known = Set(timelines.flatMap(\.trains))
+            if let train, !known.contains(train) {
+                throw ToolError("No train “\(train)”. Trains: \(known.sorted().map { $0.isEmpty ? "shared" : $0 }.joined(separator: ", ")).")
+            }
+            config.train = train
+            return ["train": train.map { .string($0.isEmpty ? "shared" : $0) } ?? "all"]
+        case "set_period":
+            let days = input["days"]?.int
+            config.period = days
+            domain = nil
+            return ["period_days": days.map { .number(Double($0)) } ?? "all"]
+        case "zoom":
+            guard let from = input["from"]?.string.flatMap({ ReleaseDates.search($0, now: now) }),
+                  let to = input["to"]?.string.flatMap({ ReleaseDates.search($0, now: now) }), from < to else {
+                throw ToolError("Give from and to dates (2026-10-01, 12 Oct, W41), from before to.")
+            }
+            domain = from...to
+            return ["visible_from": .string(ReleaseTimelineActions.day(from)), "visible_to": .string(ReleaseTimelineActions.day(to))]
+        case "clear":
+            searching = false
+            query = ""
+            focusDate = nil
+            domain = nil
+            selection = nil
+            return "cleared"
+        default:
+            throw ToolError("Unknown action \(name).")
+        }
+    }
+}
+
+/// The pure parts of the timeline's actions.
+enum ReleaseTimelineActions {
+    static func day(_ date: Date) -> String { date.formatted(.iso8601.year().month().day()) }
+
+    /// "all" or nothing is every train; "shared" (or "") the shared one; else the suffix, lowercased.
+    static func train(_ text: String?) -> String? {
+        guard let text = text?.trimmingCharacters(in: .whitespaces).lowercased(), text != "all" else { return nil }
+        return text == "shared" ? "" : text
+    }
+
+    /// A release by its name, short name or a tag of one of its builds; else the only one containing the text.
+    static func find(_ text: String, in releases: [Release]) -> Release? {
+        let wanted = text.trimmingCharacters(in: .whitespaces).lowercased()
+        if let exact = releases.first(where: { $0.name.lowercased() == wanted || $0.shortName.lowercased() == wanted
+            || $0.builds.contains { $0.tag.lowercased() == wanted } }) {
+            return exact
+        }
+        let partial = releases.filter { $0.name.lowercased().contains(wanted) }
+        return partial.count == 1 ? partial[0] : partial.last
     }
 }
 

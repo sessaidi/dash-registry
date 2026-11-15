@@ -4,8 +4,10 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// Release timelines read from git tags in local checkouts: which release each train had live
-/// when, what each one brought, and launches or incidents around them. Nothing leaves the Mac.
+/// Release timelines read from git tags: in a local checkout with git, or, for a repository from
+/// the GitHub or GitLab integration without a checkout, from the mirror the integration keeps in
+/// Dash (online is the source of truth; the mirror is refreshed from it). Which release each train
+/// had live when, what each one brought, and launches or incidents around them.
 @MainActor
 @Observable
 final class ReleasesFeature: DashExtension {
@@ -13,11 +15,12 @@ final class ReleasesFeature: DashExtension {
     let name = "Releases"
     let systemImage = "point.bottomleft.forward.to.point.topright.scurvepath"
     let metadata = ExtensionMetadata(
-        version: "1.1.0", author: .dash,
+        version: "1.3.0", author: .dash,
         summary: "A release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
-        category: .sourceControl, tags: ["git", "releases", "timeline"], minimumDashKit: "1.4.0")
+        category: .sourceControl, tags: ["git", "releases", "timeline"], minimumDashKit: "1.5.0")
 
-    static let refreshInterval: Duration = .seconds(600)
+    /// How often the poller looks for repositories due a refresh (each has its own interval).
+    static let tick: Duration = .seconds(60)
     /// A cached timeline younger than this answers tools without asking git again.
     static let freshness: TimeInterval = 120
 
@@ -37,6 +40,8 @@ final class ReleasesFeature: DashExtension {
     private(set) var errors: [String: String] = [:]
     private(set) var loading: Set<String> = []
     private(set) var lastRefresh: Date?
+    /// When each repository was last read (successfully or not), for its refresh interval.
+    @ObservationIgnored private var attempted: [String: Date] = [:]
 
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
     @ObservationIgnored private var poller: Task<Void, Never>?
@@ -49,7 +54,12 @@ final class ReleasesFeature: DashExtension {
     init(defaults: UserDefaults = DashStorage.defaults, cacheFile: URL? = ReleaseLoader.defaultCacheFile) {
         self.defaults = defaults
         loader = ReleaseLoader(cacheFile: cacheFile)
-        repositories = Self.load([RepositoryConfig].self, "repositories", defaults) ?? []
+        // Repositories added while Releases kept bare clones are read from the mirror now.
+        repositories = (Self.load([RepositoryConfig].self, "repositories", defaults) ?? []).map { repository in
+            var repository = repository
+            if repository.source != nil, repository.path.contains("releases-mirrors") { repository.path = "" }
+            return repository
+        }
         timelineEvents = Self.load([ReleaseEvent].self, "events", defaults) ?? []
     }
 
@@ -61,10 +71,11 @@ final class ReleasesFeature: DashExtension {
     func start(host: any ExtensionContext) {
         self.host = host
         poller?.cancel()
+        try? FileManager.default.removeItem(at: URL.cachesDirectory.appending(path: "Dash/releases-mirrors"))
         poller = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
-                try? await Task.sleep(for: Self.refreshInterval)
+                await self?.refreshDue()
+                try? await Task.sleep(for: Self.tick)
             }
         }
     }
@@ -76,20 +87,33 @@ final class ReleasesFeature: DashExtension {
 
     // MARK: Loading
 
-    /// Reloads every repository (or one), keeping the last good timeline when git fails.
+    /// Reloads every repository (or one), keeping the last good timeline when reading fails.
+    /// Remote repositories are synced from their service first.
     func refresh(_ only: String? = nil) async {
         for repository in repositories where only == nil || only == repository.id {
+            await reload(repository, force: true)
+        }
+        lastRefresh = now()
+    }
+
+    /// Reloads the repositories whose refresh interval has passed.
+    func refreshDue() async {
+        for repository in repositories where now().timeIntervalSince(attempted[repository.id] ?? .distantPast) >= repository.refreshInterval {
             await reload(repository)
         }
         lastRefresh = now()
     }
 
-    private func reload(_ repository: RepositoryConfig) async {
+    /// A remote repository is synced from its service when its mirror is older than its refresh
+    /// interval, or always with `force`.
+    private func reload(_ repository: RepositoryConfig, force: Bool = false) async {
         guard !loading.contains(repository.id) else { return }
         loading.insert(repository.id)
+        attempted[repository.id] = now()
         defer { loading.remove(repository.id) }
         do {
-            let timeline = try await loader.load(repository, now: now())
+            let source = repository.isRemote ? try await syncedSource(repository, force: force) : nil
+            let timeline = try await loader.load(repository, now: now(), source: source)
             // The settings may have changed while git ran.
             guard repositories.first(where: { $0.id == repository.id }) == repository else { return }
             announceNewTags(old: timelines[repository.id], new: timeline)
@@ -148,6 +172,73 @@ final class ReleasesFeature: DashExtension {
         }
         repositories.append(repository)
         await refresh(repository.id)
+    }
+
+    /// Adds a repository from the GitHub or GitLab integration (or returns the one already added):
+    /// its local checkout when there is one, else it's read from the integration's mirror in Dash.
+    /// Returns its id.
+    func addRemote(_ remote: RemoteRepository) async -> String {
+        if let existing = repositories.first(where: { $0.source == remote.source }) { return existing.id }
+        let checkouts = await ReleasesSettingsView.findCheckouts()
+        var repository = RepositoryConfig(name: remote.name, path: await remote.localCheckout(among: checkouts) ?? "")
+        repository.source = remote.source
+        repositories.append(repository)
+        let id = repository.id
+        Task {
+            // The tag scheme is guessed from the tags, synced first for a remote repository.
+            var scheme: TagScheme?
+            if repository.isRemote {
+                if let source = try? await syncedSource(repository, force: true) { scheme = TagScheme.guess(source.tagList.map(\.name)) }
+            } else {
+                scheme = await ReleaseLoader.guessScheme(repository.url)
+            }
+            if let scheme, let index = repositories.firstIndex(where: { $0.id == id }) {
+                repositories[index].tagPattern = scheme.pattern
+                repositories[index].trainRule = scheme.train
+                repositories[index].buildRule = scheme.build
+            }
+            await refresh(id)
+        }
+        return id
+    }
+
+    // MARK: Mirror
+
+    /// The integration's tool, e.g. github_sync_tags.
+    private func syncTool(_ service: String, _ name: String) throws -> ClaudeTool {
+        guard let integration = host?.integration(service) else {
+            throw ToolError("Install and connect the \(service == "gitlab" ? "GitLab" : "GitHub") integration to read this repository.")
+        }
+        guard let tool = integration.tools.first(where: { $0.name == "\(service)_\(name)" }) else {
+            throw ToolError("Update the \(integration.name) integration: it can't sync release data yet.")
+        }
+        return tool
+    }
+
+    /// Tags from the mirror, synced through the integration first when they're missing, older than
+    /// the repository's refresh interval, or `force` is set.
+    func syncedSource(_ repository: RepositoryConfig, force: Bool = false) async throws -> SyncedReleaseSource {
+        guard let service = repository.service, let slug = repository.slug, let host else { throw ToolError("Releases isn't started.") }
+        let scope = repository.source ?? ""
+        let synced = host.synced.lastSynced(kind: SyncedReleaseSource.tagKind, scope: scope)
+        if force || synced == nil || now().timeIntervalSince(synced ?? .distantPast) >= repository.refreshInterval - 5 {
+            _ = try await syncTool(service, "sync_tags").run(["repo": .string(slug)])
+        }
+        let (tags, onBase) = SyncedReleaseSource.tags(host.synced.records(kind: SyncedReleaseSource.tagKind, scope: scope))
+        let defaultBranch = host.synced.record(kind: SyncedReleaseSource.repoKind, scope: scope, key: "info")?.value["default_branch"]?.string ?? "main"
+        return SyncedReleaseSource(tagList: tags, onBase: onBase, defaultBranch: defaultBranch) { [weak self] base, head in
+            guard let self else { return [] }
+            return try await self.syncedRange(service: service, slug: slug, scope: scope, base: base, head: head)
+        }
+    }
+
+    /// Commits between two commits, from the mirror or fetched once through the integration.
+    private func syncedRange(service: String, slug: String, scope: String, base: String, head: String) async throws -> [ReleaseCommit] {
+        if let cached = host?.synced.record(kind: SyncedReleaseSource.rangeKind, scope: scope, key: base + "..." + head) {
+            return SyncedReleaseSource.commits(cached.value)
+        }
+        let value = try await syncTool(service, "sync_compare").run(["repo": .string(slug), "base": .string(base), "head": .string(head)])
+        return SyncedReleaseSource.commits(value)
     }
 
     // MARK: Storage
@@ -287,7 +378,7 @@ final class ReleasesFeature: DashExtension {
     static func containing(_ text: String, in timeline: RepositoryTimeline) async throws -> [(train: String, release: Release, commit: ReleaseCommit?)] {
         var hits = timeline.firstContaining(text)
         let query = text.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 7, query.allSatisfy(\.isHexDigit) else { return hits }
+        guard !timeline.repository.isRemote, query.count >= 7, query.allSatisfy(\.isHexDigit) else { return hits }
         let git = GitReader(directory: timeline.repository.url)
         guard let commit = await git.resolve(query) else { return hits }
         for train in timeline.trains where !hits.contains(where: { $0.train == train }) {
