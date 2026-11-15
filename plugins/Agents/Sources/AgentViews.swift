@@ -20,8 +20,11 @@ struct AgentsWidget: DashboardWidget {
         "properties": ["showFinished": ["type": "boolean", "description": "Include sessions that already have a PR."]],
     ]
 
+    static let queryFields = AgentSession.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        AgentList(showFinished: config.wrappedValue.showFinished, host: context.host)
+        AgentList(showFinished: config.wrappedValue.showFinished, host: context.host,
+                  query: context.query(fields: AgentSession.queryFields), queryText: context.queryText)
     }
 
     static func preview(config: Config) -> some View {
@@ -37,11 +40,24 @@ struct AgentsWidget: DashboardWidget {
 private struct AgentList: View {
     let showFinished: Bool
     let host: any ExtensionContext
+    /// The widget's DashQL query (its query bar), applied after "show finished".
+    let query: WidgetQuery?
+    let queryText: String
+    @State private var queryIDs: [UUID]?
     @Query(sort: \AgentSession.updatedAt, order: .reverse) private var sessions: [AgentSession]
 
+    private var shown: [AgentSession] { sessions.filter { showFinished || $0.prURL == nil } }
+
     var body: some View {
-        AgentRows(rows: AgentSummary.visible(sessions.map(AgentSummary.init), showFinished: showFinished)) { id in
-            host.ext(AgentsExtension.self)?.openWindow(id)
+        let visible = QueryRows.ordered(shown, by: queryIDs)
+        VStack(alignment: .leading, spacing: 4) {
+            QueryCount(shown: visible.count, total: shown.count, query: queryText)
+            AgentRows(rows: visible.map(AgentSummary.init)) { id in
+                host.ext(AgentsExtension.self)?.openWindow(id)
+            }
+        }
+        .task(id: QueryRows.key(queryText, shown, row: \.queryRow)) {
+            queryIDs = await QueryRows.ids(query, shown, row: \.queryRow)
         }
     }
 }

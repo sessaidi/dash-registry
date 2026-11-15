@@ -15,7 +15,7 @@ struct AgentsExtensionTests {
         #expect(agents.id == "agents" && agents.name == "Agents" && agents.systemImage == "hammer")
         #expect(agents.layer == .feature)
         #expect(agents.requires == ["atlassian"] && agents.optional == ["github"])
-        #expect(agents.metadata.version == "1.8.0" && agents.metadata.category == .ai)
+        #expect(agents.metadata.version == "1.9.0" && agents.metadata.category == .ai)
         #expect(agents.storagePrefix == "agents")
         #expect(agents.models.map { String(describing: $0) } == ["AgentSession", "AgentMessage", "PullRequestTemplate"])
         #expect(agents.widgets.map(\.kind) == ["agents.sessions"])
