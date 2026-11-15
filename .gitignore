@@ -1,3 +1,5 @@
 build/
 *.xcodeproj/
 .DS_Store
+# Plugin zips are what registry.json points to: keep them, even with a global dist/ ignore.
+!dist/
