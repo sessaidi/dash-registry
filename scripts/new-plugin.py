@@ -416,8 +416,8 @@ struct MainWidget: DashboardWidget {
     ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        ProvidedWidget(MainProvider(host: context.host), config: config.wrappedValue) { snapshot, size in
-            MainView(snapshot: snapshot, size: size)
+        ProvidedWidget(MainProvider(host: context.host), config: config.wrappedValue) { snapshot, layout in
+            MainView(snapshot: snapshot, family: layout.family)
         }
     }
 
@@ -426,7 +426,7 @@ struct MainWidget: DashboardWidget {
     }
 
     /// Sample data for the gallery: no network, no accounts.
-    static func preview(config: Config) -> some View { MainView(snapshot: .sample, size: .regular) }
+    static func preview(config: Config) -> some View { MainPreview() }
 
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
         (try? await MainProvider(host: context.host).snapshot(for: config)).map { snapshot in
@@ -464,24 +464,49 @@ view = """import DashKit
 import DashKitUI
 import SwiftUI
 
-/// Renders a snapshot; picks how much to show from the room it has.
+/// Renders a snapshot with one layout per size family: a count when narrow, a list when medium,
+/// columns when wide or large.
 struct MainView: View {
     let snapshot: MainSnapshot
-    let size: WidgetSizeClass
+    let family: WidgetLayout.Family
 
     var body: some View {
         if snapshot.items.isEmpty {
             StateView(.empty(title: "Nothing yet", systemImage: "tray", message: nil))
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(snapshot.items.prefix(size == .compact ? 3 : 20)) { item in
-                    ItemRow(item.title, subtitle: size == .compact ? nil : item.detail, leading: { StatusDot(.success) })
+            switch family {
+            case .narrow:
+                VStack(alignment: .leading, spacing: 6) {
+                    MetricView("\(snapshot.items.count)", label: "items")
+                    if let first = snapshot.items.first { Text(first.title).font(.callout).lineLimit(2) }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+            case .wide, .large:
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), alignment: .topLeading)], alignment: .leading, spacing: 10) {
+                    ForEach(snapshot.items) { item in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title).font(.callout.weight(.medium))
+                            Text(item.detail).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                    }
+                }
+            default:
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(snapshot.items) { item in ItemRow(item.title, subtitle: item.detail, leading: { StatusDot(.success) }) }
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(size == .compact ? 8 : 12)
         }
     }
+}
+
+/// The sample at whatever size the gallery measures.
+struct MainPreview: View {
+    @Environment(\.widgetLayout) private var layout
+    var body: some View { MainView(snapshot: .sample, family: layout.family) }
 }
 """
 
