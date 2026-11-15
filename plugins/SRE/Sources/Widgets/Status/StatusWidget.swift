@@ -20,9 +20,8 @@ struct StatusWidget: DashboardWidget {
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         ProvidedWidget(StatusProvider(host: context.host), config: config.wrappedValue, loading: "Checking monitors and pods…") { snapshot, layout in
-            StatusView(snapshot: snapshot, family: layout.family) { question in
-                context.host.askDashii("Ask the on-call SRE (agent sre.oncall ask): \(question)")
-            }
+            // The header button asks about everything; a row or finding asks about itself.
+            StatusView(snapshot: snapshot, family: layout.family) { prompt in context.host.askDashii(prompt) }
         }
     }
 

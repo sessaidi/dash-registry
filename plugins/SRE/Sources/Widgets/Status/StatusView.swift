@@ -1,3 +1,4 @@
+import AppKit
 import DashKit
 import DashKitUI
 import SwiftUI
@@ -10,6 +11,7 @@ import SwiftUI
 struct StatusView: View {
     let snapshot: StatusSnapshot
     let family: WidgetLayout.Family
+    /// Sends a prompt to Dashii: the whole status from the header, one item from its row.
     var ask: ((String) -> Void)?
 
     var body: some View {
@@ -22,9 +24,11 @@ struct StatusView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Each signal and finding can be asked about on its own (hover buttons, right-click).
+        .environment(\.sreAsk, ask)
         .widgetHeader {
             if let ask, snapshot.level != .ok {
-                Button { ask(snapshot.question) } label: {
+                Button { ask("Ask the on-call SRE (agent sre.oncall ask): \(snapshot.question)") } label: {
                     if family == .narrow || family == .medium {
                         Image(systemName: "stethoscope")
                     } else {
@@ -57,6 +61,7 @@ struct StatusNarrowView: View {
                             Text(signal.title).font(.callout).lineLimit(1).truncationMode(.tail)
                         }
                         .help(signal.detail)
+                        .modifier(SignalActions(signal: signal))
                     }
                 }
                 if snapshot.allSignals.count > 3 {
@@ -190,12 +195,81 @@ private struct SignalIcon: View {
     }
 }
 
-/// One signal with its detail line.
+/// One signal with its detail line, and buttons to ask about it alone.
 private struct SignalRow: View {
     let signal: Signal
 
     var body: some View {
         ItemRow(signal.title, subtitle: signal.detail) { SignalIcon(level: signal.level) }
+            .modifier(SignalActions(signal: signal))
+    }
+}
+
+/// What asking about one item means.
+enum SREQuestion {
+    /// The on-call SRE agent investigates it: cause, evidence, what to do.
+    case investigate
+    /// Dashii explains it in plain words.
+    case explain
+
+    func prompt(about subject: String) -> String {
+        switch self {
+        case .investigate:
+            "Ask the on-call SRE (agent sre.oncall ask): investigate only this, not the rest of the status: \(subject). Why is it failing, since when, what changed (deploys, config, dependencies), and what should I do?"
+        case .explain:
+            "Explain this to me in plain words, on its own: \(subject). What does it mean, what usually causes it, and how bad is it? Look at its details (logs, events, monitor) if you can."
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// Sends a question about one item to Dashii (nil: no asking, as in previews).
+    @Entry var sreAsk: ((String) -> Void)?
+}
+
+extension Signal {
+    /// The item as the SRE and Dashii should read it.
+    var subject: String {
+        let kind = id.contains("/") ? "pod \(id)" : "monitor \(id)"
+        return "\(title) (\(kind): \(detail))"
+    }
+}
+
+/// Hover buttons and a right-click menu that ask about one signal.
+private struct SignalActions: ViewModifier {
+    let signal: Signal
+    @Environment(\.sreAsk) private var ask
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        if let ask {
+            content
+                .overlay(alignment: .trailing) {
+                    if hovering {
+                        HStack(spacing: 2) {
+                            Button { ask(SREQuestion.explain.prompt(about: signal.subject)) } label: { Image(systemName: "questionmark.bubble") }
+                                .help("Explain this")
+                            Button { ask(SREQuestion.investigate.prompt(about: signal.subject)) } label: { Image(systemName: "stethoscope") }
+                                .help("Ask the SRE to investigate this")
+                        }
+                        .buttonStyle(.borderless)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(.regularMaterial, in: .capsule)
+                    }
+                }
+                .onHover { hovering = $0 }
+                .contextMenu {
+                    Button("Explain This", systemImage: "questionmark.bubble") { ask(SREQuestion.explain.prompt(about: signal.subject)) }
+                    Button("Ask the SRE to Investigate", systemImage: "stethoscope") { ask(SREQuestion.investigate.prompt(about: signal.subject)) }
+                    Divider()
+                    Button("Copy", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("\(signal.title) — \(signal.detail)", forType: .string)
+                    }
+                }
+        } else {
+            content
+        }
     }
 }
 
@@ -280,6 +354,7 @@ private struct ReportPanel: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(report.findings, id: \.self) { finding in
                         Label(finding, systemImage: "arrow.turn.down.right").font(.caption).lineLimit(2)
+                            .modifier(FindingActions(finding: finding))
                     }
                 }
             }
@@ -287,6 +362,25 @@ private struct ReportPanel: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+    }
+}
+
+/// A right-click menu on one finding of the SRE's report.
+private struct FindingActions: ViewModifier {
+    let finding: String
+    @Environment(\.sreAsk) private var ask
+
+    func body(content: Content) -> some View {
+        if let ask {
+            content.contextMenu {
+                Button("Explain This", systemImage: "questionmark.bubble") { ask(SREQuestion.explain.prompt(about: "the SRE's finding “\(finding)”")) }
+                Button("Ask the SRE for More", systemImage: "stethoscope") {
+                    ask("Ask the on-call SRE (agent sre.oncall ask): about your finding “\(finding)” only: the evidence, and exactly what to do.")
+                }
+            }
+        } else {
+            content
+        }
     }
 }
 

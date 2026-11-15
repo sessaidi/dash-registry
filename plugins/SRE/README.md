@@ -13,6 +13,8 @@ answers with evidence.
 - **Read-only.** It proposes mitigations (roll back, scale, restart) and who should act; it
   never changes anything. An incident note is written only when you ask, after you approve.
 
-Also: the **SRE Status** widget (is prod OK, what needs attention, the SRE's latest finding),
+Also: the **SRE Status** widget (is prod OK, what needs attention, the SRE's latest finding;
+hover a monitor or pod for **Explain this** or **Ask the SRE to investigate** that item alone,
+right-click a finding for more on it),
 `from signals` in DashQL, `sre status | investigate | logs | note` statements, and the
 `sre.severity` function (S1–S4, page or not) for other plugins and agents.
