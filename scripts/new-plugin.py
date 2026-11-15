@@ -9,9 +9,9 @@ laid out like docs/PLUGINS.md describes (Tools/, Query/, Widgets/<Name>/, Rules/
 An integration holds an account (token in the Keychain, an authenticated connection, a status)
 and a read tool. A feature adds a widget (provider, snapshot, view, sample preview), a tool, a
 Dashii function, a DashQL dataset and statements, hook presets and rules, and uses integrations
-only through DashKit. Build and test it with:
+only through DashKit. Test, build and install it in Dash with:
 
-    TEST=1 scripts/build-plugins.sh <Name>
+    TEST=1 scripts/try-plugin.sh <Name>
 """
 import argparse
 import json
@@ -61,7 +61,7 @@ def fill(text):
     return text
 
 
-project = """# A Dash plugin. Build, test, zip and index it with: TEST=1 scripts/build-plugins.sh __NAME__
+project = """# A Dash plugin. Try it: TEST=1 scripts/try-plugin.sh __NAME__. Publish it: TEST=1 scripts/build-plugins.sh __NAME__
 name: __NAME__Plugin
 options:
   deploymentTarget: { macOS: "26.0" }
