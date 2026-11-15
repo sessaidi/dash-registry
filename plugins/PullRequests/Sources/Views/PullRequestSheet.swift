@@ -59,7 +59,7 @@ struct PullRequestSheet: View {
                 Spacer()
                 Button("Re-review", systemImage: "arrow.clockwise") { github?.requestReview(pr) }
                 Button("Ask Dashii", systemImage: "sparkles") {
-                    host.askDashii("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Dashii review first.")
+                    host.askDashii("Let's discuss PR \(pr.repo)#\(pr.number). Read it and its Dashii review first. When we've reviewed it, save the review on the PR with pull_request_save_review (it stays in Dash; never post anything to GitHub).")
                     dismiss()
                 }
                 Button("Merge…") { confirmMerge = true }.disabled(busy || pr.isDraft)

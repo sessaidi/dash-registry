@@ -81,6 +81,7 @@ the next launch. Diffs over 600,000 characters are reviewed partially, and the r
 | `github_get_pr` | Fetches a PR live: description, changed files, human reviews, the last 20 comments, and the latest Claude review with findings. | No |
 | `github_get_diff` | Returns a PR's unified diff. Diffs over 200,000 characters are truncated and marked. | No |
 | `github_rerun_review` | Queues a fresh Claude review of a watched PR's current head commit. | No |
+| `pull_request_save_review` | Saves a review Dashii did with you in the chat on the PR, in Dash only: verdict, risk, summary, findings. It shows in the PR's sheet next to the automatic reviews. Nothing is posted to GitHub. | No |
 | `github_comment` | Posts a comment on a PR's conversation. | Yes |
 | `github_submit_review` | Submits a review as you: `APPROVE`, `REQUEST_CHANGES` or `COMMENT`. | Yes |
 | `github_create_pr` | Opens a PR from a branch that is already pushed. Draft by default; the base defaults to the repository's default branch. | Yes |

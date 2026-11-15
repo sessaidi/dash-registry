@@ -6,8 +6,15 @@ import SwiftData
 extension PullRequestsFeature {
     private struct PRInput: Decodable { let repo: String; let number: Int }
     private struct ListInput: Decodable { let repo: String?; let filter: String? }
-    private struct CommentInput: Decodable { let repo: String; let number: Int; let body: String }
-    private struct ReviewInput: Decodable { let repo: String; let number: Int; let event: String; let body: String }
+    private struct SaveReviewInput: Decodable {
+        let repo: String
+        let number: Int
+        let verdict: String
+        let risk: String
+        let summary: String
+        let findings: [PRReview.Finding]?
+        let testing: String?
+    }
     private struct CreateInput: Decodable { let repo: String; let head: String; let base: String?; let title: String; let body: String; let draft: Bool? }
 
     var tools: [DashiiTool] {
@@ -85,6 +92,30 @@ extension PullRequestsFeature {
                 guard let pr = pull(PullRequest.uid(request.repo, request.number)) else { throw ToolError("That PR is not in the watched list.") }
                 requestReview(pr)
                 return "queued"
+            },
+            DashiiTool(
+                name: "pull_request_save_review",
+                description: "Save a review you did in this conversation on the pull request, in Dash only: it shows in the PR's sheet (Overview and Reviews). Nothing is posted to GitHub. Call it once your review is done.",
+                properties: prProperties.merging([
+                    "verdict": JSONSchema.string("Your verdict.", enum: ["approve", "request_changes", "comment"]),
+                    "risk": JSONSchema.string("How risky the change is.", enum: ["low", "medium", "high"]),
+                    "summary": JSONSchema.string("What the PR does and your conclusion, in Markdown."),
+                    "findings": JSONSchema.array("Issues found, most important first.", of: JSONSchema.object(properties: [
+                        "file": JSONSchema.string("Path in the repository."), "line": JSONSchema.integer("Line, 0 if none."),
+                        "severity": JSONSchema.string("blocker, major, minor or nit.", enum: ["blocker", "major", "minor", "nit"]),
+                        "title": JSONSchema.string("One line."), "detail": JSONSchema.string("Why it matters."),
+                        "suggestion": JSONSchema.string("What to change; empty if none."),
+                    ], required: ["file", "line", "severity", "title", "detail", "suggestion"])),
+                    "testing": JSONSchema.string("How to test it, if worth saying."),
+                ]) { $1 },
+                required: ["repo", "number", "verdict", "risk", "summary"]
+            ) { [weak self] input in
+                guard let self else { return nil }
+                let request = try input.toolInput(SaveReviewInput.self)
+                guard let pr = pull(PullRequest.uid(request.repo, request.number)) else { throw ToolError("That PR is not in the watched list.") }
+                let review = saveChatReview(pr, verdict: request.verdict, risk: request.risk, summary: request.summary,
+                                            findings: request.findings ?? [], testing: request.testing ?? "")
+                return ["saved": true, "review": review.json, "posted_to_github": false]
             },
             DashiiTool(
                 name: "github_create_pr",

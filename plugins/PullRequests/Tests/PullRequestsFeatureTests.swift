@@ -17,7 +17,7 @@ struct PullRequestsFeatureTests {
         #expect(feature.models.map { String(describing: $0) } == ["PullRequest", "PRReview", "PRDiscussion"])
         #expect(feature.widgets.map(\.kind) == ["github.pulls"])
         #expect(feature.tools.map(\.name) == [
-            "github_list_prs", "github_get_pr", "github_get_diff", "github_rerun_review", "github_create_pr",
+            "github_list_prs", "github_get_pr", "github_get_diff", "github_rerun_review", "pull_request_save_review", "github_create_pr",
         ])
         #expect(feature.tools.filter(\.requiresApproval).map(\.name) == ["github_create_pr"])
     }

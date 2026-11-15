@@ -39,7 +39,7 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 ReviewBadge(review: review)
-                Text("Dashii review").font(.headline)
+                Text(review.isFromChat ? "Dashii review from chat" : "Dashii review").font(.headline)
                 if review.status == "done" {
                     Text("\(review.verdict.replacing("_", with: " ")) · risk \(review.risk)").foregroundStyle(.secondary)
                 } else {
