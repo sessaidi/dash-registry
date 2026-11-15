@@ -1,9 +1,9 @@
 import DashKit
 import Foundation
 
-/// The Confluence and Jira data Dashii already read, for DashQL: `confluence` (pages, or search
-/// hits until a page is read) and `jira_cache` (issues read through the Atlassian tools). Offline,
-/// from the synced mirror; nothing is fetched.
+/// The Confluence and Jira data Dash has stored, for DashQL: `confluence` (pages, or search hits
+/// until a page is read), `confluence_docs` (pages kept for the knowledge graph) and `jira_cache`
+/// (issues read through the Atlassian tools). Offline, from the synced mirror; nothing is fetched.
 extension AtlassianIntegration {
     var datasets: [QueryDataset] {
         [
@@ -14,6 +14,13 @@ extension AtlassianIntegration {
                                   .init("markdown", "string", "Body (full pages)", aliases: ["body"]), .init("excerpt", "string", "Search excerpt (hits)"),
                                   .init("url"), .init("full", "bool", "A full page, not just a hit"), .init("synced_at", "date", "When Dash read it")]) { [weak self] _ in
                 self?.mirrorRows(page: "confluence.page", hit: "confluence.hit", key: "id") ?? []
+            },
+            QueryDataset(name: "confluence_docs", aliases: ["docs"], summary: "Confluence pages Dash keeps for the knowledge graph (fetched with data_fetch confluence.pages), with the words and repositories they were fetched for.",
+                         fields: [.init("id", "string", "Page id"), .init("title"), .init("space", "string", "Space key"), .init("updated", "date", "Last edit"),
+                                  .init("labels", "list"), .init("terms", "list", "Words the page was fetched for"),
+                                  .init("repos", "list", "Repositories it's about (owner/name)"), .init("markdown", "string", "Body", aliases: ["body"]),
+                                  .init("url")]) { [weak self] _ in
+                self?.docs ?? []
             },
             QueryDataset(name: "jira_cache", aliases: ["issues_read"], summary: "Jira issues Dashii read through the Atlassian tools (with description, links and comments when read in full), from the local mirror. For the board and followed tickets, use `jira`.",
                          fields: [.init("key", "string", "Issue key (joins prs.tickets)", aliases: ["ticket"]), .init("summary"), .init("status"),

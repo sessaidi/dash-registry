@@ -8,7 +8,7 @@ import Foundation
 extension AtlassianIntegration {
     /// Mirror kinds and what Settings calls them.
     static let cacheKinds: [(kind: String, label: String)] = [
-        ("confluence.page", "Confluence pages"), ("confluence.hit", "Confluence search hits"), ("confluence.children", "Confluence child lists"),
+        ("confluence.doc", "Confluence docs (knowledge)"), ("confluence.page", "Confluence pages"), ("confluence.hit", "Confluence search hits"), ("confluence.children", "Confluence child lists"),
         ("confluence.attachments", "Confluence attachment lists"), ("confluence.spaces", "Confluence space lists"),
         ("jira.issue", "Jira issues"), ("jira.hit", "Jira search hits"), ("jira.comments", "Jira comment lists"),
         ("jira.changelog", "Jira changelogs"), ("jira.projects", "Jira project lists"),
