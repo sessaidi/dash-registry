@@ -49,9 +49,12 @@ struct ReleaseTimelineWidget: DashboardWidget {
         WidgetAction(name: "clear", description: "Stop searching, close the detail and go back to the widget's period."),
     ]
 
+    static let queryFields = Release.queryFields
+
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         if let feature = context.host.ext(ReleasesFeature.self) {
-            ReleaseTimelineView(feature: feature, host: context.host, config: config)
+            ReleaseTimelineView(feature: feature, host: context.host, config: config,
+                                widgetQuery: context.query(fields: Release.queryFields), queryText: context.queryText)
         } else {
             StateView(.failed(message: "Releases isn't loaded."))
         }
@@ -485,6 +488,10 @@ struct ReleaseTimelineView: View {
     let feature: ReleasesFeature
     let host: any ExtensionContext
     @Binding var config: ReleaseTimelineWidget.Config
+    /// The widget's DashQL query (its query bar): only the releases it matches stay on the chart.
+    var widgetQuery: WidgetQuery?
+    var queryText = ""
+    @State private var queryIDs: [String]?
 
     @State var domain: ClosedRange<Date>?
     @State private var dragStart: ClosedRange<Date>?
@@ -510,6 +517,9 @@ struct ReleaseTimelineView: View {
         main
             .handlesWidgetActions { name, input in try perform(name, input) }
             .reportsWidgetState(uiState)
+            .task(id: QueryRows.key(queryText, allReleases, row: queryRow)) {
+                queryIDs = await QueryRows.ids(widgetQuery, allReleases, row: queryRow)
+            }
     }
 
     @ViewBuilder private var main: some View {
@@ -538,8 +548,18 @@ struct ReleaseTimelineView: View {
     }
 
     var currentModel: TimelineModel {
-        TimelineModel(timelines: timelines, events: config.events ? feature.events(for: config.repository) : [],
-                      train: config.train, showEvents: config.events)
+        let model = TimelineModel(timelines: timelines, events: config.events ? feature.events(for: config.repository) : [],
+                                  train: config.train, showEvents: config.events)
+        return queryIDs.map { model.keeping(Set($0)) } ?? model
+    }
+
+    /// Every release the widget's repositories and train show, before its query.
+    private var allReleases: [Release] {
+        timelines.flatMap { timeline in timeline.releases.filter { config.train == nil || $0.train == config.train } }
+    }
+
+    private func queryRow(_ release: Release) -> JSONValue {
+        release.queryRow(repository: timelines.first { $0.releases.contains(release) }?.repository.name ?? release.repository)
     }
 
     private var content: some View {
@@ -634,6 +654,7 @@ struct ReleaseTimelineView: View {
 
     private func header(_ model: TimelineModel, compact: Bool, now: Date, zoomed: Bool) -> some View {
         HStack(spacing: 6) {
+            QueryCount(shown: model.releases.count, total: allReleases.count, query: queryText)
             if searching {
                 TextField("Ticket, text or date (12 Oct, 2026-10-12, W41)", text: $query)
                     .textFieldStyle(.roundedBorder).controlSize(.small)

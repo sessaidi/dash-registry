@@ -15,7 +15,7 @@ final class ReleasesFeature: DashExtension {
     let name = "Releases"
     let systemImage = "point.bottomleft.forward.to.point.topright.scurvepath"
     let metadata = ExtensionMetadata(
-        version: "1.3.0", author: .dash,
+        version: "1.4.0", author: .dash,
         summary: "A release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
         category: .sourceControl, tags: ["git", "releases", "timeline"], minimumDashKit: "1.5.0")
 
