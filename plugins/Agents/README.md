@@ -34,7 +34,7 @@ Settings › Agents:
 - **Worktrees folder**: default `~/Dash/worktrees`. Worktrees go in
   `<folder>/<repo>/<branch>`.
 - **Repositories**: one `PROJECT=/path/to/clone` line per Jira project key, for example
-  `KAN=~/code/billing-api`.
+  `KAN=acme/billing-api`.
 - **While implementing**: **Accept edits, pre-approved commands only** (`acceptEdits`, the
   default) or **Bypass all permission checks** (`bypassPermissions`). Planning always runs in
   plan mode.
@@ -119,9 +119,8 @@ Configure these in the feature's AI tab.
 
 ## Build & test
 
-From the registry root. You need Xcode, XcodeGen, and the Dash repository at
-`~/code/perso/dash`. The project also links `Packages/ClaudeCodeKit` from that repository,
-statically.
+From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (`project.yml` says where
+it expects it). The project also links `Packages/ClaudeCodeKit` from that repository, statically.
 
 ```sh
 TEST=1 scripts/build-plugins.sh Agents   # generate the project, run AgentsPluginTests, build, zip

@@ -20,4 +20,4 @@ progress over a cycle, grouped into a few themes.
 - **Report:** themed bullets, then *In chantier* (open PRs, tickets in progress), then a bare
   *Debug & Fix* when at least two small fixes shipped. No ticket ids, links or dates.
 - **Kept:** every report in Dash's database (past reports in the widget's history menu), and as
-  `fait-marquant-<start>-to-<end>.md` in `~/code/meeting/backend` (Settings › Backend Meeting).
+  `fait-marquant-<start>-to-<end>.md` in the output folder set in Settings › Backend Meeting.
