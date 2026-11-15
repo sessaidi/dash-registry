@@ -234,7 +234,7 @@ struct PodsWidget: DashboardWidget {
     static let queryFields = PodSummary.queryFields
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, config: config,
+        PodsWidgetView(feature: context.host.ext(PodsFeature.self), host: context.host, settings: config,
                        query: context.query(fields: PodSummary.queryFields), queryText: context.queryText)
     }
 
@@ -307,19 +307,20 @@ private extension String {
 /// What Dashii can do with a Pods widget, kept apart from the view so it can be tested.
 enum PodsWidgetActions {
     static let actions = [
-        WidgetAction(name: "filter", description: "Search the pods: words match name, node, status, IP or owner; key=value matches a label; !word excludes. Empty clears it.",
+        WidgetAction(name: "filter", description: "Search the pods: words match name, node, status, IP or owner; key=value matches a label; !word excludes. Empty clears it. Temporary: the widget's saved search stays.",
                      properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
-        WidgetAction(name: "set_status", description: "Show pods by status.",
+        WidgetAction(name: "set_status", description: "Show pods by status. Temporary: the widget's saved filters stay.",
                      properties: ["status": JSONSchema.string("all, problems, running, pending, failed or completed.", enum: ["all", "problems", "running", "pending", "failed", "completed"])], required: ["status"]),
-        WidgetAction(name: "show_problems_only", description: "Only pods that aren't healthy (on), or every pod (off).",
+        WidgetAction(name: "show_problems_only", description: "Only pods that aren't healthy (on), or every pod (off). Temporary: the widget's saved filters stay.",
                      properties: ["on": JSONSchema.boolean("true for problems only.")], required: ["on"]),
-        WidgetAction(name: "set_namespace", description: "Show another namespace: a name, \"*\" for every namespace, or \"\" for the context's own.",
+        WidgetAction(name: "set_namespace", description: "Show another namespace: a name, \"*\" for every namespace, or \"\" for the context's own. Temporary: the widget's saved namespace stays.",
                      properties: ["namespace": JSONSchema.string("Namespace.")], required: ["namespace"]),
-        WidgetAction(name: "set_context", description: "Show another kubeconfig context; \"\" follows the one the Kubernetes integration uses.",
+        WidgetAction(name: "set_context", description: "Show another kubeconfig context; \"\" follows the one the Kubernetes integration uses. Temporary: the widget's saved context stays.",
                      properties: ["context": JSONSchema.string("Context name.")], required: ["context"]),
-        WidgetAction(name: "select_pod", description: "Open a pod's detail (containers, events, logs, YAML) by name or a unique part of it.",
+        WidgetAction(name: "select_pod", description: "Select a pod by name (or a unique part) and open its detail (containers, events, logs, YAML); linked widgets follow the selection.",
                      properties: ["name": JSONSchema.string("Pod name.")], required: ["name"]),
-        WidgetAction(name: "clear_filters", description: "Remove the search and status filters."),
+        WidgetAction(name: "clear_selection", description: "Unselect the selected pod."),
+        WidgetAction(name: "clear_filters", description: "Drop Dashii's temporary changes (namespace, context, search, status): back to the widget's settings."),
     ]
 
     struct Outcome {
@@ -462,24 +463,53 @@ private struct PodsWidgetSettings: View {
 private struct PodsWidgetView: View {
     let feature: PodsFeature?
     let host: any ExtensionContext
-    @Binding var config: PodsWidget.Config
+    /// The widget's saved settings.
+    @Binding var settings: PodsWidget.Config
     /// The widget's DashQL query (its query bar), applied after the settings' filters.
     let query: WidgetQuery?
     let queryText: String
-    @State private var selected: PodSummary?
+    /// The pod whose detail sheet is open.
+    @State private var opened: PodSummary?
+    /// The pod the user picked: highlighted and published for linked widgets until another is
+    /// picked or it's clicked again.
+    @State private var selectedID: String?
+    /// What Dashii's actions changed for now (namespace, context, filters); the saved settings
+    /// stay, and this resets when they change.
+    @State private var override: PodsWidget.Config?
     @State private var queryIDs: [String]?
+
+    /// The settings with Dashii's temporary changes on top: what the widget shows.
+    private var config: PodsWidget.Config { override ?? settings }
     /// The widget's size family, from the dashboard: each gets its own layout.
     @Environment(\.widgetLayout) private var layout
 
     var body: some View {
         main
             .handlesWidgetActions { name, input in
-                let result = try PodsWidgetActions.perform(name, input, config: &config, pods: visiblePods)
-                if let pod = result.select { selected = pod }
+                if name == "clear_selection" {
+                    selectedID = nil
+                    return "cleared"
+                }
+                if name == "clear_filters" {
+                    override = nil
+                    return "cleared"
+                }
+                // Actions change what's shown for now, never the saved settings.
+                var view = config
+                let result = try PodsWidgetActions.perform(name, input, config: &view, pods: visiblePods)
+                override = view == settings ? nil : view
+                if let pod = result.select {
+                    selectedID = pod.id
+                    opened = pod
+                }
                 return result.reply
             }
+            .onChange(of: settings) { override = nil }
+            .onExitCommand { selectedID = nil }
+            .reportsSelection(selectedPod.map(row))
             .reportsWidgetState(PodsWidgetActions.state(config: config, pods: visiblePods, total: browse?.pods.count ?? 0,
-                                                        namespace: feature.map(namespaceLabel) ?? "", selected: selected))
+                                                        namespace: feature.map(namespaceLabel) ?? "", selected: opened)
+                .merging(["selected": selectedPod.map { .string($0.id) } ?? .null, "temporary_changes": .bool(override != nil)]))
             .task(id: QueryRows.key(queryText, filteredPods, row: row)) {
                 queryIDs = await QueryRows.ids(query, filteredPods, row: row)
             }
@@ -496,12 +526,25 @@ private struct PodsWidgetView: View {
     /// The pods the widget lists: the settings' filters, then the DashQL query.
     private var visiblePods: [PodSummary] { QueryRows.ordered(filteredPods, by: queryIDs) }
 
+    private var selectedPod: PodSummary? { selectedID.flatMap { id in browse?.pods.first { $0.id == id } } }
+
+    /// Clicking a pod selects it and opens its detail; clicking the selected one again unselects it.
+    private func pick(_ pod: PodSummary) {
+        if selectedID == pod.id {
+            selectedID = nil
+        } else {
+            selectedID = pod.id
+            opened = pod
+        }
+    }
+
     private func row(_ pod: PodSummary) -> JSONValue { pod.queryRow(context: config.context, warnings: browse?.warnings[pod.id] ?? []) }
 
     @ViewBuilder private var main: some View {
         if let feature {
             content(feature)
-                .sheet(item: $selected) { PodDetailSheet(pod: $0, context: config.context, feature: feature, host: host) { await feature.refresh(browsing: config.browseKey) } }
+                .environment(\.podSelectedID, selectedID)
+                .sheet(item: $opened) { PodDetailSheet(pod: $0, context: config.context, feature: feature, host: host) { await feature.refresh(browsing: config.browseKey) } }
                 // Each widget refreshes on its own interval; restarts when its settings change.
                 .task(id: "\(config.browseKey.hashValue)|\(config.refreshInterval)") {
                     while !Task.isCancelled {
@@ -533,17 +576,18 @@ private struct PodsWidgetView: View {
                         title: pods.isEmpty ? "No pods" : config.activeFilters == ["Problems"] ? "All pods healthy" : "No pods match",
                         systemImage: "checkmark.circle", message: "Namespace \(namespaceLabel(feature))"))
                 } else if layout.family == .narrow {
-                    PodCounts(pods: visible, warnings: browse?.warnings ?? [:], showProblems: layout.size.height > 230) { selected = $0 }
+                    PodCounts(pods: visible, warnings: browse?.warnings ?? [:], showProblems: layout.size.height > 230) { pick($0) }
                 } else if layout.family == .wide || layout.family == .large {
                     PodTable(pods: visible, warnings: browse?.warnings ?? [:], showNamespace: config.namespace == "*",
-                             showNode: layout.size.width >= 820) { selected = $0 }
+                             showNode: layout.size.width >= 820) { pick($0) }
                 } else {
                     List(visible) { pod in
                         PodRow(pod: pod, subtitle: subtitle(pod), warnings: browse?.warnings[pod.id] ?? [], compact: layout.family == .narrow)
                         .contentShape(.rect)
-                        .onTapGesture { selected = pod }
+                        .onTapGesture { pick(pod) }
+                        .listRowBackground(selectedID == pod.id ? Color.accentColor.opacity(0.18) : Color.clear)
                         .contextMenu {
-                            Button("Details") { selected = pod }
+                            Button("Details") { opened = pod }
                             Button("Copy Name") { copy(pod.name) }
                             Button("Copy kubectl logs") { copy(PodCommands.logs(pod, context: contextName(feature))) }
                             Button("Copy kubectl exec") { copy(PodCommands.exec(pod, context: contextName(feature))) }
@@ -712,6 +756,7 @@ private struct PodTable: View {
     let showNode: Bool
     let open: (PodSummary) -> Void
     @State private var hovered: String?
+    @Environment(\.podSelectedID) private var selectedID
 
     var body: some View {
         VStack(spacing: 0) {
@@ -740,7 +785,7 @@ private struct PodTable: View {
                                 node: Text(pod.node ?? "—").foregroundStyle(.secondary))
                             .font(.callout)
                             .padding(.vertical, 6)
-                            .background(hovered == pod.id ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 6))
+                            .background(selectedID == pod.id ? AnyShapeStyle(.tint.opacity(0.18)) : hovered == pod.id ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 6))
                             .contentShape(.rect)
                             .onHover { hovered = $0 ? pod.id : (hovered == pod.id ? nil : hovered) }
                             .onTapGesture { open(pod) }
@@ -768,4 +813,9 @@ private struct PodTable: View {
         }
         .padding(.horizontal, 8)
     }
+}
+
+extension EnvironmentValues {
+    /// The pod picked in the widget, drawn as selected.
+    @Entry var podSelectedID: String? = nil
 }

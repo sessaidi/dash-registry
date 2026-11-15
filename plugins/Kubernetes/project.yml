@@ -30,7 +30,7 @@ targets:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         NSPrincipalClass: KubernetesDashPlugin
         DashPluginID: kubernetes
-        DashPluginVersion: "1.8.1"
+        DashPluginVersion: "1.9.0"
         DashKitMinimumVersion: "1.5.0"
     settings:
       base:

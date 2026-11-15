@@ -297,7 +297,9 @@ struct PodsWidgetActionsTests {
     ]
 
     @Test func dashiiFiltersAndSwitchesWhatTheWidgetShows() throws {
-        #expect(PodsWidget.actions.map(\.name) == ["filter", "set_status", "show_problems_only", "set_namespace", "set_context", "select_pod", "clear_filters"])
+        #expect(PodsWidget.actions.map(\.name) == ["filter", "set_status", "show_problems_only", "set_namespace", "set_context", "select_pod", "clear_selection", "clear_filters"])
+        #expect(PodsWidget.actions.filter { ["filter", "set_status", "show_problems_only", "set_namespace", "set_context"].contains($0.name) }
+            .allSatisfy { $0.description.contains("Temporary") })
         var config = PodsWidget.defaultConfig
         _ = try PodsWidgetActions.perform("filter", ["text": "worker"], config: &config, pods: pods)
         #expect(config.search == "worker")
