@@ -28,7 +28,7 @@ struct PullRequestsWidget: DashboardWidget {
     ]
 
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        PullRequestList(config: config.wrappedValue, host: context.host)
+        PullRequestList(config: config, host: context.host)
     }
 
     /// Sample PRs and a sample review; no network, no store.
@@ -54,26 +54,57 @@ struct PullRequestsWidget: DashboardWidget {
         }
     }
 
+    static let actions = PullRequestsWidgetActions.actions
+
     static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
         guard let github = context.host.ext(PullRequestsFeature.self),
               let tool = github.tools.first(where: { $0.name == "github_list_prs" }) else { return [] }
         let input: JSONValue = ["repo": config.repo.isEmpty ? .null : .string(config.repo), "filter": .string(config.filter)]
-        return (try? await tool.run(input)) ?? []
+        return [
+            "explanation": """
+                Open pull requests on the watched repositories (filter: all, review_requested = someone asked the user to \
+                review, mine = the user's own). Each has Claude's automatic review when one ran: a verdict (approve, comment, \
+                request changes) and a risk level; approvals and changes_requested count human reviews. Drafts aren't ready \
+                for review yet.
+                """,
+            "pull_requests": (try? await tool.run(input)) ?? [],
+        ]
     }
 }
 
 private struct PullRequestList: View {
-    let config: PullRequestsWidget.Config
+    @Binding var config: PullRequestsWidget.Config
     let host: any ExtensionContext
     @Query(sort: \PullRequest.updatedAt, order: .reverse) private var pulls: [PullRequest]
     @Query(sort: \PRReview.createdAt, order: .reverse) private var reviews: [PRReview]
     @State private var selected: PullRequest?
+    /// A search Dashii typed (title, author, branch, repo or #number); not saved.
+    @State private var search = ""
+
+    private var visible: [PullRequest] {
+        pulls.filter { PullRequestsWidget.matches($0, config) && PullRequestsWidgetActions.matches($0, search: search) }
+    }
 
     var body: some View {
+        list
+            .handlesWidgetActions { name, input in
+                let outcome = try PullRequestsWidgetActions.perform(name, input, config: &config, search: &search, pulls: visible)
+                if let pr = outcome.select { selected = pr }
+                return outcome.reply
+            }
+            .reportsWidgetState([
+                "repo": config.repo.isEmpty ? "all watched" : .string(config.repo), "filter": .string(config.filter),
+                "search": search.isEmpty ? .null : .string(search),
+                "shown": .array(visible.prefix(30).map { .string("\($0.repo)#\($0.number) \($0.title)") }),
+                "open_pr": selected.map { .string("\($0.repo)#\($0.number)") } ?? .null,
+            ])
+    }
+
+    private var list: some View {
         let github = host.ext(PullRequestsFeature.self)
-        let visible = pulls.filter { PullRequestsWidget.matches($0, config) }
+        let visible = visible
         let latest = Dictionary(reviews.map { ($0.prUID, $0) }, uniquingKeysWith: { first, _ in first })
-        Group {
+        return Group {
             if github?.github?.isConnected != true {
                 ContentUnavailableView {
                     Label("Connect GitHub", systemImage: "arrow.triangle.pull")
@@ -82,10 +113,12 @@ private struct PullRequestList: View {
                 } actions: {
                     Button("Connect GitHub…") { host.openManager("github") }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visible.isEmpty {
                 ContentUnavailableView(
                     github?.isSyncing == true ? "Checking…" : "No open PRs", systemImage: "checkmark.circle",
                     description: Text(github?.lastError ?? (github?.repos.isEmpty == true ? "Add repositories in Settings › GitHub." : "")))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 PullRequestRows(pulls: visible, reviews: latest) { selected = $0 }
             }
@@ -221,5 +254,76 @@ struct InlineMarkdown: View {
         Text((try? AttributedString(markdown: text, options: options)) ?? AttributedString(text))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// What Dashii can do with the Pull Requests widget. Only what it shows changes: nothing is
+/// commented, approved or merged.
+enum PullRequestsWidgetActions {
+    static let actions = [
+        WidgetAction(name: "search", description: "Narrow the list to PRs whose title, author, branch or repository contains the text (or \"#123\"). Empty clears it.",
+                     properties: ["text": JSONSchema.string("Search text.")], required: ["text"]),
+        WidgetAction(name: "set_filter", description: "Show all open PRs, the ones the user is asked to review, or the user's own.",
+                     properties: ["filter": JSONSchema.string("all, review_requested or mine.", enum: ["all", "review_requested", "mine"])], required: ["filter"]),
+        WidgetAction(name: "set_repo", description: "Show one repository (owner/name), or \"\" for every watched one.",
+                     properties: ["repo": JSONSchema.string("owner/name.")], required: ["repo"]),
+        WidgetAction(name: "select", description: "Open a PR's detail (Claude's review, diff, checks): owner/name#123, #123, 123, or a unique part of its title.",
+                     properties: ["pr": JSONSchema.string("Which PR.")], required: ["pr"]),
+        WidgetAction(name: "clear", description: "Clear the search and show all open PRs of every watched repository."),
+    ]
+
+    struct Outcome {
+        var reply: JSONValue
+        var select: PullRequest?
+    }
+
+    static func matches(_ pr: PullRequest, search: String) -> Bool {
+        let text = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !text.isEmpty else { return true }
+        if text.hasPrefix("#"), let number = Int(text.dropFirst()) { return pr.number == number }
+        return [pr.title, pr.author, pr.headRef, pr.repo].contains { $0.lowercased().contains(text) }
+    }
+
+    /// owner/name#123, #123, 123, or the only PR whose title contains the text.
+    static func find(_ text: String, in pulls: [PullRequest]) -> PullRequest? {
+        let wanted = text.trimmingCharacters(in: .whitespaces)
+        if let hash = wanted.lastIndex(of: "#"), let number = Int(wanted[wanted.index(after: hash)...]) {
+            let repo = String(wanted[..<hash]).lowercased()
+            return pulls.first { $0.number == number && (repo.isEmpty || $0.repo.lowercased() == repo) }
+        }
+        if let number = Int(wanted) { return pulls.first { $0.number == number } }
+        let hits = pulls.filter { $0.title.lowercased().contains(wanted.lowercased()) }
+        return hits.count == 1 ? hits[0] : nil
+    }
+
+    static func perform(_ name: String, _ input: JSONValue, config: inout PullRequestsWidget.Config, search: inout String,
+                        pulls: [PullRequest]) throws -> Outcome {
+        switch name {
+        case "search":
+            search = input["text"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            return Outcome(reply: ["search": search.isEmpty ? .null : .string(search),
+                                   "matches": .number(Double(pulls.filter { matches($0, search: search) }.count))])
+        case "set_filter":
+            guard let filter = input["filter"]?.string, ["all", "review_requested", "mine"].contains(filter) else {
+                throw ToolError("Filter is all, review_requested or mine.")
+            }
+            config.filter = filter
+            return Outcome(reply: ["filter": .string(filter)])
+        case "set_repo":
+            config.repo = input["repo"]?.string?.trimmingCharacters(in: .whitespaces) ?? ""
+            return Outcome(reply: ["repo": config.repo.isEmpty ? "all watched" : .string(config.repo)])
+        case "select":
+            guard let pr = find(input["pr"]?.string ?? "", in: pulls) else {
+                throw ToolError("No single shown PR matches “\(input["pr"]?.string ?? "")”.")
+            }
+            return Outcome(reply: ["opened": .string("\(pr.repo)#\(pr.number)")], select: pr)
+        case "clear":
+            search = ""
+            config.repo = ""
+            config.filter = "all"
+            return Outcome(reply: "cleared")
+        default:
+            throw ToolError("Unknown action \(name).")
+        }
     }
 }

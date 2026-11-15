@@ -126,9 +126,31 @@ struct ToolTests {
         let harness = try await seeded()
         let context = WidgetContext(widgetID: UUID(), host: harness.host)
         let mine = await PullRequestsWidget.snapshot(config: .init(repo: "", filter: "mine"), context: context)
-        #expect(mine.array?.map { $0["number"]?.int } == [1])
+        #expect(mine["pull_requests"]?.array?.map { $0["number"]?.int } == [1])
+        #expect(mine["explanation"]?.string?.contains("review_requested") == true)
         let scoped = await PullRequestsWidget.snapshot(config: .init(repo: "acme/api", filter: "all"), context: context)
-        #expect(scoped.array?.count == 3)
+        #expect(scoped["pull_requests"]?.array?.count == 3)
+    }
+
+    @Test func dashiiSearchesFiltersAndOpensPRs() throws {
+        #expect(PullRequestsWidget.actions.map(\.name) == ["search", "set_filter", "set_repo", "select", "clear"])
+        let pulls = PullRequestSamples.pulls()
+        var config = PullRequestsWidget.defaultConfig
+        var search = ""
+        let found = try PullRequestsWidgetActions.perform("search", ["text": "checkout"], config: &config, search: &search, pulls: pulls)
+        #expect(search == "checkout" && found.reply["matches"] == 1)
+        #expect(PullRequestsWidgetActions.matches(pulls[0], search: "#482") && !PullRequestsWidgetActions.matches(pulls[1], search: "#482"))
+        _ = try PullRequestsWidgetActions.perform("set_filter", ["filter": "mine"], config: &config, search: &search, pulls: pulls)
+        #expect(config.filter == "mine")
+        #expect(throws: ToolError.self) { try PullRequestsWidgetActions.perform("set_filter", ["filter": "everything"], config: &config, search: &search, pulls: pulls) }
+        _ = try PullRequestsWidgetActions.perform("set_repo", ["repo": "acme/web"], config: &config, search: &search, pulls: pulls)
+        #expect(config.repo == "acme/web")
+        #expect(try PullRequestsWidgetActions.perform("select", ["pr": "acme/orders#479"], config: &config, search: &search, pulls: pulls).select?.number == 479)
+        #expect(try PullRequestsWidgetActions.perform("select", ["pr": "1207"], config: &config, search: &search, pulls: pulls).select?.number == 1207)
+        #expect(try PullRequestsWidgetActions.perform("select", ["pr": "tax rounding"], config: &config, search: &search, pulls: pulls).select?.number == 479)
+        #expect(throws: ToolError.self) { try PullRequestsWidgetActions.perform("select", ["pr": "#9999"], config: &config, search: &search, pulls: pulls) }
+        _ = try PullRequestsWidgetActions.perform("clear", [:], config: &config, search: &search, pulls: pulls)
+        #expect(search.isEmpty && config == PullRequestsWidget.defaultConfig)
     }
 
     @Test func previewSamplesAreSelfContained() {
