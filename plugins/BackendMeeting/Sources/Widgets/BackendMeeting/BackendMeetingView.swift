@@ -4,74 +4,8 @@ import DashKitUI
 import SwiftData
 import SwiftUI
 
-struct BackendMeetingWidget: DashboardWidget {
-    struct Config: Codable, Equatable, Sendable {
-        /// The cycle in weeks (1–10).
-        var cycleWeeks: Int = 2
-        /// Start where the previous report ended (else always the last `cycleWeeks` weeks).
-        var sinceLastReport: Bool = true
-    }
-
-    static let kind = "backend-meeting.report"
-    static let displayName = "Backend Meeting"
-    static let summary = "Your highlights for the backend meeting: what you shipped and what's in progress since the last report, grouped into themes."
-    static let systemImage = "person.2.wave.2"
-    static let defaultSize = WidgetSize.large
-    static let sizeLimits = GridLimits(minW: 3, minH: 4, maxW: 12, maxH: 24)
-    static let defaultConfig = Config()
-    static let configSchema: JSONValue = [
-        "type": "object",
-        "properties": [
-            "cycleWeeks": ["type": "integer", "minimum": 1, "maximum": 10, "description": "Cycle length in weeks."],
-            "sinceLastReport": ["type": "boolean", "description": "Start where the previous report ended."],
-        ],
-    ]
-
-    static func content(config: Binding<Config>, context: WidgetContext) -> some View {
-        if let feature = context.host.ext(BackendMeetingFeature.self) {
-            BackendMeetingView(feature: feature, config: config)
-        } else {
-            StateView(.failed(message: "Backend Meeting isn't loaded."))
-        }
-    }
-
-    static func settings(config: Binding<Config>, context: WidgetContext) -> some View {
-        CyclePicker(weeks: config.cycleWeeks)
-        Toggle("Start where the last report ended", isOn: config.sinceLastReport)
-    }
-
-    /// Sample data for the widget gallery: no network, no accounts.
-    static func preview(config: Config) -> some View {
-        ReportMarkdown(markdown: """
-            - **Social connection**: reworked the Apple sign-in flow to link accounts from the email scope
-            - **Catalog sync**: automatic user creation during social sign-up and sync of the region flag
-            - **In chantier**:
-              - observability on tag operations and service calls (in review)
-              - recordings cap removal on mobile (open PR)
-            - **Debug & Fix**
-            """)
-        .padding(4)
-    }
-
-    @MainActor
-    static func snapshot(config: Config, context: WidgetContext) async -> JSONValue {
-        guard let report = context.host.ext(BackendMeetingFeature.self)?.reports(limit: 1).first else { return ["report": .null] }
-        return ["range": .string(report.rangeLabel), "report": .string(report.markdown)]
-    }
-}
-
-struct CyclePicker: View {
-    @Binding var weeks: Int
-
-    var body: some View {
-        Picker("Cycle", selection: $weeks) {
-            ForEach(1...10, id: \.self) { Text($0 == 1 ? "1 week" : "\($0) weeks").tag($0) }
-        }
-    }
-}
-
 /// The latest (or a chosen past) report, with the range the next one covers and Generate.
-private struct BackendMeetingView: View {
+struct BackendMeetingView: View {
     let feature: BackendMeetingFeature
     @Binding var config: BackendMeetingWidget.Config
     @Environment(\.widgetLayout) private var layout
@@ -207,45 +141,5 @@ private struct BackendMeetingView: View {
             try? await Task.sleep(for: .seconds(1.5))
             copied = false
         }
-    }
-}
-
-/// The report's bullet list: bold themes, nested chantier items, inline markdown.
-struct ReportMarkdown: View {
-    let markdown: String
-    var limit: Int = .max
-
-    struct Line: Equatable {
-        let level: Int
-        let text: String
-    }
-
-    static func lines(_ markdown: String) -> [Line] {
-        markdown.split(separator: "\n").compactMap { raw in
-            let indent = raw.prefix { $0 == " " }.count
-            let trimmed = raw.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { return nil }
-            let text = trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") ? String(trimmed.dropFirst(2)) : trimmed
-            return Line(level: indent >= 2 ? 1 : 0, text: text)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(Self.lines(markdown).prefix(limit).enumerated()), id: \.offset) { _, line in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Circle()
-                        .fill(line.level == 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                        .frame(width: line.level == 0 ? 6 : 4, height: line.level == 0 ? 6 : 4)
-                        .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
-                    Text((try? AttributedString(markdown: line.text)) ?? AttributedString(line.text))
-                        .font(line.level == 0 ? .callout : .callout)
-                        .foregroundStyle(line.level == 0 ? .primary : .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.leading, CGFloat(line.level) * 18)
-            }
-        }
-        .textSelection(.enabled)
     }
 }
