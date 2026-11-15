@@ -132,7 +132,7 @@ final class AWSIntegration: Integration {
                     Call an AWS API as the user, signed with SigV4. Give the full https URL on *.amazonaws.com \
                     (the service and region come from the host). Query APIs: POST form body "Action=DescribeInstances&Version=2016-11-15". \
                     JSON APIs: content_type application/x-amz-json-1.1 plus target, e.g. "Logs_20140328.DescribeLogGroups". \
-                    Prefer read-only actions (Describe/List/Get) unless the user asked for a change.
+                    Read-only: only Describe/List/Get-style actions (and GET requests) run; anything that changes AWS is refused.
                     """,
                 properties: [
                     "method": JSONSchema.string("HTTP method (default POST).", enum: ["GET", "POST"]),
@@ -141,11 +141,12 @@ final class AWSIntegration: Integration {
                     "content_type": JSONSchema.string("Content-Type (default application/x-www-form-urlencoded; charset=utf-8)."),
                     "target": JSONSchema.string("X-Amz-Target for JSON-protocol services."),
                 ],
-                required: ["url"], requiresApproval: true
+                required: ["url"]
             ) { [weak self] input in
                 guard let self else { return nil }
                 let call = try input.toolInput(APIInput.self)
                 guard let url = URL(string: call.url) else { throw ToolError("Bad URL \(call.url)") }
+                try Self.requireReadOnly(method: call.method ?? "POST", url: url, body: call.body, target: call.target)
                 var request = URLRequest(url: url)
                 request.httpMethod = call.method ?? "POST"
                 if let body = call.body {
@@ -159,5 +160,21 @@ final class AWSIntegration: Integration {
                     ? .string(String(text.prefix(Self.maxToolCharacters)) + "\n[truncated]") : ((try? JSONValue.parse(data)) ?? .string(text))
             },
         ]
+    }
+
+    /// Action-name prefixes that only read. AWS query and JSON APIs are POSTs even for reads,
+    /// so the action decides.
+    static let readOnlyPrefixes = ["Describe", "List", "Get", "BatchGet", "Search", "Lookup", "Query", "Scan", "Filter", "Select"]
+
+    /// Throws unless the call only reads: a GET, or a POST whose action (X-Amz-Target or the
+    /// Action= form field) is a Describe/List/Get-style one. Claude never changes AWS.
+    static func requireReadOnly(method: String, url: URL, body: String?, target: String?) throws {
+        if method.uppercased() == "GET" { return }
+        let fields = (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+            + (URLComponents(string: "?" + (body ?? ""))?.queryItems ?? [])
+        let action = target.map { $0.split(separator: ".").last.map(String.init) ?? $0 } ?? fields.first { $0.name == "Action" }?.value
+        guard let action, readOnlyPrefixes.contains(where: { action.hasPrefix($0) }) else {
+            throw ToolError("aws_api is read-only: \(action ?? "this call") could change AWS. Only Describe/List/Get-style actions run.")
+        }
     }
 }

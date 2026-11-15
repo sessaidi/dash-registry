@@ -120,7 +120,7 @@ extension AWSPluginTests {
             #expect(aws.metadata.category == .cloud)
             #expect(aws.secretKeys.isEmpty && aws.secrets?.extensionID == nil)
             #expect(aws.tools.map(\.name) == ["aws_whoami", "aws_api"])
-            #expect(aws.tools.map(\.requiresApproval) == [false, true])
+            #expect(aws.tools.map(\.requiresApproval) == [false, false])
         }
 
         @Test func pluginEntryPoint() {
@@ -217,9 +217,26 @@ extension AWSPluginTests {
             let aws = try await make()
             let before = StubURLProtocol.requests.count
             await #expect(throws: ToolError("Only https://*.amazonaws.com URLs can be signed.")) {
-                try await tool(aws, "aws_api").run(["url": "https://example.com/"])
+                try await tool(aws, "aws_api").run(["url": "https://example.com/", "method": "GET"])
             }
             #expect(StubURLProtocol.requests.count == before)
+        }
+
+        @Test func apiRefusesActionsThatChangeAWS() async throws {
+            StubURLProtocol.reset(["/": .json(Self.identity)])
+            let aws = try await make()
+            let before = StubURLProtocol.requests.count
+            await #expect(throws: ToolError.self) {
+                try await tool(aws, "aws_api").run(["url": "https://ec2.eu-west-1.amazonaws.com/", "body": "Action=TerminateInstances&InstanceId.1=i-1"])
+            }
+            await #expect(throws: ToolError.self) {
+                try await tool(aws, "aws_api").run(["url": "https://logs.us-west-2.amazonaws.com/", "body": "{}", "target": "Logs_20140328.DeleteLogGroup"])
+            }
+            #expect(StubURLProtocol.requests.count == before)
+            #expect(aws.tools.allSatisfy { !$0.requiresApproval })
+            #expect(throws: Never.self) {
+                try AWSIntegration.requireReadOnly(method: "POST", url: URL(string: "https://ec2.amazonaws.com/?Action=DescribeInstances")!, body: nil, target: nil)
+            }
         }
 
         @Test func apiTruncatesLargeResponses() async throws {
