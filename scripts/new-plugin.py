@@ -162,14 +162,18 @@ final class __NAME__Integration: Integration {
 
     @ObservationIgnored private let readToken: @MainActor () -> String?
     @ObservationIgnored private let session: URLSession?
+    @ObservationIgnored private let baseURL: URL
+    @ObservationIgnored private var check: Task<Void, Never>?
     private(set) var account: String?
     private(set) var lastError: String?
 
-    /// `token` and `session` are for tests; Dash uses the Keychain and the shared session.
-    init(token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
+    /// `token`, `session` and `baseURL` are for tests; Dash uses the Keychain, the shared session
+    /// and the real API.
+    init(token: (@MainActor () -> String?)? = nil, session: URLSession? = nil, baseURL: URL = __NAME__Integration.apiURL) {
         let store = SecretStore(extensionID: "__ID__")
         readToken = token ?? { store.read("token") }
         self.session = session
+        self.baseURL = baseURL
     }
 
     private var token: String? { readToken().flatMap { $0.isEmpty ? nil : $0 } }
@@ -178,7 +182,7 @@ final class __NAME__Integration: Integration {
 
     var connection: IntegrationConnection? {
         guard let token else { return nil }
-        return IntegrationConnection(baseURL: Self.apiURL, headers: ["Authorization": "Bearer \\(token)"], session: session)
+        return IntegrationConnection(baseURL: baseURL, headers: ["Authorization": "Bearer \\(token)"], session: session)
     }
 
     /// What features may read without the secret (e.g. the signed-in account).
@@ -187,30 +191,41 @@ final class __NAME__Integration: Integration {
     var tools: [DashiiTool] { __NAME__Tools.tools(integration: self) }
 
     func start(host: any ExtensionContext) {
-        Task { await verify() }
+        if check == nil { verify() }
     }
 
-    /// Checks the token once at launch, while the splash screen shows progress.
+    /// At launch, while the splash screen shows progress: waits for the check `start` began.
     func prepare(host: any ExtensionContext) async throws {
-        await verify()
+        await (check ?? verify()).value
         if let lastError { throw ToolError(lastError) }
     }
 
     func setToken(_ token: String) {
         secrets?.write("token", token)
         account = nil
-        Task { await verify() }
+        verify()
     }
 
     /// Asks the API who the token belongs to. Adjust the path and field to the service's.
-    func verify() async {
-        guard let connection else { lastError = nil; return }
-        do {
-            account = try await connection.get("/me", service: name)["name"]?.string
-            lastError = nil
-        } catch {
-            lastError = error.localizedDescription
+    /// A new check cancels the one in flight, so the answer for an old token never wins.
+    @discardableResult
+    func verify() -> Task<Void, Never> {
+        check?.cancel()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            guard let connection else { lastError = nil; return }
+            do {
+                let name = try await connection.get("/me", service: name)["name"]?.string
+                guard !Task.isCancelled else { return }
+                account = name
+                lastError = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                lastError = error.localizedDescription
+            }
         }
+        check = task
+        return task
     }
 
     func settingsView() -> AnyView { AnyView(__NAME__Settings(integration: self)) }
@@ -242,8 +257,20 @@ enum __NAME__Tools {
         [DashiiTool(name: "__IDU___get", description: "GET a __NAME__ API path and return the JSON. Read-only.",
                     properties: ["path": JSONSchema.string("API path, e.g. /me.")], required: ["path"]) { [weak integration] input in
             guard let connection = integration?.connection else { throw ToolError("Connect __NAME__ in Settings.") }
-            return try await connection.get(input["path"]?.string ?? "/", service: "__NAME__")
+            return try await connection.get(try apiPath(input["path"]?.string ?? "/"), service: "__NAME__")
         }]
+    }
+
+    /// A path on the API, never another host or a parent directory: the model writes it, and
+    /// the request carries the user's token.
+    static func apiPath(_ path: String) throws -> String {
+        let route = path.split(separator: "?", maxSplits: 1).first.map(String.init) ?? ""
+        guard path.hasPrefix("/"), !path.hasPrefix("//"), !route.contains("@"), !route.contains("\\\\"),
+              !route.split(separator: "/").contains(where: { $0 == ".." || $0 == "." }),
+              !route.lowercased().contains("%2e"), !route.lowercased().contains("%2f") else {
+            throw ToolError("Give an API path starting with /, like /me.")
+        }
+        return path
     }
 }
 """
@@ -259,23 +286,33 @@ import Testing
 
 @MainActor
 struct __NAME__IntegrationTests {
-    @Test func connectsWithATokenAndVerifiesTheAccount() async throws {
+    /// An integration whose requests go to a stub host (one per test, so tests don't share answers).
+    func make(token: String? = "secret", routes: [String: String] = ["/me": #"{"name": "ada"}"#]) -> (__NAME__Integration, String) {
         let host = "api-\\(UUID().uuidString.prefix(8)).test"
-        StubHTTP.serve(host, routes: ["/me": #"{"name": "ada"}"#])
-        let integration = __NAME__Integration(token: { "secret" }, session: StubHTTP.session)
+        StubHTTP.serve(host, routes: routes)
+        return (__NAME__Integration(token: { token }, session: StubHTTP.session, baseURL: URL(string: "https://\\(host)")!), host)
+    }
+
+    @Test func connectsWithATokenAndVerifiesTheAccount() async throws {
+        let (integration, host) = make()
         #expect(integration.isConnected)
-        // Point the connection at the stub (the real one uses apiURL).
-        var connection = try #require(integration.connection)
-        connection = IntegrationConnection(baseURL: URL(string: "https://\\(host)")!, headers: connection.headers, session: StubHTTP.session)
-        #expect(try await connection.get("/me", service: "test")["name"] == "ada")
+        await integration.verify().value
+        #expect(integration.connectionState == .connected("Signed in as ada"))
         #expect(StubHTTP.requests(host).first?.value(forHTTPHeaderField: "Authorization") == "Bearer secret")
     }
 
     @Test func noTokenMeansNotConnected() {
-        let integration = __NAME__Integration(token: { nil })
+        let (integration, _) = make(token: nil)
         #expect(!integration.isConnected && integration.connection == nil)
         #expect(integration.connectionState == .notConfigured)
         #expect(integration.tools.allSatisfy { !$0.requiresApproval && !$0.writesRemotely })
+    }
+
+    @Test func pathsStayOnTheAPI() throws {
+        for path in ["https://evil.example/x", "//evil.example/x", "/../admin", "/@evil.example", "me"] {
+            #expect(throws: ToolError.self) { try __NAME__Tools.apiPath(path) }
+        }
+        #expect(try __NAME__Tools.apiPath("/me") == "/me")
     }
 }
 """
@@ -654,6 +691,5 @@ for path, text in files.items():
     target.write_text(fill(text))
 
 print(f"Created plugins/{name} ({plugin_json['kind']} \"{plugin_id}\").")
-print(f"Next: TEST=1 scripts/build-plugins.sh {name}")
-print(f"Try it live: copy build/{name}/Build/Products/Release/{name}Plugin.dashplugin into")
-print("  ~/Library/Application Support/Dash/Plugins (Dash asks to load it).")
+print(f"Next: TEST=1 scripts/try-plugin.sh {name}   (test, build and install it in Dash)")
+print(f"Publish: TEST=1 scripts/build-plugins.sh {name}   (zip it and update registry.json)")
