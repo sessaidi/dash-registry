@@ -408,35 +408,7 @@ final class DailyStandupFeature: DashExtension {
         revision += 1
     }
 
-    // MARK: Claude, Home, knowledge
-
-    private struct DayInput: Decodable { let date: String? }
-
-    var tools: [DashiiTool] {
-        [
-            DashiiTool(name: "standup_today", description: "Today's standup: my update (yesterday, today, blockers with references), and on Zoom days the meeting report (each person's update, blockers, action items).") { [weak self] _ in
-                guard let self, let record = day() else { return ["prepared": false] }
-                return ["prepared": .bool(record.preparedAt != nil), "update": .string(record.update?.text ?? ""),
-                        "report": (try? JSONValue(encoding: record.report)) ?? .null, "on_zoom": .bool(record.onZoom)]
-            },
-            DashiiTool(name: "standup_prepare", description: "Prepare (or redo) my standup update now from my commits, PRs, tickets, agents, deploys, notes and meetings since the last standup.") { [weak self] _ in
-                guard let self else { return nil }
-                return .string(try await prepare().text)
-            },
-            DashiiTool(name: "standup_blockers", description: "Open blockers from past standups (mine and the team's), with how long they've been open.") { [weak self] _ in
-                guard let self else { return [] }
-                return .array(openBlockers().map { ["text": .string($0.text), "owner": .string($0.owner), "days_open": .number(Double($0.daysOpen)), "reference": .string($0.reference)] })
-            },
-            DashiiTool(name: "standup_history", description: "Past standups (date, my update, meeting summary).",
-                       properties: ["date": JSONSchema.string("Optional yyyy-MM-dd.")]) { [weak self] input in
-                guard let self else { return [] }
-                let wanted = try input.toolInput(DayInput.self).date
-                return .array(days().filter { wanted == nil || $0.day == wanted }.map {
-                    ["date": .string($0.day), "update": .string($0.update?.text ?? ""), "summary": .string($0.report?.summary ?? "")]
-                })
-            },
-        ]
-    }
+    // MARK: Home, knowledge
 
     var suggestions: [Suggestion] {
         guard isWorkday() else { return [] }
@@ -469,49 +441,5 @@ final class DailyStandupFeature: DashExtension {
             let all = (try? self?.host?.context.fetch(FetchDescriptor<StandupBlocker>())) ?? []
             return ActivitySeries.countPerDay(all.map(\.since), in: interval)
         }]
-    }
-}
-
-/// Your commits in the clones under the code folder (worktrees share their clone's history).
-enum StandupGit {
-    struct Commit: Sendable, Hashable {
-        let repo: String
-        let sha: String
-        let subject: String
-        let at: Date
-        let branch: String
-    }
-
-    static func commits(root: String, email: String, since: Date) -> [Commit] {
-        let folder = URL(fileURLWithPath: (root as NSString).expandingTildeInPath)
-        let clones = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
-            .filter { FileManager.default.fileExists(atPath: $0.appending(path: ".git").path) }
-        var result: [Commit] = []
-        for clone in clones {
-            let author = email.isEmpty ? (git(clone, ["config", "user.email"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") : email
-            guard !author.isEmpty,
-                  let log = git(clone, ["log", "--all", "--no-merges", "--author=\(author)", "--since=\(ISO8601DateFormatter().string(from: since))",
-                                        "--format=%h%x1f%ct%x1f%s%x1f%D"]) else { continue }
-            for line in log.split(separator: "\n") {
-                let parts = line.split(separator: "\u{1f}", omittingEmptySubsequences: false).map(String.init)
-                guard parts.count >= 3, let seconds = Double(parts[1]) else { continue }
-                let branch = parts.count > 3 ? (parts[3].split(separator: ",").first.map { $0.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "HEAD -> ", with: "") } ?? "") : ""
-                result.append(Commit(repo: clone.lastPathComponent, sha: parts[0], subject: parts[2], at: Date(timeIntervalSince1970: seconds), branch: branch))
-            }
-        }
-        return result.sorted { $0.at > $1.at }
-    }
-
-    static func git(_ folder: URL, _ arguments: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", folder.path] + arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
     }
 }
