@@ -30,11 +30,11 @@ struct PullRequestsWidget: DashboardWidget {
         PullRequestList(config: config, host: context.host, query: context.query(fields: PullRequest.queryFields), queryText: context.queryText)
     }
 
-    /// Sample PRs and a sample review; no network, no store.
+    /// Sample PRs and reviews in the same responsive view as the widget; no network, no store.
     static func preview(config: Config) -> some View {
         let pulls = PullRequestSamples.pulls().filter { matches($0, config) }
         let reviews = Dictionary(PullRequestSamples.reviews().map { ($0.prUID, $0) }, uniquingKeysWith: { first, _ in first })
-        return PullRequestRows(pulls: pulls, reviews: reviews, onSelect: nil)
+        return PullRequestsContent(pulls: pulls, reviews: reviews, onSelect: nil)
     }
 
     /// The widget's repo and filter applied to one PR.

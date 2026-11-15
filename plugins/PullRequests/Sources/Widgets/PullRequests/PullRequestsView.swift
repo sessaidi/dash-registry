@@ -99,7 +99,7 @@ struct PullRequestList: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     QueryCount(shown: visible.count, total: narrowed.count, query: queryText)
-                    PullRequestRows(pulls: visible, reviews: latest, selectedUID: selectedUID) { pick($0) }
+                    PullRequestsContent(pulls: visible, reviews: latest, selectedUID: selectedUID) { pick($0) }
                 }
             }
         }
@@ -113,51 +113,6 @@ struct PullRequestList: View {
         } else {
             selectedUID = pr.uid
             opened = pr
-        }
-    }
-}
-
-/// The list itself, fed plain values so the gallery preview can draw sample PRs.
-struct PullRequestRows: View {
-    let pulls: [PullRequest]
-    /// Latest review per PR uid.
-    let reviews: [String: PRReview]
-    var selectedUID: String? = nil
-    /// nil: rows don't open (previews).
-    let onSelect: ((PullRequest) -> Void)?
-
-    var body: some View {
-        List(pulls) { pr in
-            PullRequestRow(pr: pr, review: reviews[pr.uid])
-                .contentShape(.rect)
-                .onTapGesture { onSelect?(pr) }
-                .listRowBackground(selectedUID == pr.uid ? Color.accentColor.opacity(0.18) : Color.clear)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-    }
-}
-
-private struct PullRequestRow: View {
-    let pr: PullRequest
-    let review: PRReview?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            ReviewBadge(review: review)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    if pr.isDraft { Text("Draft").font(.caption2).foregroundStyle(.secondary) }
-                    Text(pr.title).lineLimit(1)
-                }
-                Text("\(pr.repo)#\(pr.number) · \(pr.author) · \(pr.updatedAt.relative)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if pr.reviewRequested {
-                Image(systemName: "eye").foregroundStyle(.orange).help("Your review is requested")
-            }
         }
     }
 }

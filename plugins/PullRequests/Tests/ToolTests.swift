@@ -157,7 +157,7 @@ struct ToolTests {
     @Test func previewSamplesAreSelfContained() {
         let pulls = PullRequestSamples.pulls()
         let reviews = PullRequestSamples.reviews()
-        #expect(pulls.count == 4 && Set(pulls.map(\.uid)).count == 4)
+        #expect(pulls.count == 9 && Set(pulls.map(\.uid)).count == 9)
         #expect(pulls.allSatisfy { $0.headSHA.count == 40 && !$0.title.isEmpty && $0.url.hasPrefix("https://github.com/") })
         #expect(pulls.contains { $0.isDraft } && pulls.contains { $0.isMine } && pulls.contains { $0.reviewRequested })
         // Each review belongs to a sample PR, at its head commit.
@@ -165,10 +165,10 @@ struct ToolTests {
             let pr = pulls.first { $0.uid == review.prUID }
             #expect(pr?.headSHA == review.headSHA)
         }
-        let done = reviews.first { $0.verdict == "request_changes" }
+        let done = reviews.first { $0.prUID == "acme/orders#482" }
         #expect(done?.findings.count == 2 && done?.markdown.contains("| major |") == true)
         let mine = pulls.filter { PullRequestsWidget.matches($0, .init(repo: "", filter: "mine")) }
-        #expect(mine.map(\.number) == [479])
+        #expect(mine.map(\.number) == [479, 805])
         _ = PullRequestsWidget.preview(config: PullRequestsWidget.defaultConfig)
     }
 }
