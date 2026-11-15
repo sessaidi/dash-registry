@@ -323,14 +323,14 @@
       "id": "sre",
       "name": "SRE",
       "kind": "feature",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "plugin": {
-        "download": "dist/sre-1.1.0.dashplugin.zip",
+        "download": "dist/sre-1.2.0.dashplugin.zip",
         "minimumDashKit": "2.0.0",
         "provides": [
           "sre"
         ],
-        "sha256": "f3b5159dff1d981b7980dc751eae98f26b6172e64e523d099d1ef1afe5f1cadb"
+        "sha256": "fe41dbd7415f65ca933a721d7866e06d22186ba32d6cdd6d1b1d06632e60ae5e"
       },
       "description": "A senior on-call SRE: watches Datadog monitors and Kubernetes pods, investigates with evidence across Datadog, Google Cloud and Kubernetes, hands narrow jobs to smaller models, and reports likely causes and next steps. Read-only.",
       "icon": "stethoscope",
