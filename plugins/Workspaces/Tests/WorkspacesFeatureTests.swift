@@ -286,8 +286,8 @@ struct WorkspacesWidgetTests {
 
     @Test func previewSamplesStayOffline() {
         let samples = WorkspaceItem.samples
-        #expect(samples.count == 4)
-        #expect(samples.filter { $0.deployedBy == WorkspaceItem.sampleUser }.count == 3)
+        #expect(samples.count == 9)
+        #expect(samples.filter { $0.deployedBy == WorkspaceItem.sampleUser }.count == 4)
         #expect(samples.contains { $0.persist } && samples.contains { $0.cleanReason != nil })
         _ = WorkspacesWidget.preview(config: .init(onlyMine: true))
         _ = WorkspacesWidget.preview(config: .init(onlyMine: false))

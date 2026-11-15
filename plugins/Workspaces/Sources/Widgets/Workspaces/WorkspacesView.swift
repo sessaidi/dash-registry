@@ -69,7 +69,8 @@ struct WorkspaceList: View {
     struct SheetID: Identifiable { let id: String }
 }
 
-/// The list itself, fed plain values so previews can draw it from samples.
+/// The list itself, fed plain values so previews draw the same responsive view from samples:
+/// a glance when narrow, rows when medium, a table when wide, a table and a summary when large.
 struct WorkspaceListContent: View {
     let scope: String
     let items: [WorkspaceItem]
@@ -80,58 +81,51 @@ struct WorkspaceListContent: View {
     var refresh: (() -> Void)?
     var select: ((String) -> Void)?
     var create: (() -> Void)?
+    @Environment(\.widgetLayout) private var layout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(scope).font(.caption.monospaced()).foregroundStyle(.secondary)
-                if isLoading { ProgressView().controlSize(.mini) }
-                Spacer()
-                if let create {
-                    Button("New Workspace", systemImage: "plus") { create() }
-                        .labelStyle(.iconOnly).buttonStyle(.borderless).help("Create a workspace from a profile, linked to a worktree")
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .widgetHeader { header }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let error, items.isEmpty {
+            StateView(.failed(title: "Couldn't load workspaces", message: error), action: refresh.map { refresh in (title: "Retry", run: refresh) })
+        } else if items.isEmpty {
+            if isLoading { StateView(.loading()) } else { StateView(.empty(title: "No workspaces", systemImage: "shippingbox")) }
+        } else {
+            switch layout.family {
+            case .narrow:
+                WorkspaceGlance(items: items, busy: busy, selectedName: selectedName, select: select)
+            case .wide:
+                WorkspaceTable(items: items, busy: busy, selectedName: selectedName, select: select)
+            case .large:
+                HStack(alignment: .top, spacing: 12) {
+                    WorkspaceTable(items: items, busy: busy, selectedName: selectedName, select: select)
+                    Divider()
+                    WorkspaceSummaryPanel(items: items, busy: busy, selected: items.first { $0.name == selectedName })
+                        .frame(width: layout.size.width * 0.28)
                 }
-                Button("Refresh", systemImage: "arrow.clockwise") { refresh?() }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless)
-            }
-            if let error, items.isEmpty {
-                ContentUnavailableView("Couldn't load workspaces", systemImage: "exclamationmark.triangle", description: Text(error))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if items.isEmpty {
-                ContentUnavailableView(isLoading ? "Loading…" : "No workspaces", systemImage: "shippingbox")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(items) { item in
-                    WorkspaceRow(item: item, busy: busy.contains(item.name))
-                        .contentShape(.rect)
-                        .onTapGesture { select?(item.name) }
-                        .listRowBackground(selectedName == item.name ? Color.accentColor.opacity(0.18) : Color.clear)
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
+            default:
+                WorkspaceRows(items: items, busy: busy, selectedName: selectedName, select: select)
             }
         }
     }
-}
 
-private struct WorkspaceRow: View {
-    let item: WorkspaceItem
-    let busy: Bool
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if busy { ProgressView().controlSize(.small) } else { NodePoolBadge(pool: item.nodePool) }
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(item.name).font(.callout.monospaced())
-                    if item.persist { Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.blue).help("Persisted: never cleaned") }
-                }
-                Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+    /// Scope, progress, create and refresh: in the card's header, not a row of the body.
+    private var header: some View {
+        HStack(spacing: 6) {
+            if layout.family != .narrow {
+                Text(scope).font(.caption.monospaced()).foregroundStyle(.secondary)
             }
-            Spacer()
-            if let reason = item.cleanReason {
-                Image(systemName: "clock.badge.exclamationmark").foregroundStyle(.orange).help(reason)
+            if isLoading { ProgressView().controlSize(.mini) }
+            if let create {
+                Button("New Workspace", systemImage: "plus") { create() }
+                    .labelStyle(.iconOnly).buttonStyle(.borderless).help("Create a workspace from a profile, linked to a worktree")
             }
+            Button("Refresh", systemImage: "arrow.clockwise") { refresh?() }
+                .labelStyle(.iconOnly).buttonStyle(.borderless).help("Refresh \(scope)")
         }
     }
 }
@@ -140,7 +134,7 @@ struct NodePoolBadge: View {
     let pool: NodePool
 
     var body: some View {
-        Badge(pool.rawValue, tone: [.spot: .warning, .standard: .accent, .legacy: .info, .unknown: .danger][pool] ?? .neutral)
-            .frame(width: 64)
+        Badge(pool.rawValue, tone: pool.tone)
+            .frame(width: 64, alignment: .leading)
     }
 }

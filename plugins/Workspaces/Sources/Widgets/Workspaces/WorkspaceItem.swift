@@ -60,6 +60,16 @@ struct WorkspaceItem: Identifiable, Equatable, Sendable {
                           persist: false, nodePool: .legacy, cleanReason: "not deployed for over a week"),
             WorkspaceItem(name: "epg-refresh", deployedBy: "jrivera", gitBranch: "LAF-1234", lastDeploy: now.addingTimeInterval(-600),
                           persist: false, nodePool: .spot, cleanReason: nil),
+            WorkspaceItem(name: "search-v3", deployedBy: sampleUser, gitBranch: "feat/LAF-5702-facets", lastDeploy: now.addingTimeInterval(-86_400 * 1.5),
+                          persist: false, nodePool: .spot, cleanReason: nil),
+            WorkspaceItem(name: "laf-5680", deployedBy: "ada", gitBranch: "feat/LAF-5680-renewals", lastDeploy: now.addingTimeInterval(-86_400 * 3),
+                          persist: false, nodePool: .standard, cleanReason: nil),
+            WorkspaceItem(name: "ops-212", deployedBy: "sam", gitBranch: "fix/OPS-212", lastDeploy: now.addingTimeInterval(-86_400 * 2.2),
+                          persist: false, nodePool: .spot, cleanReason: nil),
+            WorkspaceItem(name: "perf-baseline", deployedBy: "jrivera", gitBranch: "main", lastDeploy: now.addingTimeInterval(-86_400 * 20),
+                          persist: true, nodePool: .standard, cleanReason: nil),
+            WorkspaceItem(name: "legacy-epg", deployedBy: "ada", gitBranch: "epg-v1", lastDeploy: now.addingTimeInterval(-86_400 * 15),
+                          persist: false, nodePool: .legacy, cleanReason: "not deployed for over a week"),
         ]
     }
 }

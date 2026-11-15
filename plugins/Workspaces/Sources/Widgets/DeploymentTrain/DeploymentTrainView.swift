@@ -55,7 +55,7 @@ struct TrainView: View {
         } else {
             VStack(alignment: .leading, spacing: 2) {
                 QueryCount(shown: cars.count, total: total, query: queryText)
-                TrainList(cars: cars, selectedID: selectedID) { car in
+                TrainContent(cars: cars, selectedID: selectedID) { car in
                     selectedID = selectedID == car.id ? nil : car.id
                 }
             }
@@ -76,14 +76,14 @@ struct TrainList: View {
                     HStack(alignment: .top, spacing: 10) {
                         // The track: a dot per car, a line between them.
                         VStack(spacing: 0) {
-                            Circle().fill(color(car.status)).frame(width: 10, height: 10).padding(.top, 4)
+                            StatusDot(car.tone, help: car.statusTitle).padding(.top, 4)
                             if index < cars.count - 1 { Rectangle().fill(.quaternary).frame(width: 2).frame(maxHeight: .infinity) }
                         }
                         .frame(width: 12)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
                                 Text(car.workspace).font(.callout.bold().monospaced())
-                                Text(title(car)).font(.callout)
+                                Text(car.title).font(.callout)
                                 if !car.version.isEmpty { Text(car.version).font(.caption.monospaced()).foregroundStyle(.secondary) }
                                 Spacer()
                                 Text(car.at, format: .relative(presentation: .named)).font(.caption).foregroundStyle(.secondary)
@@ -106,23 +106,6 @@ struct TrainList: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func title(_ car: TrainCar) -> String {
-        switch car.kind {
-        case "worktree": "deployed \(car.app)"
-        case "image": "image \(car.app)"
-        case "config": "configuration"
-        default: "created"
-        }
-    }
-
-    private func color(_ status: String) -> Color {
-        switch status {
-        case "succeeded": .green
-        case "failed": .red
-        default: .orange
         }
     }
 }

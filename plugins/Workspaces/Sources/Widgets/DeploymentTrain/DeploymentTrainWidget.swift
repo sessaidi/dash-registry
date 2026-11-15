@@ -39,15 +39,9 @@ struct DeploymentTrainWidget: DashboardWidget {
         TextField("Workspace", text: config.workspace, prompt: Text("All"))
     }
 
+    /// Sample deployments, no database: the gallery draws the same responsive view as the dashboard.
     static func preview(config: Config) -> some View {
-        TrainList(cars: [
-            .init(id: "1", workspace: "laf-5680", kind: "worktree", app: "services-presentation-api", version: "a1b2c3d", branch: "feat/laf-5680-renewals",
-                  by: "ada", at: .now.addingTimeInterval(-600), duration: 312, status: "succeeded", error: ""),
-            .init(id: "2", workspace: "laf-5680", kind: "config", app: "", version: "", branch: "", by: "ada", at: .now.addingTimeInterval(-3600),
-                  duration: 8, status: "succeeded", error: ""),
-            .init(id: "3", workspace: "ops-212", kind: "worktree", app: "services-user", version: "9f8e7d6", branch: "fix/ops-212", by: "sam",
-                  at: .now.addingTimeInterval(-7200), duration: 95, status: "failed", error: "CrashLoopBackOff"),
-        ])
+        TrainContent(cars: TrainCar.samples.filter { config.workspace.isEmpty || $0.workspace == config.workspace })
     }
 
     @MainActor
