@@ -144,7 +144,7 @@ struct DailyStandupTests {
         let report = try await standup.report(meetingID: "m1")
         #expect(report.namesFromCaptions && report.people.first { $0.name == "Sadik" }?.words == 6)
         #expect(standup.day()?.report?.actionItems == [MeetingReport.Action(owner: "Ada", task: "Review KAN-12")])
-        #expect(host.notes.first?.folder == "Standups" && host.notes.first?.markdown.contains("- [ ] Ada: Review KAN-12") == true)
+        #expect(host.notes.first?.folder == "Standups" && host.notes.first?.markdown.contains("- [ ] **Ada**: Review KAN-12") == true)
         #expect(standup.openBlockers().contains { $0.owner == "Sam" })
         #expect(host.testDashii.calls.last?.system.contains("Lines carry each speaker's name") == true)
     }

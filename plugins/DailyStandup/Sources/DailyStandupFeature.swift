@@ -414,23 +414,53 @@ final class DailyStandupFeature: DashExtension {
         return report
     }
 
+    /// The report in Dash's note syntax: a summary callout, my update and everyone's as tables,
+    /// blockers as warnings, action items as a task list.
     static func markdown(_ report: MeetingReport, update: StandupUpdate?, day: Date) -> String {
-        var text = "# Standup \(day.formatted(date: .complete, time: .omitted))\n\n\(report.summary)\n\n"
+        func cell(_ text: String) -> String {
+            let value = text.replacingOccurrences(of: "|", with: "/").replacingOccurrences(of: "\n", with: " ")
+            return value.isEmpty ? "—" : value
+        }
+        var lines = ["# Standup \(day.formatted(date: .complete, time: .omitted))", ""]
+        let spoke = report.people.count
+        lines.append("> [!summary] \(spoke) \(spoke == 1 ? "person" : "people") gave an update\(report.blockers.isEmpty ? "" : " · \(report.blockers.count) blocked")")
+        lines.append("> " + (report.summary.isEmpty ? "No summary." : report.summary.replacingOccurrences(of: "\n", with: " ")))
         if let update {
-            text += "## My update\n\n" + update.text.replacingOccurrences(of: "*", with: "**") + "\n"
+            lines += ["", "## My update"]
+            for (title, items) in [("Yesterday", update.yesterday), ("Today", update.today)] {
+                lines += ["", "### \(title)", ""]
+                if items.isEmpty { lines.append("Nothing."); continue }
+                lines += ["| Ticket | Step | What | Refs |", "|---|---|---|---|"]
+                for item in items {
+                    let ticket = item.ticket.flatMap { $0.isEmpty ? nil : "**\($0)**" } ?? "—"
+                    let refs = item.refs.filter { $0 != item.ticket }.map { "`\($0)`" }.joined(separator: " ")
+                    lines.append("| \(ticket) | \(StandupItem.label(item.kind) ?? "—") | \(cell(item.text)) | \(refs.isEmpty ? "—" : refs) |")
+                }
+            }
+            if update.blockers.isEmpty {
+                lines += ["", "> [!success] No blockers"]
+            } else {
+                lines += ["", "> [!warning] My blockers"] + update.blockers.map { "> - \($0.ticket.map { "**\($0)** " } ?? "")\($0.text)" }
+            }
         }
-        text += "## Everyone\n\n"
-        for person in report.people {
-            text += "### \(person.name)\(person.words.map { " · \($0) words" } ?? "")\n\n"
-            if !person.yesterday.isEmpty { text += "**Did:** " + person.yesterday.joined(separator: "; ") + "\n\n" }
-            if !person.today.isEmpty { text += "**Next:** " + person.today.joined(separator: "; ") + "\n\n" }
-            if !person.blockers.isEmpty { text += "**Blocked by:** " + person.blockers.joined(separator: "; ") + "\n\n" }
+        if !report.people.isEmpty {
+            lines += ["", "## Everyone", "", "| Who | Did | Next | Blocked by |", "|---|---|---|---|"]
+            for person in report.people {
+                let name = "**\(cell(person.name))**" + (person.words.map { " · \($0) words" } ?? "")
+                lines.append("| \(name) | \(cell(person.yesterday.joined(separator: "; "))) | \(cell(person.today.joined(separator: "; "))) | \(cell(person.blockers.joined(separator: "; "))) |")
+            }
         }
-        if !report.blockers.isEmpty { text += "## Blockers\n\n" + report.blockers.map { "- [ ] \($0.task) (\($0.owner))" }.joined(separator: "\n") + "\n\n" }
-        if !report.actionItems.isEmpty { text += "## Action items\n\n" + report.actionItems.map { "- [ ] \($0.owner): \($0.task)" }.joined(separator: "\n") + "\n\n" }
-        if !report.notHeard.isEmpty { text += "_Didn't speak: \(report.notHeard.joined(separator: ", "))._\n" }
-        if !report.namesFromCaptions { text += "\n_Speakers were attributed from the conversation (Zoom captions were off)._\n" }
-        return text
+        if !report.blockers.isEmpty {
+            lines += ["", "> [!warning] Blockers"] + report.blockers.map { "> - **\($0.owner)**: \($0.task)" }
+        }
+        if !report.actionItems.isEmpty {
+            lines += ["", "## Action items", ""] + report.actionItems.map { "- [ ] **\($0.owner)**: \($0.task)" }
+        }
+        var notes: [String] = []
+        if !report.notHeard.isEmpty { notes.append("Didn't speak: \(report.notHeard.joined(separator: ", ")).") }
+        if !report.namesFromCaptions { notes.append("Speakers were attributed from the conversation (Zoom captions were off).") }
+        if !notes.isEmpty { lines += ["", "> [!note] About this report"] + notes.map { "> \($0)" } }
+        return lines.joined(separator: "\n") + "\n"
     }
 
     // MARK: Blockers
