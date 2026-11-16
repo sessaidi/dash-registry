@@ -234,14 +234,14 @@
       "id": "jira-board",
       "name": "Jira Board",
       "kind": "feature",
-      "version": "1.13.3",
+      "version": "1.14.0",
       "plugin": {
-        "download": "dist/jira-board-1.13.3.dashplugin.zip",
+        "download": "dist/jira-board-1.14.0.dashplugin.zip",
         "minimumDashKit": "2.0.0",
         "provides": [
           "jira-board"
         ],
-        "sha256": "34ee1e3ac7b875b85865d93b925424bbbd89569a784c71d0d37580c10e4cfcec"
+        "sha256": "97aa2181e853a4801568332d4e4e944b4041a0bfb1fbd511f2b829e3d6eed6aa"
       },
       "description": "The Jira issues you follow, in your board's columns or by status, with Claude tools to search, comment and move tickets.",
       "icon": "checklist",
