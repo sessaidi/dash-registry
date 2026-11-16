@@ -349,14 +349,14 @@
       "id": "zoom",
       "name": "Zoom",
       "kind": "feature",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "plugin": {
-        "download": "dist/zoom-1.9.0.dashplugin.zip",
+        "download": "dist/zoom-1.10.0.dashplugin.zip",
         "minimumDashKit": "2.2.0",
         "provides": [
           "zoom"
         ],
-        "sha256": "b573cfa4891937c80bd172303c3b0711883c5ff702ef66c10cab942b2e444637"
+        "sha256": "1bb83109b7071af44caab684b84e013443e78c67b06e20e05097d6ee4c6f20e1"
       },
       "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
