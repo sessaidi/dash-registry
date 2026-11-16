@@ -13,6 +13,16 @@ struct PRWorktreesLine: View {
     @State private var note: String?
 
     var body: some View {
+        // Scrolls sideways within the sheet's width: many worktrees must never widen the sheet
+        // (a growing minimum width makes the split view below it loop on layout).
+        ScrollView(.horizontal, showsIndicators: false) {
+            content
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .task { await load() }
+    }
+
+    private var content: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
             if let trees {
@@ -44,7 +54,6 @@ struct PRWorktreesLine: View {
                 ProgressView().controlSize(.mini)
             }
         }
-        .task { await load() }
     }
 
     private func load() async {
