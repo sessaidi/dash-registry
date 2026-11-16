@@ -28,14 +28,14 @@
       "id": "agents",
       "name": "Agents",
       "kind": "feature",
-      "version": "1.12.0",
+      "version": "1.13.0",
       "plugin": {
-        "download": "dist/agents-1.12.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/agents-1.13.0.dashplugin.zip",
+        "minimumDashKit": "2.3.0",
         "provides": [
           "agents"
         ],
-        "sha256": "1dc63545626b645bc5e141ad5f87bc8f2778abca3eb537c9f468d040c99a07f6"
+        "sha256": "342460bde3ceb708222ad4fdfe30f5cad9af531d5781d9fff9f870834be84da9"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
@@ -280,14 +280,14 @@
       "id": "pull-requests",
       "name": "Pull Requests",
       "kind": "feature",
-      "version": "1.14.0",
+      "version": "1.15.0",
       "plugin": {
-        "download": "dist/pull-requests-1.14.0.dashplugin.zip",
-        "minimumDashKit": "2.2.0",
+        "download": "dist/pull-requests-1.15.0.dashplugin.zip",
+        "minimumDashKit": "2.3.0",
         "provides": [
           "pull-requests"
         ],
-        "sha256": "098e93ea42c9efdf3bc9726252a36e60bed500b231fc14457d383b254881fe5a"
+        "sha256": "8dbebcf6891d93801ed194591fd32f888cb3ca3f74029b4f242efbe248e0806c"
       },
       "description": "Open PRs on watched repos with automatic Claude reviews.",
       "icon": "arrow.triangle.pull",
