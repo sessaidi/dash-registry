@@ -117,6 +117,7 @@ struct PullRequestSheet: View {
                     Text("Looking for workspaces in dev and qa…").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            PRWorktreesLine(pr: pr, host: host)
         }
     }
 
