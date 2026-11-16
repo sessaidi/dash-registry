@@ -87,6 +87,11 @@ None of this is a Dashii tool or a widget action: Dashii and agents can't reply,
 or request changes. The GitHub token needs **Pull requests: Read and write** (the token link in
 Settings › GitHub asks for it).
 
+## Fetchers
+
+`github.branch_pulls` (repo, branch): the branch's pull requests, open, closed or merged, stored in
+Dash's database. The Agents plugin asks for it to tell whether a worktree's PR was merged.
+
 ## Claude tools
 
 | Tool | What it does | Needs approval |
