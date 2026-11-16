@@ -110,26 +110,41 @@ enum WorktreeStatus {
 
 /// Local git only: lists every worktree of the clones it's given and reads each one's state.
 enum WorktreeScanner {
-    /// Git clones directly in `root` and one level below (organisation folders), plus `extra`.
-    static func clones(root: String, extra: [String]) -> [URL] {
-        let rootURL = URL(fileURLWithPath: (root as NSString).expandingTildeInPath)
+    /// The Agents code folder and the usual places people keep code (that exist).
+    static func roots(codeRoot: String) -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return ([codeRoot] + ["code", "Code", "Codes", "Developer", "dev", "src", "projects", "Projects", "repos", "git", "GitHub"].map { home + "/" + $0 })
+            .filter { FileManager.default.fileExists(atPath: ($0 as NSString).expandingTildeInPath) }
+    }
+
+    /// Git clones directly in each root and one level below (organisation folders) that have linked
+    /// worktrees (a `.git/worktrees` folder: no git needed to tell), plus `extra` (always).
+    static func clones(roots: [String], extra: [String]) -> [URL] {
         func isClone(_ url: URL) -> Bool {
             var directory: ObjCBool = false
             return FileManager.default.fileExists(atPath: url.appending(path: ".git").path, isDirectory: &directory) && directory.boolValue
         }
+        func hasWorktrees(_ url: URL) -> Bool {
+            let folder = url.appending(path: ".git/worktrees")
+            return !((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).isEmpty
+        }
         var found: [URL] = []
-        let first = (try? FileManager.default.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
-        for child in first {
-            if isClone(child) { found.append(child); continue }
-            let second = (try? FileManager.default.contentsOfDirectory(at: child, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
-            found += second.filter(isClone)
+        for root in roots {
+            let rootURL = URL(fileURLWithPath: (root as NSString).expandingTildeInPath)
+            let first = (try? FileManager.default.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+            for child in first {
+                if isClone(child) { if hasWorktrees(child) { found.append(child) }; continue }
+                let second = (try? FileManager.default.contentsOfDirectory(at: child, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                found += second.filter { isClone($0) && hasWorktrees($0) }
+            }
         }
         for path in extra {
             let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
             if isClone(url) { found.append(url) }
         }
+        // ~/code and ~/Code are one folder on a case-insensitive disk; symlinks too.
         var seen = Set<String>()
-        return found.filter { seen.insert($0.standardizedFileURL.path).inserted }
+        return found.filter { seen.insert($0.resolvingSymlinksInPath().standardizedFileURL.path.lowercased()).inserted }
     }
 
     /// `git worktree list --porcelain`: (path, head, branch) per worktree, the main checkout first.

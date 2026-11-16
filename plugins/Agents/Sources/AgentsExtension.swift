@@ -100,7 +100,13 @@ final class AgentsExtension: DashExtension {
     }
 
     func refreshWorktrees() async {
-        await worktrees.refresh(codeRoot: codeRoot, repositories: Array(repoMap.values), host: host)
+        await worktrees.refresh(roots: WorktreeScanner.roots(codeRoot: codeRoot), repositories: worktreeRepositories, host: host)
+    }
+
+    /// The mapped repositories and the ones Dash's Knowledge indexes (its `knowledge.repos`
+    /// preference): wherever the user's clones live, their worktrees are found.
+    var worktreeRepositories: [String] {
+        Array(repoMap.values) + (DashStorage.defaults.stringArray(forKey: "knowledge.repos") ?? [])
     }
 
     var repoMap: [String: String] {
