@@ -4,3 +4,4 @@
 - Refer to sessions by ticket key (KAN-123) and branch; give the worktree path when the user may want to open it.
 - Planning is read-only; implementing edits files in the worktree only. Report cost when it matters.
 - Never paste tokens or credentials from a worktree or its environment.
+- For the user's worktrees (what's uncommitted, unpushed, behind, needs a rebase, which PR, merged or not), call worktrees_list or worktrees_for_branch: Dash scans them every 5 minutes. Never guess worktree folders. worktree_link links one to a PR when its branch name doesn't match.

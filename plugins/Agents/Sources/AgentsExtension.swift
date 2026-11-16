@@ -37,6 +37,9 @@ final class AgentsExtension: DashExtension {
     @ObservationIgnored private var processes: [UUID: ClaudeCodeSession] = [:]
     /// Last cumulative cost reported by each process, to add only the delta.
     @ObservationIgnored private var reportedCost: [UUID: Double] = [:]
+    /// Every worktree on this Mac with its state and pull request.
+    @ObservationIgnored let worktrees: WorktreeStore
+    @ObservationIgnored private var worktreeLoop: Task<Void, Never>?
 
     static let defaultAllowedTools = "Bash(git status:*) Bash(git diff:*) Bash(git add:*) Bash(git commit:*) Bash(git log:*) Bash(make:*) Bash(go test:*) Bash(go build:*) Bash(go vet:*) Bash(npm test:*) Bash(npm run:*) Bash(pnpm:*) Bash(yarn:*) Bash(pytest:*) Bash(swift test:*) Bash(swift build:*) Bash(cargo test:*) Bash(cargo build:*)"
 
@@ -60,6 +63,7 @@ final class AgentsExtension: DashExtension {
 
     init(defaults: UserDefaults = DashStorage.defaults) {
         self.defaults = defaults
+        worktrees = WorktreeStore(defaults: defaults)
         claudePath = defaults.string(forKey: "agents.claudePath") ?? ""
         codeRoot = defaults.string(forKey: "agents.codeRoot") ?? "~/Codes"
         repoMapText = defaults.string(forKey: "agents.repoMap") ?? ""
@@ -69,7 +73,7 @@ final class AgentsExtension: DashExtension {
     }
 
     var models: [any PersistentModel.Type] { [AgentSession.self, AgentMessage.self, PullRequestTemplate.self] }
-    var widgets: [WidgetType] { [WidgetType(AgentsWidget.self)] }
+    var widgets: [WidgetType] { [WidgetType(AgentsWidget.self), WidgetType(WorktreesWidget.self)] }
     func settingsView() -> AnyView { AnyView(AgentsSettingsView(agents: self)) }
 
     func start(host: any ExtensionContext) {
@@ -79,10 +83,24 @@ final class AgentsExtension: DashExtension {
             session.status = "idle"
         }
         try? host.context.save()
+        // Worktrees: rescanned every 5 minutes (local git; remotes fetched every 30).
+        worktreeLoop?.cancel()
+        worktreeLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshWorktrees()
+                try? await Task.sleep(for: .seconds(300))
+            }
+        }
     }
 
     func stop() {
         for process in processes.values { process.terminate() }
+        worktreeLoop?.cancel()
+        worktreeLoop = nil
+    }
+
+    func refreshWorktrees() async {
+        await worktrees.refresh(codeRoot: codeRoot, repositories: Array(repoMap.values), host: host)
     }
 
     var repoMap: [String: String] {

@@ -18,8 +18,9 @@ struct AgentsExtensionTests {
         #expect(agents.metadata.version == "1.10.0" && agents.metadata.category == .ai)
         #expect(agents.storagePrefix == "agents")
         #expect(agents.models.map { String(describing: $0) } == ["AgentSession", "AgentMessage", "PullRequestTemplate"])
-        #expect(agents.widgets.map(\.kind) == ["agents.sessions"])
-        #expect(agents.tools.map(\.name) == ["agents_list", "agents_start", "agents_open", "agents_send", "agents_read"])
+        #expect(agents.widgets.map(\.kind) == ["agents.sessions", "agents.worktrees"])
+        #expect(agents.tools.map(\.name) == ["agents_list", "agents_start", "agents_open", "agents_send", "agents_read",
+                                             "worktrees_list", "worktrees_for_branch", "worktree_link"])
         #expect(agents.tools.filter(\.requiresApproval).map(\.name) == ["agents_start", "agents_send"])
     }
 
