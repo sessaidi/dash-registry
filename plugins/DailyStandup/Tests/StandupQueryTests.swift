@@ -23,7 +23,8 @@ struct StandupQueryTests {
 
         let engine = QueryEngine(datasets: standup.datasets)
         let standups = try await engine.run("standups on_zoom=true | select day, tickets")
-        #expect(standups.rows == [["day": "2026-11-13", "tickets": ["KAN-12"]]])
+        // On a standup day, starting prepares today's record too: leave it out.
+        #expect(standups.rows.filter { $0["day"]?.string != StandupDayKey.key(.now) } == [["day": "2026-11-13", "tickets": ["KAN-12"]]])
         let open = try await engine.run("blockers open=true | select owner, ticket")
         #expect(open.rows == [["owner": "Maya", "ticket": "KAN-20"]])
     }
