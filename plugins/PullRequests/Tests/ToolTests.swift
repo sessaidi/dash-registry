@@ -103,6 +103,19 @@ struct ToolTests {
         }
     }
 
+    @Test func branchPullsAreFetchedIntoTheMirror() async throws {
+        let harness = Harness(autoReview: false)
+        harness.serve([
+            "/repos/acme/api/pulls": .json(#"[{"number":790,"title":"Read the flag once","html_url":"https://github.com/acme/api/pull/790","state":"closed","merged_at":"2026-11-10T10:00:00Z","draft":false,"updated_at":"2026-11-10T10:00:00Z"}]"#),
+        ])
+        let fetcher = try #require(harness.feature.fetchers.first { $0.name == "github.branch_pulls" })
+        let receipt = try await fetcher.fetch(["repo": "acme/api", "branch": "KAN-3-flags"])
+        #expect(receipt["pulls"]?[0]?["merged"] == true && receipt["pulls"]?[0]?["number"] == 790)
+        #expect(harness.requests.last?.url?.query()?.contains("head=acme:KAN-3-flags") == true)
+        #expect(harness.host.synced.record(kind: "github.branch_pulls", scope: "acme/api", key: "KAN-3-flags") != nil)
+        await #expect(throws: ToolError.self) { _ = try await fetcher.fetch(["repo": "api", "branch": "x"]) }
+    }
+
     @Test func createPRDefaultsToTheDefaultBranchAndDraft() async throws {
         let harness = Harness(autoReview: false)
         harness.serve([
