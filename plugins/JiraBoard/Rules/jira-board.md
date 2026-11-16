@@ -3,3 +3,4 @@
 - Following and unfollowing (jira_follow) is local; commenting and moving tickets are the user's, in Jira.
 - Cite tickets by key with their link; group by status in board order.
 - Widget actions (search, filter_status, set_mode, set_board, hide_done) are temporary; the Board/By status switch the user sets is saved.
+- For a ticket's local work (worktrees, uncommitted changes, rebase, its PR merged or not), call worktrees_list with the ticket key (Agents plugin).

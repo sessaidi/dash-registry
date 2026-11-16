@@ -54,6 +54,13 @@ query Jira live.
 |---|---|---|
 | `jira.board` (Jira Board) | The issues you follow (by key, or through the follow JQL), in a board's columns or one column per status. Other issues of a followed board are synced but not shown. Opening a ticket shows it like Jira's issue view: comment, reply, react, edit or delete your plain-text comments, run a transition, Ask Claude, or Start Agent (when the Agents feature is enabled). Default size: wide. | **Show**: By status (`mode: "followed"`, default) or In board columns (`"board"`). **Board**: which followed board's columns to use (`board`, a board id; the first board when unset); the picker appears when you follow more than one board. **Hide done** (`hideDone`, default off). |
 
+## Issue sheet: development
+
+The issue sheet's **Development** panel shows the ticket's linked pull requests (from Jira) and,
+with the Agents plugin, its worktrees on this Mac: the branch (click to show it in Finder), its pull
+request (open, draft, merged or closed) and what it needs (uncommitted files, commits to push or
+pull, a rebase).
+
 ## Claude tools
 
 | Tool | What it does | Needs approval |
