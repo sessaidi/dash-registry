@@ -117,6 +117,23 @@ Configure these in the feature's AI tab.
 - **Knowledge:** each session becomes `agent:<uuid>`, linked to its ticket (`works_on`) and to the draft PR it opened (`opened`).
 - **Activity series:** `agents.worktrees` (worktrees created per day).
 
+## Worktrees
+
+Every git worktree of the clones in the code folder (and the mapped repositories) is scanned with
+local git every 5 minutes; the remotes are fetched every 30 minutes (Settings › Agents › Worktrees,
+on by default; `git fetch` only reads). For each worktree: its branch and ticket, uncommitted and
+untracked files, commits to push or pull against its upstream, how far behind the main branch it
+is (rebase), its last commit, and its pull request: open ones from the Pull Requests plugin,
+merged or closed ones fetched through its `github.branch_pulls` fetcher, or one you link by hand.
+
+- **Worktrees widget** (`agents.worktrees`): grouped by repository, with status badges (No PR,
+  uncommitted, to push, to pull, Not pushed, In sync, Rebase, Already in main, PR merged, Safe to
+  remove). A row's menu: Show in Finder, Open in Terminal or Cursor, Copy Path, Open the PR, Link to
+  a Pull Request, Remove Worktree (only when its PR is merged and nothing is uncommitted; asks first).
+- **Dashii tools**: `worktrees_list` (filters: repo, ticket, attention), `worktrees_for_branch`,
+  `worktree_link` (local only).
+- **Pull request sheet**: the PR's worktrees, and a menu to link another one.
+
 ## Build & test
 
 From the registry root. You need Xcode, XcodeGen, and a checkout of the [Dash repository](https://github.com/sessaidi/dash) (point `DASH_ROOT` at it; see

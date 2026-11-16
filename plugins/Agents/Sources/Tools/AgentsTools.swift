@@ -72,6 +72,6 @@ extension AgentsExtension {
                     ["role": .string($0.role), "text": .string($0.text)]
                 })])
             },
-        ]
+        ] + worktreeTools
     }
 }

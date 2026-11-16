@@ -43,6 +43,7 @@ struct AgentsSettingsView: View {
             } footer: {
                 Text("Planning always runs in plan mode (read-only). The agent never writes remotely: git push, gh, glab and curl are blocked. Only Create PR pushes, after you review and confirm the title and description.")
             }
+            WorktreesSettingsSection(store: agents.worktrees) { Task { await agents.refreshWorktrees() } }
             PullRequestTemplatesSection(agents: agents)
         }
     }
