@@ -59,6 +59,14 @@ final class ZoomExtension: DashExtension {
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var recorder: MeetingRecorder?
     @ObservationIgnored private var missedMeetingChecks = 0
+    /// Started by "Start transcribing when a Zoom meeting starts": it also stops by itself.
+    /// A recording the user started stops only when they press Stop or Zoom quits.
+    @ObservationIgnored private(set) var startedAutomatically = false
+    @ObservationIgnored private var zoomGoneChecks = 0
+    /// Why the last recording stopped, shown in the widget and logged.
+    private(set) var lastStopReason: String?
+    /// Checks (5 s each) without any sign of the meeting before an automatic recording stops: 2 minutes.
+    static let autoStopChecks = 24
     @ObservationIgnored let calendar = ZoomCalendar()
     @ObservationIgnored private var calendarObserver: NSObjectProtocol?
     /// Calendar meetings `zoom.meeting_soon` already fired for.
@@ -141,13 +149,26 @@ final class ZoomExtension: DashExtension {
 
     private func poll() {
         isZoomRunning = ZoomAccessibility.isZoomRunning
-        guard isZoomRunning, ZoomAccessibility.isTrusted else {
+        guard isZoomRunning else {
             inMeeting = false
+            // Zoom quit: any recording ends (two checks in a row, so a relaunch of Zoom isn't one).
+            if isRecording {
+                zoomGoneChecks += 1
+                if zoomGoneChecks >= 2 { Task { await stopRecording(reason: "Zoom quit.") } }
+            }
             return
         }
-        let inMeeting = ZoomAccessibility.isInMeeting
-        observe(inMeeting: inMeeting, participants: inMeeting ? ZoomAccessibility.participants() : [])
-        if inMeeting, isRecording, let meetingID = currentMeetingID { addCaptions(ZoomAccessibility.captionLines(), to: meetingID) }
+        zoomGoneChecks = 0
+        // In a meeting: a meeting window (Accessibility), or Zoom using the microphone or speakers
+        // (Core Audio), which holds through screen sharing, the mini window and full screen.
+        let window = ZoomAccessibility.isTrusted && ZoomAccessibility.isInMeeting
+        let pids = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier?.hasPrefix("us.zoom") == true }.map(\.processIdentifier)
+        let audio = ZoomAudioActivity.isActive(pids: pids) ?? false
+        let inMeeting = window || audio
+        observe(inMeeting: inMeeting, participants: window ? ZoomAccessibility.participants() : participants)
+        // Zoom's transcript panel has every speaker's name: read it whenever a recording runs, even
+        // when the meeting window itself can't be seen (screen sharing, the mini window).
+        if isRecording, ZoomAccessibility.isTrusted, let meetingID = currentMeetingID { addCaptions(ZoomAccessibility.captionLines(), to: meetingID) }
     }
 
     /// Applies one reading of Zoom's windows: the live participants, the current meeting's
@@ -161,11 +182,11 @@ final class ZoomExtension: DashExtension {
                 let union = MeetingRecord.merged(meeting.participants, names)
                 if union != meeting.participants { meeting.participants = union }
             }
-            if autoStart, !isRecording { Task { await startRecording() } }
-        } else if isRecording {
-            // Two misses in a row (10 s) means the meeting window closed.
+            if autoStart, !isRecording { Task { await startRecording(automatically: true) } }
+        } else if isRecording, startedAutomatically {
+            // No meeting window and no Zoom audio for 2 minutes: the meeting is over.
             missedMeetingChecks += 1
-            if missedMeetingChecks >= 2 { Task { await stopRecording() } }
+            if missedMeetingChecks >= Self.autoStopChecks { Task { await stopRecording(reason: "No sign of the Zoom meeting for 2 minutes.") } }
         }
     }
 
@@ -216,10 +237,10 @@ final class ZoomExtension: DashExtension {
         return true
     }
 
-    func startRecording() async {
+    func startRecording(automatically: Bool = false) async {
         guard host != nil, !isRecording else { return }
         guard await ensurePermissions() else { return }
-        guard let meetingID = beginMeeting() else { return }
+        guard let meetingID = beginMeeting(automatically: automatically) else { return }
         let recorder = MeetingRecorder(
             onSegment: { [weak self] segment in
                 Task { @MainActor in self?.add(segment, to: meetingID) }
@@ -227,7 +248,7 @@ final class ZoomExtension: DashExtension {
             onError: { [weak self] error in
                 Task { @MainActor in
                     self?.lastError = error.localizedDescription
-                    await self?.stopRecording()
+                    await self?.stopRecording(reason: "Recording failed: \(error.localizedDescription)")
                 }
             })
         self.recorder = recorder
@@ -235,16 +256,19 @@ final class ZoomExtension: DashExtension {
             try await recorder.start(locale: Locale(identifier: localeIdentifier), myName: myName, recording: recordingOptions)
         } catch {
             lastError = error.localizedDescription
-            await stopRecording()
+            await stopRecording(reason: "Recording couldn't start: \(error.localizedDescription)")
         }
     }
 
     /// Opens the record of a new meeting with the live participants and marks recording on.
     /// `startRecording` then attaches the audio capture.
     @discardableResult
-    func beginMeeting() -> UUID? {
+    func beginMeeting(automatically: Bool = false) -> UUID? {
         guard let host, !isRecording else { return nil }
         isRecording = true
+        startedAutomatically = automatically
+        missedMeetingChecks = 0
+        lastStopReason = nil
         lastError = nil
         // Named after the calendar event when one is on now; Dashii's summary names it otherwise.
         let event = calendarMeeting()
@@ -259,9 +283,11 @@ final class ZoomExtension: DashExtension {
         return meeting.id
     }
 
-    func stopRecording() async {
+    func stopRecording(reason: String = "Stopped.") async {
         guard isRecording else { return }
         isRecording = false
+        lastStopReason = reason
+        DashLog.info("Zoom recording stopped: \(reason)", category: "zoom")
         let file = await recorder?.stop()
         recorder = nil
         guard let meeting = currentMeeting else { return }
@@ -269,7 +295,7 @@ final class ZoomExtension: DashExtension {
         meeting.endedAt = .now
         meeting.recordingPath = file?.path
         host?.emit("meeting.ended", from: self, title: "Meeting ended: \(meeting.title)",
-                   detail: "\(meeting.participants.count) participants" + (file.map { ", saved to \($0.lastPathComponent)" } ?? ""), importance: .notable)
+                   detail: "\(reason) \(meeting.participants.count) participants" + (file.map { ", saved to \($0.lastPathComponent)" } ?? ""), importance: .notable)
         try? host?.context.save()
         if segments(meeting.id).isEmpty, file == nil {
             host?.context.delete(meeting)

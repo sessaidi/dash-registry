@@ -25,14 +25,14 @@ struct MeetingPanel: View {
         guard let zoom else { return MeetingLive() }
         let current = zoom.currentMeetingID.flatMap { id in meetings.first { $0.id == id } }
         return MeetingLive(zoomRunning: zoom.isZoomRunning, inMeeting: zoom.inMeeting, recording: zoom.isRecording, saveAudio: zoom.saveAudio,
-                           recordVideo: zoom.recordVideo, summarizing: zoom.isSummarizing, error: zoom.lastError, participants: zoom.participants,
+                           recordVideo: zoom.recordVideo, summarizing: zoom.isSummarizing, error: zoom.lastError, stopReason: zoom.lastStopReason, participants: zoom.participants,
                            meetingID: zoom.currentMeetingID, title: current?.title, startedAt: current?.startedAt)
     }
 
     private var commands: MeetingCommands {
         MeetingCommands(
             record: { Task { await zoom?.startRecording() } },
-            stop: { Task { await zoom?.stopRecording() } },
+            stop: { Task { await zoom?.stopRecording(reason: "You stopped it.") } },
             setVideo: { zoom?.recordVideo = $0 },
             open: { id in selected = meetings.first { $0.id == id } })
     }

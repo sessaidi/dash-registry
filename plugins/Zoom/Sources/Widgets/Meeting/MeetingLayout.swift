@@ -48,6 +48,8 @@ struct MeetingLive: Equatable {
     var recordVideo = false
     var summarizing = false
     var error: String?
+    /// Why the last recording stopped, until the next one starts.
+    var stopReason: String?
     var participants: [String] = []
     /// The meeting being transcribed, when there is one.
     var meetingID: UUID?
@@ -215,6 +217,7 @@ struct MeetingGlance: View {
                 RecordButton(live: live, commands: commands, prominent: true)
             }
             if let error = live.error { Text(error).font(.caption).foregroundStyle(.red).lineLimit(2) }
+            if !live.recording, let reason = live.stopReason { Label("Last recording: \(reason)", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary).lineLimit(2) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -292,6 +295,7 @@ struct MeetingControls: View {
                 RecordButton(live: live, commands: commands, prominent: false)
             }
             if let error = live.error { Text(error).font(.caption).foregroundStyle(.red) }
+            if !live.recording, let reason = live.stopReason { Label("Last recording: \(reason)", systemImage: "stop.circle").font(.caption).foregroundStyle(.secondary) }
         }
     }
 }
