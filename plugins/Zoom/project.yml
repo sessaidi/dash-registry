@@ -31,8 +31,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: zoom
-        DashPluginVersion: "1.8.0"
-        DashKitMinimumVersion: "2.0.0"
+        DashPluginVersion: "1.9.0"
+        DashKitMinimumVersion: "2.2.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin
