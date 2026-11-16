@@ -344,39 +344,26 @@ final class ZoomExtension: DashExtension {
         try? host?.context.save()
     }
 
-    static func transcriptText(_ segments: [TranscriptSegment], since start: Date) -> String {
-        segments.map { segment in
+    /// "[03:15] Ada: …" per line; `numbered` adds "[n] " (Dashii refers to lines by it). A name
+    /// Dashii guessed is marked "(guessed)".
+    static func transcriptText(_ segments: [TranscriptSegment], since start: Date, numbered: Bool = false) -> String {
+        segments.enumerated().map { index, segment in
             let offset = Int(segment.createdAt.timeIntervalSince(start))
-            return String(format: "[%02d:%02d] %@: %@", offset / 60, offset % 60, segment.speaker, segment.text)
+            let speaker = segment.source == "inferred" ? "\(segment.speaker) (guessed)" : segment.speaker
+            return (numbered ? "[\(index)] " : "") + String(format: "[%02d:%02d] %@: %@", offset / 60, offset % 60, speaker, segment.text)
         }.joined(separator: "\n")
     }
-
-    static let summarySchema: JSONValue = [
-        "type": "object", "additionalProperties": false,
-        "required": ["title", "summary", "decisions", "action_items"],
-        "properties": [
-            "title": ["type": "string", "description": "Short meeting title from its content."],
-            "summary": ["type": "string", "description": "One paragraph."],
-            "decisions": ["type": "array", "items": ["type": "string"]],
-            "action_items": [
-                "type": "array",
-                "items": [
-                    "type": "object", "additionalProperties": false, "required": ["owner", "task"],
-                    "properties": ["owner": ["type": "string"], "task": ["type": "string"]],
-                ],
-            ],
-        ],
-    ]
 
     func summarize(_ meeting: MeetingRecord) async throws {
         guard let host else { return }
         isSummarizing = true
         defer { isSummarizing = false }
-        let transcript = Self.transcriptText(segments(meeting.id), since: meeting.startedAt)
+        let lines = segments(meeting.id)
+        let transcript = Self.transcriptText(lines, since: meeting.startedAt, numbered: true)
         let prompt = """
             Participants seen in Zoom: \(meeting.participants.joined(separator: ", "))
-            Lines from "\(myName)" are the user's microphone; "\(MeetingRecorder.othersSpeaker)" is everyone else's audio mixed together, \
-            so attribute those lines to a person only when the transcript makes it clear.
+            Lines from "\(myName)" are the user's microphone; "\(MeetingRecorder.othersSpeaker)" is everyone else's audio mixed together. \
+            Name who said an Others line (speakers) only when the content makes it clear; in the report, name people only from what they said.
 
             <transcript>
             \(transcript)
@@ -384,10 +371,18 @@ final class ZoomExtension: DashExtension {
             """
         let text = try await host.dashii.complete(
             system: "You summarise work meetings for an engineer: what was discussed, what was decided, and who owes what.",
-            prompt: prompt, outputSchema: Self.summarySchema, effort: "low")
+            prompt: prompt, outputSchema: MeetingReportBuilder.schema, effort: "low")
         let result = try JSONValue.parse(text)
         if !namedFromCalendar.contains(meeting.id) { meeting.title = result["title"]?.string ?? meeting.title }
         meeting.summary = result["summary"]?.string ?? ""
+        // The "Others" lines Dashii could attribute: named, marked as a guess.
+        for guess in result["speakers"]?.array ?? [] {
+            guard let index = guess["line"]?.int, index >= 0, index < lines.count, let name = guess["name"]?.string, !name.isEmpty,
+                  lines[index].speaker == MeetingRecorder.othersSpeaker else { continue }
+            lines[index].speaker = name
+            lines[index].source = "inferred"
+        }
+        meeting.report = MeetingReportBuilder.markdown(result, meeting: meeting)
         meeting.decisions = result["decisions"]?.array?.compactMap(\.string) ?? []
         meeting.actionItems = (try? result["action_items"]?.decode([MeetingRecord.ActionItem].self)) ?? []
         host.emit("meeting.summarized", from: self, title: "Summary ready: \(meeting.title)",

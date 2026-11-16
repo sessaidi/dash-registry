@@ -18,6 +18,8 @@ final class MeetingRecord {
     var actionItemsData: Data
     /// The saved audio (.m4a) or audio-and-video (.mov) file, when recording was on.
     var recordingPath: String?
+    /// Dashii's report in Dash's note syntax (summary, updates, topics, decisions, risks, actions).
+    var report: String = ""
 
     init(title: String) {
         id = UUID()
@@ -62,8 +64,8 @@ final class TranscriptSegment {
     var speaker: String
     var text: String
     var createdAt: Date
-    /// audio (on-device transcription: you or "Others"), or captions (Zoom's own captions,
-    /// with each participant's name).
+    /// audio (on-device transcription: you or "Others"), captions (Zoom's own captions, with
+    /// each participant's name), or inferred ("Others" named by Dashii from the content).
     var source: String = "audio"
 
     init(meetingID: UUID, speaker: String, text: String, source: String = "audio") {
