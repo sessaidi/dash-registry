@@ -99,14 +99,14 @@
       "id": "daily-standup",
       "name": "Daily Standup",
       "kind": "feature",
-      "version": "1.7.0",
+      "version": "1.7.1",
       "plugin": {
-        "download": "dist/daily-standup-1.7.0.dashplugin.zip",
+        "download": "dist/daily-standup-1.7.1.dashplugin.zip",
         "minimumDashKit": "2.0.0",
         "provides": [
           "daily-standup"
         ],
-        "sha256": "3cf3eeb03ff35d772258b8166667232699820160ac2b5f3ab34ef35f47a10e9d"
+        "sha256": "1550a9c3fb7f5a292ea3941d8f4f724b08fa9979b602f1a2296be210322532a9"
       },
       "description": "Your daily standup update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed live and reported.",
       "icon": "person.3.sequence",
@@ -349,14 +349,14 @@
       "id": "zoom",
       "name": "Zoom",
       "kind": "feature",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "plugin": {
-        "download": "dist/zoom-1.8.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/zoom-1.9.0.dashplugin.zip",
+        "minimumDashKit": "2.2.0",
         "provides": [
           "zoom"
         ],
-        "sha256": "d63dd42887fd87d71021a44db8c14f84b4744c1f557fe22926eb7bb03cdf193d"
+        "sha256": "b573cfa4891937c80bd172303c3b0711883c5ff702ef66c10cab942b2e444637"
       },
       "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
