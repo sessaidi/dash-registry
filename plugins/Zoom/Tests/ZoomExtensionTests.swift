@@ -132,17 +132,33 @@ struct ZoomExtensionTests {
         #expect(try host.context.fetchCount(FetchDescriptor<MeetingRecord>()) == 0)
     }
 
-    @Test func missedChecksStopRecording() async throws {
+    @Test func aRecordingYouStartedOnlyStopsWhenYouSaySo() async throws {
+        let (zoom, host) = makeZoom()
+        defer { _ = host }
+        zoom.observe(inMeeting: true, participants: ["Ada"])
+        _ = try #require(zoom.beginMeeting())
+        // Screen sharing, the mini window, full screen: no meeting window for a long while.
+        for _ in 0..<(ZoomExtension.autoStopChecks * 2) { zoom.observe(inMeeting: false, participants: []) }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(zoom.isRecording)
+        await zoom.stopRecording(reason: "You stopped it.")
+        #expect(!zoom.isRecording && zoom.lastStopReason == "You stopped it.")
+    }
+
+    @Test func anAutomaticRecordingStopsAfterTwoMinutesWithoutTheMeeting() async throws {
         let (zoom, host) = makeZoom()
         zoom.observe(inMeeting: true, participants: ["Ada"])
-        let meetingID = try #require(zoom.beginMeeting())
+        let meetingID = try #require(zoom.beginMeeting(automatically: true))
         zoom.add(.init(speaker: "Others", text: "Bye."), to: meetingID)
-        zoom.observe(inMeeting: false, participants: [])
-        await Task.yield()
+        for _ in 0..<(ZoomExtension.autoStopChecks - 1) { zoom.observe(inMeeting: false, participants: []) }
+        // Back in the meeting resets the count: a short gap (a screen share) doesn't stop it.
+        zoom.observe(inMeeting: true, participants: ["Ada"])
+        for _ in 0..<(ZoomExtension.autoStopChecks - 1) { zoom.observe(inMeeting: false, participants: []) }
+        for _ in 0..<20 { await Task.yield() }
         #expect(zoom.isRecording)
         zoom.observe(inMeeting: false, participants: [])
         for _ in 0..<20 where zoom.isRecording { await Task.yield() }
-        #expect(!zoom.isRecording)
+        #expect(!zoom.isRecording && zoom.lastStopReason == "No sign of the Zoom meeting for 2 minutes.")
         #expect(zoom.meeting(meetingID)?.endedAt != nil)
         #expect(host.activity.events.last?.kind == "meeting.ended")
     }
@@ -168,6 +184,36 @@ struct ZoomExtensionTests {
         #expect(prompt.contains("Participants seen in Zoom: Ada"))
         #expect(prompt.contains("Lines from \"Sadik\" are the user's microphone"))
         #expect(prompt.contains("Others: The backfill finished."))
+    }
+
+    @Test func theReportUsesNoteSyntaxAndNamesOthersLines() async throws {
+        let (zoom, host) = makeZoom(summarizeOnStop: true)
+        host.fakeDashii.response = """
+            {"title":"Daily standup","summary":"Updates from the player team.",
+             "people":[{"name":"Ada","done":"PR in review for favorites","next":"Repro the ads skip","blockers":""},
+                       {"name":"Grace","done":"Removed unused code","next":"","blockers":"Waiting on the layout merge"}],
+             "topics":[{"title":"Zapper merge","points":["On hold until the layout work lands"]}],
+             "decisions":["Merge the layout work first"],"risks":["The zapper rebase may take days"],
+             "action_items":[{"owner":"Ada","task":"Reproduce the iPad ads skip"}],
+             "speakers":[{"line":1,"name":"Grace"},{"line":0,"name":"Nobody"},{"line":9,"name":"Out of range"}]}
+            """
+        zoom.observe(inMeeting: true, participants: ["Ada", "Grace"])
+        let meetingID = try #require(zoom.beginMeeting())
+        zoom.add(.init(speaker: "Sadik", text: "Morning."), to: meetingID)
+        zoom.add(.init(speaker: "Others", text: "I removed the unused code."), to: meetingID)
+        await zoom.stopRecording()
+
+        let meeting = try #require(zoom.meeting(meetingID))
+        #expect(meeting.report.hasPrefix("> [!summary]"))
+        #expect(meeting.report.contains("| **Ada** | PR in review for favorites | Repro the ads skip | — |"))
+        #expect(meeting.report.contains("### Zapper merge\n- On hold until the layout work lands"))
+        #expect(meeting.report.contains("> [!warning] Risk\n> The zapper rebase may take days"))
+        #expect(meeting.report.contains("- [ ] **Ada**: Reproduce the iPad ads skip"))
+        // Only an Others line is renamed, and it's marked as a guess.
+        let lines = zoom.segments(meetingID)
+        #expect(lines.map(\.speaker) == ["Sadik", "Grace"] && lines[1].source == "inferred")
+        #expect(ZoomExtension.transcriptText(lines, since: meeting.startedAt).contains("Grace (guessed): I removed"))
+        #expect(try #require(host.fakeDashii.prompts.first).contains("[1] [00:00] Others: I removed the unused code."))
     }
 
     @Test func summarizeTool() async throws {
