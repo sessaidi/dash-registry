@@ -20,7 +20,7 @@ for name in $names; do
   (cd "$dir" && xcodegen generate --quiet)
   if [ "${TEST:-0}" = 1 ]; then
     xcodebuild test -project "$dir/${name}Plugin.xcodeproj" -scheme "${name}PluginTests" \
-      -derivedDataPath "build/$name" -quiet
+      -derivedDataPath "build/$name" -quiet || { echo "$name: tests failed" >&2; exit 1; }
   fi
   xcodebuild build -project "$dir/${name}Plugin.xcodeproj" -scheme "${name}Plugin" -configuration Release \
     -derivedDataPath "build/$name" -quiet
