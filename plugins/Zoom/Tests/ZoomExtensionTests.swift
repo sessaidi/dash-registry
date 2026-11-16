@@ -30,17 +30,17 @@ struct ZoomExtensionTests {
         let defaults = UserDefaults(suiteName: "zoom-tests-\(UUID().uuidString)")!
         defaults.set("Ada", forKey: "zoom.myName")
         defaults.set("fr_FR", forKey: "zoom.locale")
-        defaults.set(true, forKey: "zoom.autoStart")
+        defaults.set(false, forKey: "zoom.autoRecord")
         defaults.set(false, forKey: "zoom.summarize")
         let zoom = ZoomExtension(defaults: defaults)
-        #expect(zoom.myName == "Ada" && zoom.localeIdentifier == "fr_FR" && zoom.autoStart && !zoom.summarizeOnStop)
+        #expect(zoom.myName == "Ada" && zoom.localeIdentifier == "fr_FR" && !zoom.autoStart && !zoom.summarizeOnStop)
         zoom.myName = "Grace"
         zoom.summarizeOnStop = true
         #expect(defaults.string(forKey: "zoom.myName") == "Grace")
         #expect(defaults.object(forKey: "zoom.summarize") as? Bool == true)
 
         let fresh = ZoomExtension(defaults: UserDefaults(suiteName: "zoom-tests-\(UUID().uuidString)")!)
-        #expect(!fresh.autoStart && fresh.summarizeOnStop)
+        #expect(fresh.autoStart && fresh.summarizeOnStop)
         #expect(fresh.saveAudio && !fresh.recordVideo)
         #expect(fresh.recordingsFolder == ZoomExtension.defaultRecordingsFolder)
         #expect(fresh.recordingOptions?.video == false)
@@ -228,5 +228,26 @@ struct ZoomExtensionTests {
         host.fakeDashii.response = "not json"
         await #expect(throws: (any Error).self) { try await zoom.tool("meeting_summarize").run([:]) }
         #expect(!zoom.isSummarizing)
+    }
+}
+
+@MainActor
+struct AutoRecordTests {
+    @Test func recordsOnJoinUnlessTurnedOff() {
+        let zoom = ZoomExtension(defaults: UserDefaults(suiteName: "zoom-auto-\(UUID().uuidString)")!)
+        #expect(zoom.autoStart && zoom.openTranscript)
+    }
+
+    @Test func aStopDuringTheMeetingHoldsAutoRecordUntilItEnds() async throws {
+        let (zoom, host) = makeZoom()
+        defer { _ = host }
+        zoom.observe(inMeeting: true, participants: ["Ada"])
+        _ = try #require(zoom.beginMeeting(automatically: true))
+        await zoom.stopRecording(reason: "You stopped it.")
+        #expect(zoom.autoStartHeld)
+        zoom.observe(inMeeting: false, participants: [])
+        #expect(zoom.autoStartHeld)
+        zoom.observe(inMeeting: false, participants: [])
+        #expect(!zoom.autoStartHeld)
     }
 }

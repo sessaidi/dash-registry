@@ -87,7 +87,7 @@ enum ZoomAccessibility {
     static func captionLines() -> [(speaker: String, text: String)] {
         let panels = windows.filter { window in
             let title = string(window, kAXTitleAttribute) ?? ""
-            return ["Transcript", "Captions", "Live Transcript", "Full Transcript"].contains { title.localizedCaseInsensitiveContains($0) }
+            return transcriptTitles.contains { title.localizedCaseInsensitiveContains($0) }
         }
         var lines: [(String, String)] = []
         var visited = 0
@@ -125,6 +125,79 @@ enum ZoomAccessibility {
             return (clean(String(content[0][..<colon.lowerBound])), String(content[0][colon.upperBound...]))
         }
         return nil
+    }
+
+    // MARK: Transcript panel
+
+    static let transcriptTitles = ["Transcript", "Captions", "Live Transcript", "Full Transcript"]
+
+    /// A transcript or captions window is open.
+    static var isTranscriptOpen: Bool {
+        windows.contains { window in transcriptTitles.contains { (string(window, kAXTitleAttribute) ?? "").localizedCaseInsensitiveContains($0) } }
+    }
+
+    /// Presses the meeting window's transcript control ("View Full Transcript", else "Show
+    /// Captions"): true when one was found and pressed. Zoom's controls aren't a stable interface,
+    /// so this is best effort.
+    @discardableResult
+    static func openTranscript() -> Bool {
+        let meetings = windows.filter { isMeetingWindow(string($0, kAXTitleAttribute) ?? "") }
+        for wanted in [["full transcript", "view transcript", "show transcript"], ["show captions", "captions"]] {
+            for window in meetings {
+                if let control = find(in: window, matching: wanted), AXUIElementPerformAction(control, kAXPressAction as CFString) == .success { return true }
+            }
+        }
+        return false
+    }
+
+    /// The first pressable element whose title, description or help matches one of `labels`.
+    private static func find(in root: AXUIElement, matching labels: [String]) -> AXUIElement? {
+        var visited = 0
+        func walk(_ element: AXUIElement, depth: Int) -> AXUIElement? {
+            visited += 1
+            guard depth < 30, visited < 5000 else { return nil }
+            let role = string(element, kAXRoleAttribute) ?? ""
+            if [kAXButtonRole, kAXMenuButtonRole, kAXMenuItemRole, kAXCheckBoxRole].contains(role) {
+                let label = [kAXTitleAttribute, kAXDescriptionAttribute, kAXHelpAttribute].compactMap { string(element, $0) }.joined(separator: " ").lowercased()
+                if labels.contains(where: { label.contains($0) }) { return element }
+            }
+            for child in children(element) { if let found = walk(child, depth: depth + 1) { return found } }
+            return nil
+        }
+        return walk(root, depth: 0)
+    }
+
+    // MARK: Window structure
+
+    /// Every Zoom window's accessibility tree as indented text (role, subrole, title,
+    /// description, value, actions): what new readers of Zoom (active speaker, chat, joins and
+    /// leaves) are built from. Values are cut at 200 characters.
+    static func structure() -> String {
+        guard let zoom else { return "Zoom isn't running." }
+        var lines: [String] = []
+        var visited = 0
+        func describe(_ element: AXUIElement, depth: Int) {
+            visited += 1
+            guard depth < 40, visited < 20000 else { return }
+            var parts = [string(element, kAXRoleAttribute) ?? "?"]
+            if let subrole = string(element, kAXSubroleAttribute) { parts.append("(\(subrole))") }
+            for (key, name) in [("title", kAXTitleAttribute), ("desc", kAXDescriptionAttribute), ("help", kAXHelpAttribute), ("id", kAXIdentifierAttribute)] {
+                if let value = string(element, name), !value.isEmpty { parts.append("\(key)=\"\(value.prefix(200))\"") }
+            }
+            if let value = attribute(element, kAXValueAttribute) {
+                let text = (value as? String) ?? "\(value)"
+                if !text.isEmpty { parts.append("value=\"\(text.prefix(200).replacingOccurrences(of: "\n", with: " "))\"") }
+            }
+            var names: CFArray?
+            if AXUIElementCopyActionNames(element, &names) == .success, let actions = names as? [String], !actions.isEmpty {
+                parts.append("actions=" + actions.joined(separator: ","))
+            }
+            lines.append(String(repeating: "  ", count: depth) + parts.joined(separator: " "))
+            for child in children(element) { describe(child, depth: depth + 1) }
+        }
+        for window in (attribute(zoom, kAXWindowsAttribute) as? [AXUIElement]) ?? [] { describe(window, depth: 0) }
+        if let menu = attribute(zoom, kAXMenuBarAttribute) { lines.append("# Menu bar"); describe(menu as! AXUIElement, depth: 0) }
+        return lines.joined(separator: "\n")
     }
 
     /// "Ada Lovelace (Host, me)" -> "Ada Lovelace"
