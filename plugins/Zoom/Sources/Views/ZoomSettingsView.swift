@@ -5,13 +5,18 @@ import SwiftUI
 /// Transcription, recording and permission settings.
 struct ZoomSettingsView: View {
     @Bindable var zoom: ZoomExtension
+    @State private var captured: URL?
+    @State private var captureError: String?
 
     var body: some View {
         Form {
             Section("Transcription") {
                 TextField("Your name", text: $zoom.myName)
                 TextField("Language", text: $zoom.localeIdentifier, prompt: Text("en_US"))
-                Toggle("Start transcribing when a Zoom meeting starts", isOn: $zoom.autoStart)
+                Toggle("Record automatically when I join a Zoom meeting", isOn: $zoom.autoStart)
+                    .help("Stops by itself when the meeting ends. If you press Stop, it waits for the next meeting.")
+                Toggle("Open Zoom's transcript when recording starts", isOn: $zoom.openTranscript)
+                    .help("Zoom's transcript names every speaker; Dash reads it (needs Accessibility, and the host may have to allow captions).")
                 Toggle("Summarise with Dashii when the meeting ends", isOn: $zoom.summarizeOnStop)
             }
             Section {
@@ -63,11 +68,30 @@ struct ZoomSettingsView: View {
                         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
                     }
                 }
+                LabeledContent("Zoom's window structure") {
+                    HStack {
+                        Button("Capture") { capture() }
+                            .disabled(!ZoomAccessibility.isTrusted || !zoom.isZoomRunning)
+                        if let captured { Button("Show") { NSWorkspace.shared.activateFileViewerSelecting([captured]) } }
+                    }
+                }
+                .help("During a meeting, saves what Dash can see of Zoom's windows to a text file next to the recordings, to build readers for the active speaker, the chat and who joins or leaves.")
+                if let captureError { Text(captureError).font(.caption).foregroundStyle(.red) }
             } header: {
                 Text("Permissions")
             } footer: {
                 Text("Accessibility reads Zoom's meeting window and Participants panel. Screen recording permission lets Dash capture Zoom's audio and windows. Speech is transcribed on this Mac; the transcript goes to Dashii only when summarising or when you ask about it.")
             }
+        }
+    }
+
+    private func capture() {
+        do {
+            captured = try zoom.captureStructure()
+            captureError = nil
+            if let captured { NSWorkspace.shared.activateFileViewerSelecting([captured]) }
+        } catch {
+            captureError = error.localizedDescription
         }
     }
 

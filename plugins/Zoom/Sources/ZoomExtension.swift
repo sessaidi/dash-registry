@@ -23,7 +23,11 @@ final class ZoomExtension: DashExtension {
     // Preference keys are the built-in extension's ("zoom.myName", …) so existing settings carry over.
     var myName: String { didSet { defaults.set(myName, forKey: "zoom.myName") } }
     var localeIdentifier: String { didSet { defaults.set(localeIdentifier, forKey: "zoom.locale") } }
-    var autoStart: Bool { didSet { defaults.set(autoStart, forKey: "zoom.autoStart") } }
+    /// Record as soon as you're in a Zoom meeting (on unless turned off; "zoom.autoRecord"
+    /// replaced the older, off-by-default "zoom.autoStart").
+    var autoStart: Bool { didSet { defaults.set(autoStart, forKey: "zoom.autoRecord") } }
+    /// Open Zoom's transcript panel when a recording starts: its lines carry each speaker's name.
+    var openTranscript: Bool { didSet { defaults.set(openTranscript, forKey: "zoom.openTranscript") } }
     var summarizeOnStop: Bool { didSet { defaults.set(summarizeOnStop, forKey: "zoom.summarize") } }
     /// Save the meeting's audio (Zoom and your microphone) to a file.
     var saveAudio: Bool { didSet { defaults.set(saveAudio, forKey: "zoom.saveAudio") } }
@@ -63,6 +67,12 @@ final class ZoomExtension: DashExtension {
     /// A recording the user started stops only when they press Stop or Zoom quits.
     @ObservationIgnored private(set) var startedAutomatically = false
     @ObservationIgnored private var zoomGoneChecks = 0
+    /// Stopped during a meeting (by you, or a failure): don't record it again by itself until
+    /// the meeting is over.
+    @ObservationIgnored private(set) var autoStartHeld = false
+    @ObservationIgnored private var outOfMeetingChecks = 0
+    /// Checks left to try opening Zoom's transcript panel in the current recording.
+    @ObservationIgnored private var transcriptTries = 0
     /// Why the last recording stopped, shown in the widget and logged.
     private(set) var lastStopReason: String?
     /// Checks (5 s each) without any sign of the meeting before an automatic recording stops: 2 minutes.
@@ -78,7 +88,8 @@ final class ZoomExtension: DashExtension {
         self.defaults = defaults
         myName = defaults.string(forKey: "zoom.myName") ?? NSFullUserName()
         localeIdentifier = defaults.string(forKey: "zoom.locale") ?? Locale.current.identifier
-        autoStart = defaults.object(forKey: "zoom.autoStart") as? Bool ?? false
+        autoStart = defaults.object(forKey: "zoom.autoRecord") as? Bool ?? true
+        openTranscript = defaults.object(forKey: "zoom.openTranscript") as? Bool ?? true
         summarizeOnStop = defaults.object(forKey: "zoom.summarize") as? Bool ?? true
         saveAudio = defaults.object(forKey: "zoom.saveAudio") as? Bool ?? true
         recordVideo = defaults.bool(forKey: "zoom.recordVideo")
@@ -168,7 +179,14 @@ final class ZoomExtension: DashExtension {
         observe(inMeeting: inMeeting, participants: window ? ZoomAccessibility.participants() : participants)
         // Zoom's transcript panel has every speaker's name: read it whenever a recording runs, even
         // when the meeting window itself can't be seen (screen sharing, the mini window).
-        if isRecording, ZoomAccessibility.isTrusted, let meetingID = currentMeetingID { addCaptions(ZoomAccessibility.captionLines(), to: meetingID) }
+        if isRecording, ZoomAccessibility.isTrusted, let meetingID = currentMeetingID {
+            // The meeting window and its controls can take a few seconds to show: try for a minute.
+            if transcriptTries > 0 {
+                transcriptTries -= 1
+                if ZoomAccessibility.isTranscriptOpen || ZoomAccessibility.openTranscript() { transcriptTries = 0 }
+            }
+            addCaptions(ZoomAccessibility.captionLines(), to: meetingID)
+        }
     }
 
     /// Applies one reading of Zoom's windows: the live participants, the current meeting's
@@ -177,13 +195,19 @@ final class ZoomExtension: DashExtension {
         self.inMeeting = inMeeting
         if inMeeting {
             missedMeetingChecks = 0
+            outOfMeetingChecks = 0
             if names != participants { participants = names }
             if let meeting = currentMeeting {
                 let union = MeetingRecord.merged(meeting.participants, names)
                 if union != meeting.participants { meeting.participants = union }
             }
-            if autoStart, !isRecording { Task { await startRecording(automatically: true) } }
-        } else if isRecording, startedAutomatically {
+            if autoStart, !isRecording, !autoStartHeld { Task { await startRecording(automatically: true) } }
+        } else {
+            // Out of the meeting for two checks in a row: the next one records by itself again.
+            outOfMeetingChecks += 1
+            if outOfMeetingChecks >= 2 { autoStartHeld = false }
+        }
+        if !inMeeting, isRecording, startedAutomatically {
             // No meeting window and no Zoom audio for 2 minutes: the meeting is over.
             missedMeetingChecks += 1
             if missedMeetingChecks >= Self.autoStopChecks { Task { await stopRecording(reason: "No sign of the Zoom meeting for 2 minutes.") } }
@@ -237,6 +261,18 @@ final class ZoomExtension: DashExtension {
         return true
     }
 
+    /// Saves Zoom's window structure (`ZoomAccessibility.structure`) next to the recordings and
+    /// returns the file: what's read from Zoom next is built from it. Local only.
+    func captureStructure(now: Date = .now) throws -> URL {
+        guard ZoomAccessibility.isTrusted else { throw ToolError("Dash needs Accessibility permission to read Zoom's windows.") }
+        try FileManager.default.createDirectory(at: recordingsFolder, withIntermediateDirectories: true)
+        let stamp = now.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.omitted))
+        let file = recordingsFolder.appending(path: "Zoom structure \(stamp).txt")
+        let header = "# Zoom window structure, \(now.formatted()) · in meeting: \(inMeeting) · recording: \(isRecording)\n"
+        try (header + ZoomAccessibility.structure()).write(to: file, atomically: true, encoding: .utf8)
+        return file
+    }
+
     func startRecording(automatically: Bool = false) async {
         guard host != nil, !isRecording else { return }
         guard await ensurePermissions() else { return }
@@ -268,6 +304,7 @@ final class ZoomExtension: DashExtension {
         isRecording = true
         startedAutomatically = automatically
         missedMeetingChecks = 0
+        transcriptTries = openTranscript ? 12 : 0
         lastStopReason = nil
         lastError = nil
         // Named after the calendar event when one is on now; Dashii's summary names it otherwise.
@@ -287,6 +324,8 @@ final class ZoomExtension: DashExtension {
         guard isRecording else { return }
         isRecording = false
         lastStopReason = reason
+        transcriptTries = 0
+        if inMeeting { autoStartHeld = true }
         DashLog.info("Zoom recording stopped: \(reason)", category: "zoom")
         let file = await recorder?.stop()
         recorder = nil

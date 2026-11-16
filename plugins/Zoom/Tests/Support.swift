@@ -50,6 +50,8 @@ func makeZoom(myName: String = "Sadik", summarizeOnStop: Bool = false) -> (ZoomE
     let defaults = UserDefaults(suiteName: "zoom-tests-\(UUID().uuidString)")!
     defaults.set(myName, forKey: "zoom.myName")
     defaults.set(summarizeOnStop, forKey: "zoom.summarize")
+    // Recording for real needs permissions: tests start meetings themselves.
+    defaults.set(false, forKey: "zoom.autoRecord")
     let zoom = ZoomExtension(defaults: defaults)
     let host = FakeHost([zoom])
     zoom.attach(host)
