@@ -23,6 +23,6 @@
 	<key>DashPluginID</key>
 	<string>pull-requests</string>
 	<key>DashPluginVersion</key>
-	<string>1.15.0</string>
+	<string>1.15.1</string>
 </dict>
 </plist>
