@@ -38,12 +38,12 @@ final class WorktreeStore {
 
     func pull(for tree: Worktree) -> WorktreePull? { pulls[tree.path] }
 
-    /// Rescans every clone under the code folder (and the mapped repositories), then their PRs.
-    func refresh(codeRoot: String, repositories: [String], host: (any ExtensionContext)?) async {
+    /// Rescans every clone under the code folders (and the given repositories), then their PRs.
+    func refresh(roots: [String], repositories: [String], host: (any ExtensionContext)?) async {
         guard !isScanning else { return }
         isScanning = true
         defer { isScanning = false }
-        let clones = WorktreeScanner.clones(root: codeRoot, extra: repositories)
+        let clones = WorktreeScanner.clones(roots: roots, extra: repositories)
         if fetchRemotes {
             for clone in clones where Date.now.timeIntervalSince(lastFetch[clone.path] ?? .distantPast) > Self.fetchMinutes * 60 {
                 lastFetch[clone.path] = .now

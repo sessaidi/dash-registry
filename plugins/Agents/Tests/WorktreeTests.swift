@@ -37,11 +37,27 @@ struct WorktreeTests {
         try "x".write(to: repo.appending(path: ".worktrees/KAN-9/notes.md"), atomically: true, encoding: .utf8)
         let store = WorktreeStore(defaults: UserDefaults(suiteName: "worktrees-\(UUID())")!)
         store.fetchRemotes = false
-        await store.refresh(codeRoot: root.path, repositories: [], host: nil)
+        await store.refresh(roots: [root.path], repositories: [], host: nil)
         #expect(store.items.count == 2 && store.items.first?.isMain == true)
         let tree = try #require(store.items.first { !$0.isMain })
         #expect(tree.branch == "KAN-9-docs" && tree.ticket == "KAN-9" && tree.untracked == 1 && tree.upstream == nil)
         #expect(WorktreeStatus.items(tree, pull: nil).map(\.text).contains("Not pushed"))
+    }
+
+    @Test func clonesWithoutWorktreesAreSkippedUnlessNamed() async throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "clones-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        for name in ["org/plain", "org/busy"] {
+            let repo = root.appending(path: name)
+            try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+            for arguments in [["init", "-q", "-b", "main"], ["config", "user.email", "me@example.com"], ["config", "user.name", "Me"], ["commit", "-q", "--allow-empty", "-m", "start"]] {
+                try await Git.git(arguments, in: repo)
+            }
+        }
+        try await Git.git(["worktree", "add", "-q", "-b", "KAN-1", ".worktrees/KAN-1", "main"], in: root.appending(path: "org/busy"))
+        let found = WorktreeScanner.clones(roots: [root.path], extra: [])
+        #expect(found.map(\.lastPathComponent) == ["busy"])
+        #expect(WorktreeScanner.clones(roots: [root.path], extra: [root.appending(path: "org/plain").path]).count == 2)
     }
 
     @Test func pullsComeFromOpenPRsOrAManualLink() async throws {

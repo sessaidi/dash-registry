@@ -122,7 +122,7 @@ struct WorktreesLayout: View {
         let shown = shown
         if trees.isEmpty {
             StateView(.empty(title: "No worktrees yet", systemImage: "point.3.filled.connected.trianglepath.dotted",
-                             message: "Dash scans the clones in the code folder (Settings › Agents) every 5 minutes."))
+                             message: "Dash scans the clones in your code folders (~/code, ~/Developer…, the Agents code folder and Knowledge's repositories) every 5 minutes. Scan now with ↻."))
         } else if layout.family == .narrow {
             narrow(shown)
         } else {
