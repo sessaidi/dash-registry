@@ -32,8 +32,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: pull-requests
-        DashPluginVersion: "1.14.0"
-        DashKitMinimumVersion: "2.2.0"
+        DashPluginVersion: "1.15.0"
+        DashKitMinimumVersion: "2.3.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin
