@@ -1,3 +1,4 @@
+import AppKit
 import DashKit
 import DashKitUI
 import SwiftUI
@@ -22,6 +23,8 @@ struct JiraIssueSheet: View {
     @State private var history: [String] = []
     @State private var detail: JiraIssueDetail?
     @State private var pullRequests: (count: Int, state: String?)?
+    /// This ticket's worktrees on this Mac, from the Agents plugin's scan (empty without it).
+    @State private var worktrees: [JSONValue] = []
     @State private var transitions: [(id: String, name: String)] = []
     @State private var comment = ""
     @State private var error: String?
@@ -420,6 +423,7 @@ struct JiraIssueSheet: View {
             } else {
                 Label("No linked pull requests", systemImage: "arrow.triangle.pull").foregroundStyle(.secondary)
             }
+            ForEach(Array(worktrees.enumerated()), id: \.offset) { _, tree in TicketWorktreeRow(tree: tree) }
         }
         .font(.callout)
         if !detail.fields.isEmpty {
@@ -469,6 +473,7 @@ struct JiraIssueSheet: View {
         detail = nil
         transitions = []
         pullRequests = nil
+        worktrees = []
         reactions = [:]
         reactionsAvailable = false
         replyingTo = nil
@@ -495,7 +500,9 @@ struct JiraIssueSheet: View {
             let read = try? await client.reactions(commentIDs: loaded.comments.map(\.id))
             let moves = (try? await client.transitions(key)) ?? []
             let prs = loaded.issue.id.isEmpty ? nil : try? await client.pullRequests(issueID: loaded.issue.id)
+            let trees = await ticketWorktrees(key)
             guard current else { return }
+            worktrees = trees
             reactions = read ?? [:]
             reactionsAvailable = read != nil
             transitions = moves
@@ -504,6 +511,12 @@ struct JiraIssueSheet: View {
             guard current else { return }
             self.error = error.localizedDescription
         }
+    }
+
+    /// The worktrees whose branch names this ticket, from the Agents plugin (`worktrees_list`).
+    private func ticketWorktrees(_ key: String) async -> [JSONValue] {
+        guard let tool = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools).first(where: { $0.name == "worktrees_list" }) else { return [] }
+        return (try? await tool.run(["ticket": .string(key)]))?["worktrees"]?.array ?? []
     }
 
     private func run(_ action: @escaping @MainActor () async throws -> Void) {
@@ -751,5 +764,35 @@ struct PriorityIcon: View {
         default: ("equal", .yellow)
         }
         Image(systemName: symbol).foregroundStyle(color).font(.caption.bold())
+    }
+}
+
+/// A worktree of the ticket: its branch, its PR (open, merged, closed) and what it needs.
+private struct TicketWorktreeRow: View {
+    let tree: JSONValue
+
+    var body: some View {
+        let status = (tree["status"]?.array ?? []).compactMap(\.string)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
+                Button(tree["branch"]?.string ?? tree["name"]?.string ?? "worktree") {
+                    if let path = tree["path"]?.string { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+                }
+                .buttonStyle(.link)
+                .help(tree["path"]?.string ?? "")
+                if let pr = tree["pr"], pr != .null, let number = pr["number"]?.int {
+                    let state = pr["state"]?.string ?? "open"
+                    Link(destination: URL(string: pr["url"]?.string ?? "") ?? URL(string: "https://github.com")!) {
+                        Badge(state == "merged" ? "#\(number) merged" : state == "closed" ? "#\(number) closed" : state == "draft" ? "#\(number) draft" : "#\(number)",
+                              tone: state == "merged" ? .success : state == "closed" ? .neutral : .info)
+                    }
+                }
+            }
+            let needs = status.filter { !$0.hasPrefix("#") && !$0.hasPrefix("PR ") && !$0.hasPrefix("Draft ") && $0 != "No PR" }
+            if !needs.isEmpty {
+                Text(needs.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
     }
 }
