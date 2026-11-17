@@ -135,31 +135,6 @@ struct JiraClient: Sendable {
         return page["issues"]?.array?.map(Issue.init) ?? []
     }
 
-    /// Full issue with description and recent comments as plain text.
-    func issueDetail(_ key: String) async throws -> JSONValue {
-        let issue = try await send(
-            "rest/api/3/issue/\(key)",
-            query: [URLQueryItem(name: "fields", value: (Self.issueFields + ["description", "comment"]).joined(separator: ","))])
-        let fields = issue["fields"] ?? .null
-        let comments: [JSONValue] = (fields["comment"]?["comments"]?.array ?? []).suffix(15).map { comment in
-            ["author": .string(comment["author"]?["displayName"]?.string ?? "?"),
-             "created": comment["created"] ?? .null,
-             "body": .string(Self.plainText(comment["body"]))]
-        }
-        let summary = Issue(json: issue)
-        return [
-            "key": .string(key), "summary": .string(summary.summary), "status": .string(summary.statusName),
-            "type": .string(summary.issueType ?? ""), "priority": .string(summary.priority ?? ""),
-            "assignee": .string(summary.assignee ?? "Unassigned"),
-            "reporter": .string(fields["reporter"]?["displayName"]?.string ?? ""),
-            "labels": .array(summary.labels.map { .string($0) }),
-            "parent": .string(fields["parent"]?["key"]?.string ?? ""),
-            "url": .string(browseURL(key).absoluteString),
-            "description": .string(Self.plainText(fields["description"])),
-            "comments": .array(comments),
-        ]
-    }
-
     /// The raw issue with every field and the site's field names (`names`).
     func issueJSON(_ key: String) async throws -> JSONValue {
         try await send("rest/api/3/issue/\(key)", query: [URLQueryItem(name: "fields", value: "*all"), URLQueryItem(name: "expand", value: "names")])

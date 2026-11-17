@@ -109,29 +109,6 @@ struct JiraClientTests {
         #expect(request.query("maxResults") == "200")
     }
 
-    @Test func issueDetail() async throws {
-        let comments = (1...20).map { #"{"author":{"displayName":"User \#($0)"},"created":"2026-03-0\#($0 % 9 + 1)","body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"c\#($0)"}]}]}}"# }
-        StubProtocol.serve("detail.test", routes: [
-            "GET /rest/api/3/issue/WEB-9": """
-                {"key":"WEB-9","fields":{"summary":"Broken","status":{"id":"1","name":"To Do","statusCategory":{"key":"new"}},
-                 "priority":{"name":"Low"},"issuetype":{"name":"Bug"},"reporter":{"displayName":"Leo"},"parent":{"key":"WEB-1"},"labels":["x"],
-                 "description":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"It fails."}]}]},
-                 "comment":{"comments":[\(comments.joined(separator: ","))]}}}
-                """,
-        ])
-        let detail = try await Self.client("detail.test").issueDetail("WEB-9")
-        #expect(detail["summary"] == "Broken" && detail["status"] == "To Do" && detail["type"] == "Bug" && detail["priority"] == "Low")
-        #expect(detail["assignee"] == "Unassigned" && detail["reporter"] == "Leo" && detail["parent"] == "WEB-1")
-        #expect(detail["labels"] == ["x"])
-        #expect(detail["url"] == "https://detail.test/browse/WEB-9")
-        #expect(detail["description"] == "It fails.")
-        let kept = try #require(detail["comments"]?.array)
-        #expect(kept.count == 15)
-        #expect(kept.first?["author"] == "User 6" && kept.last?["body"] == "c20")
-        let request = try #require(StubProtocol.requests("detail.test").first)
-        #expect(request.query("fields")?.hasSuffix(",description,comment") == true)
-    }
-
     @Test func transitionsAndComment() async throws {
         StubProtocol.serve("write.test", routes: [
             "GET /rest/api/3/issue/WEB-3/transitions": #"{"transitions":[{"id":"11","name":"Start"},{"id":"21","name":"Code Review"},{"name":"broken"}]}"#,

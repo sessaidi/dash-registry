@@ -112,6 +112,25 @@ final class FakeAtlassian: Integration {
             headers: ["Authorization": "Basic dGVzdEBleGFtcGxlLmNvbTp0b2tlbg==", "Accept": "application/json"], session: session)
     }
     var exports: JSONValue { ["site": .string("https://\(host)"), "email": "test@example.com", "accountName": "Test User"] }
+
+    /// Atlassian 1.7 and later: readers answering from `stored` (by reader name), and their fetchers.
+    var fetchesThenReads = true
+    var stored: [String: JSONValue] = [:]
+    private(set) var reads: [(reader: String, input: JSONValue)] = []
+
+    var tools: [DashiiTool] {
+        guard fetchesThenReads else { return [] }
+        return ["jira_issue", "jira_jql_search"].map { name in
+            DashiiTool(name: name, description: name) { [weak self] input in
+                self?.reads.append((name, input))
+                return self?.stored[name] ?? ["fetched": false, "rows": []]
+            }
+        }
+    }
+
+    var fetchers: [DataFetcher] {
+        fetchesThenReads ? ["jira.issue", "jira.search"].map { DataFetcher(name: $0, summary: $0) { _ in [:] } } : []
+    }
 }
 
 @MainActor

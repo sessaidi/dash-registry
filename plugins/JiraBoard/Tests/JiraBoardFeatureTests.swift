@@ -1,4 +1,5 @@
 import DashKit
+import DashKitTesting
 import DashKitUI
 import Foundation
 import SwiftData
@@ -96,11 +97,15 @@ struct JiraBoardFeatureTests {
         await #expect(throws: ToolError.self) { try await feature.prepare(host: host) }
     }
 
-    @Test func toolsNeedAtlassian() async throws {
+    @Test func readersNeedAnAtlassianThatFetchesThenReads() async throws {
         let (feature, host, atlassian) = makeFeature(host: "offline.test")
+        // Offline is fine: the readers only read what Dash stored.
         atlassian.connected = false
-        await #expect(throws: ToolError("Connect Atlassian in Settings › Integrations.")) {
-            _ = try await tool(feature, "jira_search").run(["jql": "x"])
+        #expect(try await tool(feature, "jira_search").run(["jql": "x"])["fetched"] == false)
+        // An older Atlassian plugin would read Jira live: refused.
+        atlassian.fetchesThenReads = false
+        await #expect(throws: ToolError("Update the Atlassian plugin (1.7 or later) to read Jira issues from Dash.")) {
+            _ = try await tool(feature, "jira_get_issue").run(["key": "WEB-1"])
         }
         host.extensions = [feature]
         await #expect(throws: ToolError("The Atlassian integration is not installed.")) {
@@ -130,22 +135,48 @@ struct JiraBoardFeatureTests {
         #expect(first["assignee"] == "Maya Chen" && first["priority"] == "High" && first["type"] == "Story" && first["statusCategory"] == "new")
     }
 
-    @Test func searchAndGetTools() async throws {
-        StubProtocol.serve("live.test", routes: [
-            "POST /rest/api/3/search/jql": issuesPage([issueJSON("WEB-5", summary: "Search hit", assignee: nil)]),
-            "GET /rest/api/3/issue/WEB-5": issueJSON("WEB-5", summary: "Search hit"),
-        ])
-        let (feature, host, _) = makeFeature(host: "live.test")
+    @Test func searchAndGetReadThroughAtlassian() async throws {
+        let (feature, host, atlassian) = makeFeature(host: "read.test")
         defer { withExtendedLifetime(host) {} }
+        atlassian.stored = [
+            "jira_jql_search": ["items": [["key": "WEB-5", "summary": "Search hit"]], "stale": false, "synced_at": "2026-11-17T10:00:00Z"],
+            "jira_issue": ["key": "WEB-5", "summary": "Search hit", "stale": true, "synced_at": "2026-11-17T09:00:00Z"],
+        ]
         let results = try await tool(feature, "jira_search").run(["jql": "text ~ hit"])
-        #expect(results == [["key": "WEB-5", "summary": "Search hit", "status": "In Progress", "assignee": "Unassigned"]])
-        #expect(StubProtocol.requests("live.test").first?.jsonBody?["jql"] == "text ~ hit")
-
-        // Keys are upper-cased before the request.
+        #expect(results["items"]?[0]?["key"] == "WEB-5" && results["stale"] == false)
+        // Keys are upper-cased; searches keep the old limit of 50.
         let detail = try await tool(feature, "jira_get_issue").run(["key": "web-5"])
-        #expect(detail["key"] == "WEB-5" && detail["summary"] == "Search hit")
+        #expect(detail["summary"] == "Search hit" && detail["stale"] == true)
+        #expect(atlassian.reads.map(\.reader) == ["jira_jql_search", "jira_issue"])
+        #expect(atlassian.reads.map(\.input) == [["jql": "text ~ hit", "limit": 50], ["key": "WEB-5"]])
+        #expect(StubProtocol.requests("read.test").isEmpty)
 
         await #expect(throws: ToolError.self) { _ = try await tool(feature, "jira_search").run([:]) }
+    }
+
+    @Test func followAnswersAtOnceAndSyncsInTheBackground() async throws {
+        Self.serve("follow-tool.test", board: [], followed: [issueJSON("KAN-9")])
+        let (feature, host, _) = makeFeature(host: "follow-tool.test")
+        defer { withExtendedLifetime(host) {} }
+        #expect(try await tool(feature, "jira_follow").run(["key": "kan-9"]) == ["key": "KAN-9", "following": true])
+        #expect(feature.followedKeys == ["KAN-9"])
+        #expect(try await tool(feature, "jira_follow").run(["key": "KAN-9", "follow": false]) == ["key": "KAN-9", "following": false])
+        await #expect(throws: ToolError.self) { _ = try await tool(feature, "jira_follow").run(["key": "nope"]) }
+    }
+
+    // MARK: No network for Dashii and agents
+
+    @Test func noToolDashiiGetsCallsJira() async throws {
+        Self.serve("sentinel.test", board: [issueJSON("WEB-1")], followed: [])
+        let (feature, host, atlassian) = makeFeature(host: "sentinel.test", boardID: "7")
+        defer { withExtendedLifetime(host) {} }
+        await feature.sync()
+        atlassian.stored = ["jira_issue": ["key": "WEB-1", "stale": false]]
+        let values: [String: JSONValue] = ["key": "WEB-1", "jql": "project = WEB"]
+        #expect(await NetworkSentinel.requests(running: feature.tools, values: values) == [])
+        // Commenting and moving tickets are the user's: Dashii and agents never get them.
+        let remote = feature.tools.filter { !$0.isForDashii }
+        #expect(remote.map(\.name) == ["jira_add_comment", "jira_transition_issue"] && remote.allSatisfy { $0.writesRemotely && $0.requiresApproval })
     }
 
     @Test func commentTool() async throws {
