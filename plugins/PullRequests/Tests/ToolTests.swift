@@ -1,4 +1,5 @@
 import DashKit
+import DashKitTesting
 import DashKitUI
 import Foundation
 import SwiftData
@@ -32,21 +33,35 @@ struct ToolTests {
         #expect(all[0]["dashii_review"] == ["status": "done", "verdict": "request_changes", "risk": "high"])
         #expect(all[1]["dashii_review"] == .null)
         #expect(all[0]["url"] == "https://github.com/acme/api/pull/2" && all[0]["draft"] == false)
+        #expect(all.allSatisfy { $0["synced_at"]?.string != nil })
         #expect(try await list.run(["filter": "mine"]).array?.map { $0["number"]?.int } == [1])
         #expect(try await list.run(["filter": "review_requested"]).array?.map { $0["number"]?.int } == [2])
         #expect(try await list.run(["repo": "acme/web"]).array?.isEmpty == true)
         await #expect(throws: ToolError.self) { _ = try await list.run(["repo": 5]) }
     }
 
-    @Test func getPRCombinesLiveDataAndTheClaudeReview() async throws {
+    @Test func getPRReadsTheFetchedPRAndTheDashiiReview() async throws {
         let harness = try await seeded()
         harness.serve([
-            "/repos/acme/api/pulls/2": .json(#"{"title":"T","body":"B","user":{"login":"octocat"},"state":"open","mergeable_state":"clean","head":{"ref":"h"},"base":{"ref":"main"}}"#),
+            "/repos/acme/api/pulls/2": .json(#"{"title":"T","body":"Set GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789","user":{"login":"octocat"},"state":"open","mergeable_state":"clean","head":{"ref":"h"},"base":{"ref":"main"}}"#),
             "/repos/acme/api/pulls/2/files": .json(#"[{"filename":"a.swift","status":"added","additions":4,"deletions":0,"patch":"…"}]"#),
             "/repos/acme/api/pulls/2/reviews": .json(#"[{"user":{"login":"bob"},"state":"CHANGES_REQUESTED","body":"no","id":9}]"#),
             "/repos/acme/api/issues/2/comments": .json("[" + (1...25).map { #"{"user":{"login":"u\#($0)"},"body":"c\#($0)"}"# }.joined(separator: ",") + "]"),
         ])
-        let result = try await harness.tool("github_get_pr").run(["repo": "acme/api", "number": 2])
+        let reader = try harness.tool("github_get_pr")
+        // Not fetched yet: the hint, and Dash's own review all the same.
+        let before = try await reader.run(["repo": "acme/api", "number": 2])
+        #expect(before["fetched"] == false && before["refresh"] == ["fetcher": "github.pr", "input": ["repo": "acme/api", "number": 2]])
+        #expect(before["dashii_review"]?["verdict"] == "request_changes")
+
+        let receipt = try await harness.host.fetch("github.pr", ["repo": "Acme/API", "number": 2])
+        #expect(receipt["stored"] == 1 && receipt["unchanged"] == 0 && receipt["synced_at"]?.string != nil)
+        #expect(receipt["keys"]?[0]?.string?.hasPrefix("github.pr/") == true)
+        #expect(receipt["read_with"] == #"github_get_pr {"number":2,"repo":"acme/api"}"#)
+        let paths = harness.requests.compactMap { $0.url?.path() }
+        #expect(paths.contains("/repos/acme/api/pulls/2/files") && paths.contains("/repos/acme/api/issues/2/comments"))
+
+        let result = try await reader.run(["repo": "acme/api", "number": 2])
         #expect(result["title"] == "T" && result["author"] == "octocat" && result["mergeable_state"] == "clean")
         #expect(result["head"] == "h" && result["base"] == "main")
         #expect(result["files"] == [["file": "a.swift", "status": "added", "additions": 4, "deletions": 0]])
@@ -55,15 +70,62 @@ struct ToolTests {
         #expect(result["comments"]?.array?.count == 20 && result["comments"]?[0]?["body"] == "c6")
         #expect(result["dashii_review"]?["verdict"] == "request_changes")
         #expect(result["dashii_review"]?["findings"]?.array?.count == 2)
+        #expect(result["stale"] == false && result["synced_at"]?.string != nil && result["refresh"]?["fetcher"] == "github.pr")
+        // Secrets never reach the mirror (or Dashii).
+        let stored = harness.host.synced.records(kind: "github.pr", scope: harness.feature.storeScope)
+        #expect(stored.count == 1 && stored.allSatisfy { !$0.value.jsonString().contains("ghp_") && $0.source == "pull-requests" })
+        #expect(!result.jsonString().contains("ghp_"))
+
+        #expect(try await harness.host.fetch("github.pr", ["repo": "acme/api", "number": 2])["unchanged"] == 1)
+        harness.feature.now = { .now.addingTimeInterval(11 * 60) }
+        #expect(try await reader.run(["repo": "acme/api", "number": 2])["stale"] == true)
+        await #expect(throws: ToolError("Give repo as owner/name.")) { _ = try await reader.run(["repo": "../x", "number": 2]) }
+        await #expect(throws: ToolError("Give repo and number.")) { _ = try await reader.run(["repo": "acme/api"]) }
     }
 
-    @Test func getDiffTruncatesLargeDiffs() async throws {
+    @Test func getDiffReadsTheFetchedDiffCutUnderTheCap() async throws {
         let harness = Harness(autoReview: false)
         harness.serve(["/repos/acme/api/pulls/1": .text("+small\n"), "/repos/acme/api/pulls/2": .text(String(repeating: "x", count: 200_005))])
         let tool = try harness.tool("github_get_diff")
-        #expect(try await tool.run(["repo": "acme/api", "number": 1]) == ["truncated": false, "diff": "+small\n"])
+        #expect(try await tool.run(["repo": "acme/api", "number": 1])["hint"] == "Call data_fetch with fetcher github.pr_diff")
+        _ = try await harness.host.fetch("github.pr_diff", ["repo": "acme/api", "number": 1])
+        _ = try await harness.host.fetch("github.pr_diff", ["repo": "acme/api", "number": 2])
+        #expect(harness.requests.allSatisfy { $0.value(forHTTPHeaderField: "Accept") == "application/vnd.github.diff" })
+        let small = try await tool.run(["repo": "acme/api", "number": 1])
+        #expect(small["truncated"] == false && small["diff"] == "+small\n" && small["stale"] == false)
         let big = try await tool.run(["repo": "acme/api", "number": 2])
-        #expect(big["truncated"] == true && big["total_characters"] == 200_005 && big["diff"]?.string?.count == 200_000)
+        #expect(big["truncated"] == true && big["total_characters"] == 200_005 && big["diff"]?.string?.count == 190_000)
+        let stored = harness.host.synced.records(kind: "github.pr_diff", scope: harness.feature.storeScope)
+        #expect(stored.count == 2 && stored.allSatisfy { $0.value.jsonString().utf8.count < 200_000 })
+    }
+
+    // MARK: No network for Dashii and agents
+
+    @Test func noToolDashiiGetsCallsGitHub() async throws {
+        let harness = try await seeded()
+        let values: [String: JSONValue] = ["repo": "acme/api", "number": 2, "branch": "feature-2"]
+        // A queued review runs later as the feature's own job (it fetches the diff); only the queueing is the tool's.
+        let inputs: [String: JSONValue] = ["github_rerun_review": ["repo": "acme/api", "number": 99]]
+        #expect(await NetworkSentinel.requests(running: harness.feature.tools, values: values, inputs: inputs) == [])
+        // With data stored, the readers still only read.
+        harness.serve([
+            "/repos/acme/api/pulls/2": .json(#"{"title":"T"}"#), "/repos/acme/api/pulls/2/files": .json("[]"),
+            "/repos/acme/api/pulls/2/reviews": .json("[]"), "/repos/acme/api/issues/2/comments": .json("[]"),
+            "/repos/acme/api/pulls": .json("[]"),
+        ])
+        _ = try await harness.host.fetch("github.pr", ["repo": "acme/api", "number": 2])
+        _ = try await harness.host.fetch("github.branch_pulls", ["repo": "acme/api", "branch": "feature-2"])
+        #expect(await NetworkSentinel.requests(running: harness.feature.tools, values: values, inputs: inputs) == [])
+        // Opening a PR is the user's: Dashii and agents never get it.
+        let remote = harness.feature.tools.filter { !$0.isForDashii }
+        #expect(remote.map(\.name) == ["github_create_pr"] && remote.allSatisfy { $0.writesRemotely && $0.requiresApproval })
+    }
+
+    @Test func fetchersAndVerbsLineUp() throws {
+        let harness = Harness(autoReview: false)
+        #expect(harness.feature.fetchers.map(\.name) == ["github.pr", "github.pr_diff", "github.branch_pulls"])
+        let readers = harness.feature.tools.filter(\.isForDashii).map(\.name)
+        #expect(harness.feature.verbs.allSatisfy { readers.contains($0.tool) })
     }
 
     @Test func rerunReviewQueuesOnlyWatchedPRs() async throws {
@@ -109,10 +171,19 @@ struct ToolTests {
             "/repos/acme/api/pulls": .json(#"[{"number":790,"title":"Read the flag once","html_url":"https://github.com/acme/api/pull/790","state":"closed","merged_at":"2026-11-10T10:00:00Z","draft":false,"updated_at":"2026-11-10T10:00:00Z"}]"#),
         ])
         let fetcher = try #require(harness.feature.fetchers.first { $0.name == "github.branch_pulls" })
-        let receipt = try await fetcher.fetch(["repo": "acme/api", "branch": "KAN-3-flags"])
+        let reader = try harness.tool("github_branch_pulls")
+        let input: JSONValue = ["repo": "acme/api", "branch": "KAN-3-flags"]
+        #expect(try await reader.run(input)["refresh"] == ["fetcher": "github.branch_pulls", "input": input])
+        let receipt = try await fetcher.fetch(input)
+        // The Agents plugin reads `pulls` from the receipt.
         #expect(receipt["pulls"]?[0]?["merged"] == true && receipt["pulls"]?[0]?["number"] == 790)
+        #expect(receipt["stored"] == 1 && receipt["unchanged"] == 0 && receipt["keys"] == ["github.branch_pulls/acme/api/KAN-3-flags"])
+        #expect(receipt["read_with"] == #"github_branch_pulls {"branch":"KAN-3-flags","repo":"acme/api"}"#)
         #expect(harness.requests.last?.url?.query()?.contains("head=acme:KAN-3-flags") == true)
         #expect(harness.host.synced.record(kind: "github.branch_pulls", scope: "acme/api", key: "KAN-3-flags") != nil)
+        let read = try await reader.run(input)
+        #expect(read["items"]?[0]?["number"] == 790 && read["stale"] == false)
+        #expect(try await fetcher.fetch(input)["unchanged"] == 1)
         await #expect(throws: ToolError.self) { _ = try await fetcher.fetch(["repo": "api", "branch": "x"]) }
     }
 
@@ -132,16 +203,18 @@ struct ToolTests {
         #expect(harness.requests.filter { $0.url?.path() == "/repos/acme/api" }.count == 1)
     }
 
-    @Test func toolsNeedTheGitHubConnection() async throws {
+    @Test func fetchersNeedTheGitHubConnection() async throws {
         let harness = Harness(autoReview: false)
         harness.github.isConnected = false
         await #expect(throws: ToolError("Connect GitHub in Settings › Integrations.")) {
-            _ = try await harness.tool("github_get_diff").run(["repo": "acme/api", "number": 1])
+            _ = try await harness.host.fetch("github.pr_diff", ["repo": "acme/api", "number": 1])
         }
         harness.host.extensions.removeAll { $0.id == "github" }
         await #expect(throws: ToolError("The GitHub integration is not installed.")) {
-            _ = try await harness.tool("github_get_diff").run(["repo": "acme/api", "number": 1])
+            _ = try await harness.host.fetch("github.pr_diff", ["repo": "acme/api", "number": 1])
         }
+        // Readers don't need it.
+        #expect(try await harness.tool("github_get_diff").run(["repo": "acme/api", "number": 1])["fetched"] == false)
     }
 
     // MARK: Widget

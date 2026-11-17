@@ -145,6 +145,8 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
     let fakeDashii = FakeDashii()
     var dashii: any DashiiService { fakeDashii }
     let activity = ActivityLog()
+    /// Its own mirror: the default one is shared by every test in the process.
+    let synced: any SyncedStore = MemorySyncedStore()
     private(set) var asked: [String] = []
     private(set) var opened: [String?] = []
 
