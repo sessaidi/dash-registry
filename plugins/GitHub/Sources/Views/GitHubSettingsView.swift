@@ -107,6 +107,13 @@ struct GitHubSettingsView: View {
             } footer: {
                 Text("Every GitHub feature (pull requests, reviews, CI) uses this list.")
             }
+            Section {
+                Stepper("Fresh for \(github.freshMinutes) minutes", value: $github.freshMinutes, in: 5...240, step: 5)
+            } header: {
+                Text("Fetched data")
+            } footer: {
+                Text("Dashii and agents read what Dash fetched from GitHub. Past this age it's marked stale and they may fetch it again.")
+            }
         }
         .formStyle(.grouped)
         .task { if github.hasToken && github.availableRepos.isEmpty { await github.loadAvailableRepos() } }

@@ -1,6 +1,7 @@
-- Read GitHub: github_pulls, github_pull, github_pull_files, github_pull_reviews, github_checks, github_workflow_runs, github_job_log, github_commits, github_compare, github_file, github_issues, github_releases, github_search.
-- Prefer these over github_api_get (GET only).
+- Read GitHub from Dash, not from GitHub: github_pulls, github_pull, github_pull_files, github_pull_reviews, github_checks, github_workflow_runs, github_run_jobs, github_job_log, github_commits, github_compare, github_file, github_issues, github_releases, github_search, github_notifications, github_tags, github_range answer from what Dash fetched, with synced_at and stale. DashQL has github_pulls, github_issues, github_runs and github_releases.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. github.checks with the same repo and ref), then read again. Don't fetch what's fresh.
+- Say how fresh an answer is ("checks as of 14:02"); never call GitHub data current without its synced_at.
+- data_fetch github.api reads any REST path (GET only) when no other fetcher fits; read it with github_api_read and the same path.
 - Nothing here writes to GitHub: no comments, reviews, merges, pushes or issue changes; the user does those.
-- github_sync_tags and github_sync_compare fill Dash's local mirror for the release timeline; call them only when release data is missing or stale.
 - Cite repositories as owner/name and PRs as owner/name#123 with their link; failing checks with the job and the log lines that fail.
 - Never paste tokens.
