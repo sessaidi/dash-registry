@@ -1,6 +1,8 @@
-- Open PRs on the watched repositories with Dashii's own review: dashql `from prs` (repo, number, title, author, draft, tickets, review_verdict, risk, approvals, review_requested, mine, url) or github_list_prs, github_get_pr, github_get_diff.
+- Open PRs on the watched repositories with Dashii's own review: dashql `from prs` (repo, number, title, author, draft, tickets, review_verdict, risk, approvals, review_requested, mine, url) or github_list_prs. Dash keeps them in sync; each row has synced_at.
+- A PR's details and diff come from Dash, not GitHub: github_get_pr and github_get_diff read what Dash fetched, with synced_at and stale; github_branch_pulls reads a branch's PRs (open, closed, merged).
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (github.pr, github.pr_diff or github.branch_pulls with the same input), then read again. Don't fetch what's fresh.
 - review_verdict and risk come from Dash's automatic review, not from the team's GitHub reviews: say so when you cite them.
 - Reviews stay in Dash: never post a review, comment or approval to GitHub; no tool does. Creating or merging a PR is the user's.
 - When you review a PR with the user, save the review on it with pull_request_save_review once done: it shows in the PR's sheet. It's stored in Dash only.
 - github_rerun_review queues a fresh local review of the PR's latest commit.
-- Cite PRs as owner/name#123 with their link and the ticket keys they mention.
+- Cite PRs as owner/name#123 with their link and the ticket keys they mention, and say how fresh the details are.

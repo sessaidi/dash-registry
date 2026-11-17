@@ -87,23 +87,31 @@ None of this is a Dashii tool or a widget action: Dashii and agents can't reply,
 or request changes. The GitHub token needs **Pull requests: Read and write** (the token link in
 Settings › GitHub asks for it).
 
-## Fetchers
+## Fetch, then read
 
-`github.branch_pulls` (repo, branch): the branch's pull requests, open, closed or merged, stored in
-Dash's database. The Agents plugin asks for it to tell whether a worktree's PR was merged.
+Dashii and agents never call GitHub. Open PRs come from the background sync above. A PR's details
+and diff are fetched on request: when Dashii's reader says they're missing or stale, it asks
+for them with `data_fetch`, then reads them again. Each fetcher calls GitHub and stores a
+sanitized answer (at most 200 KB) in Dash's database, then returns a receipt: `{stored, unchanged,
+keys, synced_at, read_with}`. Each reader returns the stored answer with `synced_at`, `stale`
+(after 10 minutes) and `refresh` (the `data_fetch` call that refreshes it). If nothing is stored
+yet, it returns `{"fetched": false, "hint", "refresh"}`.
+
+| Fetcher (`data_fetch`) | Reader (Dashii tool) | What |
+|---|---|---|
+| `github.pr` (repo, number) | `github_get_pr` | Description, state, branches, changed files, human reviews, the last 20 comments. The reader adds the latest Dashii review with its findings, from Dash. |
+| `github.pr_diff` (repo, number) | `github_get_diff` | The unified diff. Diffs over 190,000 characters are cut and marked as truncated. |
+| `github.branch_pulls` (repo, branch) | `github_branch_pulls` | A branch's pull requests, open, closed or merged. The Agents plugin asks for it to tell whether a worktree's PR was merged; the receipt also lists them in `pulls`. |
 
 ## Claude tools
 
 | Tool | What it does | Needs approval |
 |---|---|---|
-| `github_list_prs` | Lists the stored open PRs with their latest Claude review status, verdict and risk. Optional repository filter, and `review_requested`, `mine` or `all`. | No |
-| `github_get_pr` | Fetches a PR live: description, changed files, human reviews, the last 20 comments, and the latest Claude review with findings. | No |
-| `github_get_diff` | Returns a PR's unified diff. Diffs over 200,000 characters are truncated and marked. | No |
+| `github_list_prs` | Lists the stored open PRs with their latest Claude review status, verdict and risk, and the last sync time (`synced_at`). Optional repository filter, and `review_requested`, `mine` or `all`. | No |
+| `github_get_pr`, `github_get_diff`, `github_branch_pulls` | Readers of the fetchers above. | No |
 | `github_rerun_review` | Queues a fresh Claude review of a watched PR's current head commit. | No |
 | `pull_request_save_review` | Saves a review Dashii did with you in the chat on the PR, in Dash only: verdict, risk, summary, findings. It shows in the PR's sheet next to the automatic reviews. Nothing is posted to GitHub. | No |
-| `github_comment` | Posts a comment on a PR's conversation. | Yes |
-| `github_submit_review` | Submits a review as you: `APPROVE`, `REQUEST_CHANGES` or `COMMENT`. | Yes |
-| `github_create_pr` | Opens a PR from a branch that is already pushed. Draft by default; the base defaults to the repository's default branch. | Yes |
+| `github_create_pr` | Opens a PR from a branch that is already pushed. Draft by default; the base defaults to the repository's default branch. Writes to GitHub as you, so Dash never gives it to Dashii or agents. | Yes |
 
 ## Events
 
