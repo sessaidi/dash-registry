@@ -9,8 +9,8 @@ and posts activity when a monitor starts alerting.
 | | |
 |---|---|
 | Plugin id | `datadog` |
-| Version | 1.0.0 |
-| Minimum DashKit | 1.5.0 |
+| Version | 1.5.0 |
+| Minimum DashKit | 2.4.0 |
 | Layers | integration (provides `datadog`), feature `datadog-monitors` (requires `datadog`) |
 
 ## Setup
