@@ -230,5 +230,21 @@ struct GitHubFetchTests {
         #expect(Set(fetchers).count == fetchers.count && Set(readers).count == readers.count)
         // The DashQL verbs still name tools Dashii gets.
         #expect(github.verbs.allSatisfy { readers.contains($0.tool) })
+        #expect(github.datasets.map(\.name) == ["github_pulls", "github_issues", "github_runs", "github_releases"])
+    }
+
+    @Test func datasetsReadStoredAnswers() async throws {
+        serve([Self.repo + "/pulls": "[\(Self.pr)]", Self.repo + "/pulls/7": Self.pr,
+               Self.repo + "/actions/runs": #"{"workflow_runs":[{"id":11,"name":"CI","status":"completed","conclusion":"failure"}]}"#])
+        let pulls = try #require(github.datasets.first { $0.name == "github_pulls" })
+        #expect(try await pulls.rows(nil).isEmpty)
+        _ = try await dash.fetch("github.pulls", ["repo": "acme/billing-api"])
+        _ = try await dash.fetch("github.pull", ["repo": "acme/billing-api", "number": 7])
+        _ = try await dash.fetch("github.workflow_runs", ["repo": "acme/billing-api", "status": "failure"])
+        let rows = try await pulls.rows(nil)
+        #expect(rows.count == 1)
+        #expect(rows.first?["repo"] == "acme/billing-api" && rows.first?["number"] == 7 && rows.first?["stale"] == false && rows.first?["synced_at"]?.string != nil)
+        let runs = try await #require(github.datasets.first { $0.name == "github_runs" }).rows(nil)
+        #expect(runs.map { $0["conclusion"] } == ["failure"])
     }
 }
