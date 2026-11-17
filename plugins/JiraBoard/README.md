@@ -46,7 +46,7 @@ boards it is on.
 Each sync refreshes these records from Jira and deletes the ones that are no longer on a board
 or followed. Board columns are kept in preferences with the followed boards.
 `jira_list_issues` and the home suggestions read this cache. `jira_get_issue` and `jira_search`
-query Jira live.
+read what the Atlassian integration fetched (see below); no Dashii tool here calls Jira.
 
 ## Widgets
 
@@ -65,12 +65,15 @@ pull, a rebase).
 
 | Tool | What it does | Needs approval |
 |---|---|---|
-| `jira_list_issues` | Lists cached issues. `scope` is `board`, `followed` or `all` (default), with an optional status-name filter. | No |
-| `jira_follow` | Follows (default) or unfollows a ticket by key in Dash only, then syncs. | No |
-| `jira_get_issue` | Fetches one issue live, with its description and recent comments. | No |
-| `jira_search` | Runs a JQL search live and returns up to 50 issues (key, summary, status, assignee). | No |
-| `jira_add_comment` | Posts a comment on an issue. Blank lines separate paragraphs. | Yes |
-| `jira_transition_issue` | Moves an issue through the workflow transition whose name matches, for example "In Progress". | Yes |
+| `jira_list_issues` | Lists cached issues, each with the last sync time (`synced_at`). `scope` is `board`, `followed` or `all` (default), with an optional status-name filter. | No |
+| `jira_follow` | Follows (default) or unfollows a ticket by key in Dash only. It answers at once; the sync runs in the background. | No |
+| `jira_get_issue` | Reader: one issue as the Atlassian integration fetched it (`data_fetch jira.issue`), through its `jira_issue` reader, with `synced_at` and `stale`, or the "fetch first" hint. | No |
+| `jira_search` | Reader: a JQL search as fetched (`data_fetch jira.search`, up to 50 issues), through `jira_jql_search`. | No |
+| `jira_add_comment` | Posts a comment on an issue as you. Dash never gives it to Dashii or agents. | Yes |
+| `jira_transition_issue` | Moves an issue through the workflow transition whose name matches, for example "In Progress", as you. Dash never gives it to Dashii or agents. | Yes |
+
+`jira_get_issue` and `jira_search` need Atlassian 1.7 or later (the version that fetches, then
+reads); with an older one they say to update it.
 
 ## Events
 

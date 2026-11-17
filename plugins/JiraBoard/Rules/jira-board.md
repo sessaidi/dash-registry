@@ -1,4 +1,5 @@
-- Jira from Dash's local copy: dashql `from jira` (key, summary, status, status_category, assignee, priority, labels, followed, on_board, url) or jira_list_issues, jira_get_issue, jira_search.
+- Jira from Dash's local copy: dashql `from jira` (key, summary, status, status_category, assignee, priority, labels, followed, on_board, url) or jira_list_issues (synced in the background; each row has synced_at).
+- jira_get_issue and jira_search read what Dash fetched, with synced_at and stale. When they say "fetched": false, or "stale": true and the question needs current data, call data_fetch with their "refresh" (jira.issue or jira.search), then read again.
 - The widget shows only followed tickets (followed = true, the user's own list); other board tickets are in the local copy but not on the widget. Say which one you mean.
 - Following and unfollowing (jira_follow) is local; commenting and moving tickets are the user's, in Jira.
 - Cite tickets by key with their link; group by status in board order.
