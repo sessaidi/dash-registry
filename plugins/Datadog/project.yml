@@ -31,8 +31,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: datadog
-        DashPluginVersion: "1.4.0"
-        DashKitMinimumVersion: "2.0.0"
+        DashPluginVersion: "1.5.0"
+        DashKitMinimumVersion: "2.4.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin

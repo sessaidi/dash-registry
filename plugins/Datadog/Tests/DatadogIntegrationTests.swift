@@ -17,7 +17,8 @@ struct DatadogIntegrationTests {
 
     @Test func identityAndToolsAreReadOnly() {
         let (datadog, _) = make()
-        #expect(datadog.id == "datadog" && datadog.layer == .integration && datadog.metadata.minimumDashKit == "2.0.0")
+        #expect(datadog.id == "datadog" && datadog.layer == .integration && datadog.metadata.minimumDashKit == "2.4.0")
+        #expect(DatadogPlugin.makeExtensions().allSatisfy { $0.metadata.version == "1.5.0" && $0.metadata.minimumDashKit == "2.4.0" })
         #expect(datadog.tools.map(\.name) == [
             "datadog_monitors", "datadog_monitor", "datadog_metrics_query", "datadog_logs_search", "datadog_events", "datadog_incidents",
             "datadog_dashboards", "datadog_dashboard", "datadog_slos", "datadog_slo_history", "datadog_hosts", "datadog_services", "datadog_api_read",

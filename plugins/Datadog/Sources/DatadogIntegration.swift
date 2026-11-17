@@ -13,9 +13,9 @@ final class DatadogIntegration: Integration {
     let name = "Datadog"
     let systemImage = "dog"
     let metadata = ExtensionMetadata(
-        version: "1.0.0", author: .dash,
+        version: "1.5.0", author: .dash,
         summary: "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services.",
-        category: .monitoring, tags: ["datadog", "monitoring", "observability", "apm", "logs"], minimumDashKit: "2.0.0")
+        category: .monitoring, tags: ["datadog", "monitoring", "observability", "apm", "logs"], minimumDashKit: "2.4.0")
     let secretKeys = [SecretKey("api_key", "API key"), SecretKey("app_key", "Application key")]
     let secrets: SecretStore? = SecretStore(extensionID: "datadog")
 
