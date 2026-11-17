@@ -52,14 +52,14 @@
       "id": "atlassian",
       "name": "Atlassian",
       "kind": "integration",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "plugin": {
-        "download": "dist/atlassian-1.6.0.dashplugin.zip",
-        "minimumDashKit": "2.3.0",
+        "download": "dist/atlassian-1.7.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "atlassian"
         ],
-        "sha256": "a46919dff27e512349b231f9b94929cc1dcd226dceeb057e8e1a60e9f5bf4573"
+        "sha256": "5a4c405eb0af76e1dea73cc9675da011d2ea37cc0895b7eca972192faf969042"
       },
       "description": "Jira and Confluence Cloud with one site, email and API token.",
       "icon": "square.stack.3d.up",
