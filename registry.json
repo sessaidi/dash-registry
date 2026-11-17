@@ -128,14 +128,14 @@
       "id": "datadog",
       "name": "Datadog",
       "kind": "integration",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/datadog-1.4.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/datadog-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "datadog"
         ],
-        "sha256": "f46b78cd0bc1d475d71920fb869a15d381fc4a02fadc01537e4f8e102ee24277"
+        "sha256": "05d5adf5086a31599a2b944ecfd95b968dc957f5319e6f02471940a2ea311338"
       },
       "description": "Your Datadog site, read-only: monitors, metrics, logs, events, incidents, dashboards, SLOs, hosts and services, plus a monitors widget.",
       "icon": "dog",
