@@ -2,21 +2,21 @@ import DashKit
 import DashKitUI
 import SwiftUI
 
-/// How long reads are reused, what's cached, and a way to forget it.
+/// How long fetched data stays fresh, what's stored, and a way to forget it.
 struct AtlassianCacheSection: View {
     @Bindable var atlassian: AtlassianIntegration
     @State private var counts: [String: Int] = [:]
 
     var body: some View {
         Section {
-            Picker("Reuse a page or issue for", selection: $atlassian.cacheMinutes) {
+            Picker("Fetched data is fresh for", selection: $atlassian.cacheMinutes) {
                 ForEach([5, 15, 30, 60, 240, 1440], id: \.self) { minutes in
                     Text(minutes < 60 ? "\(minutes) min" : minutes == 1440 ? "1 day" : "\(minutes / 60) h").tag(minutes)
                 }
             }
             let stored = AtlassianIntegration.cacheKinds.filter { (counts[$0.kind] ?? 0) > 0 }
             if stored.isEmpty {
-                Text("Nothing cached yet.").foregroundStyle(.secondary)
+                Text("Nothing fetched yet.").foregroundStyle(.secondary)
             } else {
                 ForEach(stored, id: \.kind) { item in
                     LabeledContent(item.label) { Text("\(counts[item.kind] ?? 0)").monospacedDigit() }
@@ -30,7 +30,7 @@ struct AtlassianCacheSection: View {
         } header: {
             Text("Cache")
         } footer: {
-            Text("Only what Dashii asked for is kept, in Dash's database, with secrets removed. Jira and Confluence stay the source of truth: older copies are read again online, and a cached copy is used only when the site can't be reached.")
+            Text("Only what Dashii asked Dash to fetch is kept, in Dash's database, with secrets removed. Jira and Confluence stay the source of truth: older data is marked stale, and Dashii fetches it again when a question needs it.")
         }
         .onAppear(perform: reload)
     }
