@@ -14,6 +14,7 @@ struct PullRequestsFeatureTests {
         #expect(feature.id == "pull-requests" && feature.name == "Pull Requests")
         #expect(feature.layer == .feature && feature.requires == ["github"])
         #expect(feature.metadata.category == .sourceControl && feature.metadata.author == .dash)
+        #expect(feature.metadata.version == "1.16.0" && feature.metadata.minimumDashKit == "2.4.0")
         #expect(feature.models.map { String(describing: $0) } == ["PullRequest", "PRReview", "PRDiscussion"])
         #expect(feature.widgets.map(\.kind) == ["github.pulls"])
         #expect(feature.tools.map(\.name) == [

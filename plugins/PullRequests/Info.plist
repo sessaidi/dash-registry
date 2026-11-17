@@ -19,10 +19,10 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>DashKitMinimumVersion</key>
-	<string>2.3.0</string>
+	<string>2.4.0</string>
 	<key>DashPluginID</key>
 	<string>pull-requests</string>
 	<key>DashPluginVersion</key>
-	<string>1.15.1</string>
+	<string>1.16.0</string>
 </dict>
 </plist>
