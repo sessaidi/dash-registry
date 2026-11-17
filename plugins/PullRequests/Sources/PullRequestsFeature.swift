@@ -13,7 +13,7 @@ final class PullRequestsFeature: DashExtension {
     let id = "pull-requests"
     let name = "Pull Requests"
     let systemImage = "arrow.triangle.pull"
-    let metadata = ExtensionMetadata(version: "1.3.0", summary: "Open PRs on watched repos with automatic Dashii reviews.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.16.0", summary: "Open PRs on watched repos with automatic Dashii reviews.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
     let requires = ["github"]
 
     var pollMinutes: Int { didSet { defaults.set(pollMinutes, forKey: "pull-requests.poll") } }

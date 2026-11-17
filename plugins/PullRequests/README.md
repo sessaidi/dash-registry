@@ -10,8 +10,8 @@ who review and ship PRs every day.
 | | |
 |---|---|
 | Plugin id | `pull-requests` (folder `PullRequests`) |
-| Version | 1.3.0 |
-| Minimum DashKit | 1.2.0 |
+| Version | 1.16.0 |
+| Minimum DashKit | 2.4.0 |
 | Layer | feature (provides `pull-requests`) |
 | Requires | `github` |
 
@@ -158,7 +158,7 @@ TEST=1 scripts/build-plugins.sh PullRequests   # generate the project, run PullR
 scripts/build-plugins.sh PullRequests          # build and zip without the tests
 ```
 
-The script writes `dist/pull-requests-1.3.0.dashplugin.zip` and regenerates `registry.json`.
+The script writes `dist/pull-requests-1.16.0.dashplugin.zip` and regenerates `registry.json`.
 To try a build in a running Dash, copy
 `build/PullRequests/Build/Products/Release/PullRequestsPlugin.dashplugin` into
 `~/Library/Application Support/Dash/Plugins`.
