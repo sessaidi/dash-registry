@@ -1,5 +1,7 @@
-- Read-only Datadog: monitors (datadog_monitors, datadog_monitor), metrics (datadog_metrics_query), logs (datadog_logs_search), events, incidents, dashboards, SLOs, hosts and services; dashql `from monitors` for monitor states.
-- Prefer the specific tools; datadog_api_get is for GET endpoints the others don't cover.
+- Read Datadog from Dash, not from Datadog: datadog_monitors, datadog_monitor, datadog_metrics_query, datadog_logs_search, datadog_events, datadog_incidents, datadog_dashboards, datadog_dashboard, datadog_slos, datadog_slo_history, datadog_hosts and datadog_services answer from what Dash fetched, with synced_at and stale. DashQL has `from monitors` (checked every minute), datadog_logs and datadog_events.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. datadog.logs with the same query), then read again. Monitor states and logs go stale within minutes; dashboards and services stay fresh for an hour.
+- Say how fresh an answer is ("logs as of 10:04"); relative windows (last 15 minutes) count from synced_at, not from now.
+- data_fetch datadog.api reads any /api/ path (GET only) when no other fetcher fits; read it with datadog_api_read and the same path.
 - Nothing here mutes, resolves or edits anything; the user does that in Datadog.
 - Give time ranges explicitly (last 15 minutes, since 10:00) and the site/environment; log lines are trimmed, so search narrowly (service, env, status).
 - Monitor states: Alert and Warn need attention, No Data may mean the service is down or the monitor is stale; say which.
