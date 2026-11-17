@@ -1,14 +1,11 @@
 import DashKit
 import Foundation
 
-/// Dashii's raw Kubernetes tools: read any API path, list pods.
+/// Dashii and agents get the readers: they answer from what the fetchers stored in Dash. Nothing
+/// they get calls the cluster; `data_fetch k8s.<what>` does. Besides the readers: the kubeconfig's
+/// contexts (read locally) and the two writes, which only the user approves and never reach Dashii.
 extension KubernetesIntegration {
-    private struct GetInput: Decodable { let path: String }
-    private struct PodsInput: Decodable {
-        let namespace: String?
-        let labelSelector: String?
-        let fieldSelector: String?
-    }
+    var tools: [DashiiTool] { [contextsTool] + readers + writeTools }
 
     static let maxCharacters = 100_000
 
@@ -22,7 +19,7 @@ extension KubernetesIntegration {
         if segments.contains("..") || segments.contains(".") { throw ToolError("path must not contain . or .. segments.") }
         let streaming: Set<String> = ["exec", "attach", "portforward", "proxy"]
         if let segment = segments.first(where: { streaming.contains($0) }) {
-            throw ToolError("\(segment) is not a read-only request; k8s_get only reads resources.")
+            throw ToolError("\(segment) is not a read-only request; k8s.api only reads resources.")
         }
         if parts.count == 2 {
             for item in parts[1].split(separator: "&") {
@@ -42,47 +39,6 @@ extension KubernetesIntegration {
     func requireConnection() throws -> IntegrationConnection {
         guard let connection else { throw ToolError(blockingProblem ?? "Set up Kubernetes in Settings › Kubernetes.") }
         return connection
-    }
-
-    var tools: [DashiiTool] {
-        [
-            DashiiTool(
-                name: "k8s_get",
-                description: "Read any Kubernetes API path on the current context (GET only), e.g. /api/v1/namespaces/default/pods, /apis/apps/v1/namespaces/prod/deployments/web, /api/v1/namespaces/default/pods/web-1/log?tailLines=100 or /api/v1/nodes. Watches, exec, attach, port-forward and proxy are refused. Responses are cut at 100,000 characters.",
-                properties: ["path": JSONSchema.string("API path starting with /, with an optional query string.")], required: ["path"]
-            ) { [weak self] input in
-                guard let self else { throw ToolError("Kubernetes is not loaded.") }
-                let path = try input.toolInput(GetInput.self).path.trimmingCharacters(in: .whitespaces)
-                try Self.checkReadOnly(path)
-                return try await Self.get(path, connection: try requireConnection())
-            },
-            DashiiTool(
-                name: "k8s_list_pods",
-                description: "List pods on the current Kubernetes context with phase, kubectl-style status (CrashLoopBackOff, ImagePullBackOff…), ready containers, restarts and node. Defaults to the configured namespace; use \"all\" for every namespace.",
-                properties: [
-                    "namespace": JSONSchema.string("Namespace, or \"all\". Default: the namespace set in Settings."),
-                    "labelSelector": JSONSchema.string("Label selector, e.g. app=web,tier!=cache."),
-                    "fieldSelector": JSONSchema.string("Field selector, e.g. status.phase!=Running or spec.nodeName=node-1."),
-                ]
-            ) { [weak self] input in
-                guard let self else { throw ToolError("Kubernetes is not loaded.") }
-                let request = try input.toolInput(PodsInput.self)
-                let namespace = request.namespace?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? self.namespace
-                let all = namespace == "all" || namespace == "*"
-                guard all || Self.validNamespace(namespace) else { throw ToolError("\"\(namespace)\" is not a valid namespace name.") }
-                let connection = try requireConnection()
-                let list = try await connection.get(
-                    PodSummary.path(namespace: all ? nil : namespace, labelSelector: request.labelSelector, fieldSelector: request.fieldSelector, limit: 500),
-                    service: "Kubernetes")
-                let pods = PodSummary.list(list)
-                var result: [String: JSONValue] = [
-                    "context": activeContext.map(JSONValue.string) ?? .null, "namespace": .string(all ? "all" : namespace),
-                    "count": .number(Double(pods.count)), "pods": .array(pods.map(\.json)),
-                ]
-                if let next = list["metadata"]?["continue"]?.string, !next.isEmpty { result["truncated"] = "More than 500 pods; narrow with a selector." }
-                return .object(result)
-            },
-        ] + granularTools
     }
 
     /// GETs a path and returns JSON, or text cut at `maxCharacters`.

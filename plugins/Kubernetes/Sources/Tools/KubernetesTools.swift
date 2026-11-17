@@ -1,8 +1,8 @@
 import DashKit
 import Foundation
 
-/// Single-purpose Kubernetes tools on the current context, kubectl-shaped: Claude asks for
-/// exactly what it needs instead of composing raw API paths.
+/// kubectl's vocabulary on the current context: kinds and short names, compact summaries, and the
+/// tools that don't read through the store.
 extension KubernetesIntegration {
     /// kubectl resource names → API paths (namespaced or not).
     static let kinds: [String: (path: String, namespaced: Bool)] = [
@@ -81,117 +81,21 @@ extension KubernetesIntegration {
         return .object(row)
     }
 
-    private struct ListInput: Decodable { let kind: String; let namespace: String?; let labelSelector: String?; let fieldSelector: String? }
-    private struct ObjectInput: Decodable { let kind: String; let name: String; let namespace: String? }
-    private struct LogsInput: Decodable { let pod: String; let namespace: String?; let container: String?; let previous: Bool?; let tail: Int?; let sinceSeconds: Int? }
-    private struct EventsInput: Decodable { let namespace: String?; let object: String?; let warningsOnly: Bool? }
-    private struct NamespaceInput: Decodable { let namespace: String? }
     private struct DeploymentInput: Decodable { let name: String; let namespace: String? }
     private struct ScaleInput: Decodable { let name: String; let namespace: String?; let replicas: Int }
 
-    var granularTools: [DashiiTool] {
-        let namespaceProperty = JSONSchema.string("Namespace; default: the one set in Settings. \"all\" for every namespace (lists only).")
+    /// The kubeconfig's contexts: read from the file Dash already loaded, no request.
+    var contextsTool: DashiiTool {
+        DashiiTool(name: "k8s_contexts", description: "The kubeconfig's contexts (cluster, namespace, auth) and which one Dash uses. Read-only.") { [weak self] _ in
+            guard let self else { return nil }
+            return exports
+        }
+    }
+
+    /// What changes a cluster: the user approves each call, and Dashii and agents never get them.
+    var writeTools: [DashiiTool] {
+        let namespaceProperty = JSONSchema.string("Namespace; default: the one set in Settings.")
         return [
-            DashiiTool(name: "k8s_contexts", description: "The kubeconfig's contexts (cluster, namespace, auth) and which one Dash uses. Read-only.") { [weak self] _ in
-                guard let self else { return nil }
-                return exports
-            },
-            DashiiTool(name: "k8s_namespaces", description: "Namespaces on the current context with their status and labels. Read-only.") { [weak self] _ in
-                guard let self else { return nil }
-                let list = try await requireConnection().get("/api/v1/namespaces", service: "Kubernetes")
-                return .array((list["items"]?.array ?? []).map { ["name": $0["metadata"]?["name"] ?? .null, "status": $0["status"]?["phase"] ?? .null,
-                                                                  "labels": $0["metadata"]?["labels"] ?? .null] })
-            },
-            DashiiTool(name: "k8s_list", description: "List objects of a kind (kubectl get): deployments, services, configmaps (keys only), secrets (keys only, never values), jobs, cronjobs, statefulsets, daemonsets, hpa, ingresses, httproutes, nodes, events, pvc… with a compact line each. Read-only.",
-                       properties: ["kind": JSONSchema.string("Kind or kubectl short name (deploy, svc, cm, hpa…)."), "namespace": namespaceProperty,
-                                    "labelSelector": JSONSchema.string("e.g. app=web"), "fieldSelector": JSONSchema.string("e.g. status.phase!=Running")],
-                       required: ["kind"]) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(ListInput.self)
-                let kind = try Self.resolveKind(request.kind).name
-                var path = try collectionPath(kind, namespace: ns(request.namespace))
-                var query: [String] = ["limit=500"]
-                if let label = request.labelSelector { query.append("labelSelector=\(label.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? label)") }
-                if let field = request.fieldSelector { query.append("fieldSelector=\(field.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? field)") }
-                path += "?" + query.joined(separator: "&")
-                let list = try await requireConnection().get(path, service: "Kubernetes")
-                return .array((list["items"]?.array ?? []).map { Self.summary($0, kind: kind) })
-            },
-            DashiiTool(name: "k8s_describe", description: "One object in full (kubectl describe): its spec and status, plus the events about it. Secret values are removed. Read-only.",
-                       properties: ["kind": JSONSchema.string("Kind or short name."), "name": JSONSchema.string("Object name."), "namespace": namespaceProperty],
-                       required: ["kind", "name"]) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(ObjectInput.self)
-                let resolved = try Self.resolveKind(request.kind)
-                let namespace = ns(request.namespace)
-                let connection = try requireConnection()
-                var object = try await connection.get(try collectionPath(resolved.name, namespace: namespace) + "/\(request.name)", service: "Kubernetes")
-                if resolved.name == "secrets", case .object(var fields) = object {
-                    fields["data"] = .object((fields["data"]?.object ?? [:]).mapValues { _ in "<redacted>" })
-                    fields["stringData"] = nil
-                    object = .object(fields)
-                }
-                if case .object(var fields) = object, case .object(var metadata)? = fields["metadata"] {
-                    metadata["managedFields"] = nil
-                    fields["metadata"] = .object(metadata)
-                    object = .object(fields)
-                }
-                var events: JSONValue = []
-                if resolved.namespaced {
-                    let selector = "involvedObject.name=\(request.name)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                    let list = try? await connection.get("/api/v1/namespaces/\(namespace)/events?fieldSelector=\(selector)", service: "Kubernetes")
-                    events = .array((list?["items"]?.array ?? []).map { Self.summary($0, kind: "events") })
-                }
-                return ["object": object, "events": events]
-            },
-            DashiiTool(name: "k8s_logs", description: "A pod's logs (kubectl logs): container, the run before the last restart (previous), last N lines or since N seconds, with timestamps. Read-only.",
-                       properties: ["pod": JSONSchema.string("Pod name."), "namespace": namespaceProperty, "container": JSONSchema.string("Container name."),
-                                    "previous": JSONSchema.boolean("The previous run's logs."), "tail": JSONSchema.integer("Last N lines (default 300)."),
-                                    "sinceSeconds": JSONSchema.integer("Only this many seconds back.")],
-                       required: ["pod"]) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(LogsInput.self)
-                var query = ["timestamps=true", "tailLines=\(min(request.tail ?? 300, 5000))"]
-                if let container = request.container { query.append("container=\(container)") }
-                if request.previous == true { query.append("previous=true") }
-                if let since = request.sinceSeconds { query.append("sinceSeconds=\(since)") }
-                return try await Self.get("/api/v1/namespaces/\(ns(request.namespace))/pods/\(request.pod)/log?" + query.joined(separator: "&"), connection: try requireConnection())
-            },
-            DashiiTool(name: "k8s_events", description: "Events in a namespace, newest first (kubectl get events): warnings only by default, or about one object (Kind/name). Read-only.",
-                       properties: ["namespace": namespaceProperty, "object": JSONSchema.string("Kind/name, e.g. Pod/web-1."),
-                                    "warningsOnly": JSONSchema.boolean("Only Warning events (default true).")]) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(EventsInput.self)
-                let list = try await requireConnection().get(try collectionPath("events", namespace: ns(request.namespace)), service: "Kubernetes")
-                let rows = (list["items"]?.array ?? []).map { Self.summary($0, kind: "events") }.filter { row in
-                    (!(request.warningsOnly ?? true) || row["type"]?.string == "Warning") && (request.object == nil || row["object"]?.string == request.object)
-                }
-                return .array(Array(rows.sorted { ($0["lastSeen"]?.string ?? "") > ($1["lastSeen"]?.string ?? "") }.prefix(100)))
-            },
-            DashiiTool(name: "k8s_top_pods", description: "CPU and memory each pod's containers use now (kubectl top pods; needs metrics-server). Read-only.",
-                       properties: ["namespace": namespaceProperty]) { [weak self] input in
-                guard let self else { return nil }
-                let namespace = ns(try input.toolInput(NamespaceInput.self).namespace)
-                let path = namespace == "all" ? "/apis/metrics.k8s.io/v1beta1/pods" : "/apis/metrics.k8s.io/v1beta1/namespaces/\(namespace)/pods"
-                let list = try await requireConnection().get(path, service: "Kubernetes")
-                return .array((list["items"]?.array ?? []).map { pod in
-                    ["pod": pod["metadata"]?["name"] ?? .null, "namespace": pod["metadata"]?["namespace"] ?? .null,
-                     "containers": .array((pod["containers"]?.array ?? []).map { ["name": $0["name"] ?? .null, "cpu": $0["usage"]?["cpu"] ?? .null, "memory": $0["usage"]?["memory"] ?? .null] })]
-                })
-            },
-            DashiiTool(name: "k8s_rollout_status", description: "Whether a deployment's rollout finished (kubectl rollout status): updated, ready and available replicas, and its conditions. Read-only.",
-                       properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"]) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(DeploymentInput.self)
-                let deployment = try await requireConnection().get("/apis/apps/v1/namespaces/\(ns(request.namespace))/deployments/\(request.name)", service: "Kubernetes")
-                let spec = deployment["spec"]
-                let status = deployment["status"]
-                let desired = spec?["replicas"]?.int ?? 1
-                let done = (status?["updatedReplicas"]?.int ?? 0) == desired && (status?["availableReplicas"]?.int ?? 0) == desired
-                    && (status?["observedGeneration"]?.int ?? 0) >= (deployment["metadata"]?["generation"]?.int ?? 0)
-                return ["done": .bool(done), "desired": .number(Double(desired)), "updated": status?["updatedReplicas"] ?? 0,
-                        "ready": status?["readyReplicas"] ?? 0, "available": status?["availableReplicas"] ?? 0, "conditions": status?["conditions"] ?? []]
-            },
             DashiiTool(name: "k8s_rollout_restart", description: "Restart a deployment's pods (kubectl rollout restart).",
                        properties: ["name": JSONSchema.string("Deployment name."), "namespace": namespaceProperty], required: ["name"], requiresApproval: true, writesRemotely: true) { [weak self] input in
                 guard let self else { return nil }
