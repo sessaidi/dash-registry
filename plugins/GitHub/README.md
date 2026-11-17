@@ -30,12 +30,56 @@ Settings › GitHub:
 - **Check**: calls `GET /user`. The status shows your login.
 - **Watched repositories**: `owner/name` entries, one per line (commas also work). Every
   GitHub feature uses this list.
+- **Fetched data**: how long fetched data stays fresh (15 minutes by default). Older data is
+  marked stale and Dashii may fetch it again.
 
-## Claude tools
+## Fetch, then read
 
-| Tool | What it does | Needs approval |
+Dashii and agents never call GitHub. They read what Dash has stored. When it's missing or stale,
+they ask the integration to fetch it with `data_fetch`, then read it again. Each fetcher calls
+GitHub and stores a compact, sanitized answer (at most 200 KB) in Dash's database, then returns a
+receipt: `{stored, unchanged, keys, synced_at, read_with}`. Each reader has the old tool's name and
+input. It returns the stored answer with `synced_at`, `stale` and `refresh` (the `data_fetch` call
+that refreshes it). If nothing is stored yet, it returns `{"fetched": false, "hint", "refresh"}`.
+Answers to queries (filtered lists, search, raw paths) are kept for a day.
+
+| Fetcher (`data_fetch`) | Reader (Dashii tool) | What |
 |---|---|---|
-| `github_api_get` | GETs any GitHub REST path under the API root, for example `/repos/owner/name/actions/runs?per_page=10`. The path must be relative, with no `.` or `..` segments and no spaces. Responses longer than 100,000 characters are truncated. | No |
+| `github.whoami` | `github_whoami` | The signed-in user and their organizations |
+| `github.repo` | `github_repo` | Default branch, visibility, language, topics, open issues, last push |
+| `github.branches` | `github_branches` | Branches with their last commit and protection |
+| `github.pulls` | `github_pulls` | Pull requests: open, closed or all; by author or base |
+| `github.pull` | `github_pull` | One pull request with its description, mergeability and size |
+| `github.pull_files` | `github_pull_files` | Files a pull request changes (patches on request) |
+| `github.pull_reviews` | `github_pull_reviews` | Reviews and line comments |
+| `github.checks` | `github_checks` | Check runs and the combined status of a ref |
+| `github.workflow_runs` | `github_workflow_runs` | Actions runs, filtered by branch or status |
+| `github.run_jobs` | `github_run_jobs` | A run's jobs and their failed steps |
+| `github.job_log` | `github_job_log` | The end of a job's log |
+| `github.commits` | `github_commits` | Commits by branch, path, author, date |
+| `github.compare` | `github_compare` | Two refs: ahead, behind, files |
+| `github.file` | `github_file` | A file at a ref |
+| `github.issues` | `github_issues` | Issues, without pull requests |
+| `github.releases` | `github_releases` | Recent releases |
+| `github.search` | `github_search` | Code, issue and repository search |
+| `github.notifications` | `github_notifications` | Unread notifications (none marked read) |
+| `github.tags` | `github_tags` | Tags with their commit and whether it's on the default branch (the release timeline's mirror) |
+| `github.range` | `github_range` | Commits between two commits or tags |
+| `github.api` | `github_api_read` | Any REST path (GET only; relative, no `.`/`..`, no spaces) |
+
+DashQL datasets: `github_pulls`, `github_issues`, `github_runs`, `github_releases`. They contain the
+fetched rows, one per repository and number, id or tag, each with `repo`, `synced_at` and `stale`.
+
+Nothing here writes to GitHub, and no tool needs approval.
+
+### For other extensions
+
+These tools call GitHub, so Dash never gives them to Dashii or agents (`callsService`):
+
+| Tool | Used by |
+|---|---|
+| `github_api_get` | GETs any REST path; answers over 100,000 characters are truncated |
+| `github_sync_tags`, `github_sync_compare` | Releases: they fill the `git.tag`, `git.repo` and `git.range` mirror |
 
 ## For feature authors
 
