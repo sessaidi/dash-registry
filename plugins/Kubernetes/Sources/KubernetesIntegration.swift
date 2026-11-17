@@ -48,6 +48,8 @@ final class KubernetesIntegration: Integration {
     @ObservationIgnored private let sessionConfiguration: URLSessionConfiguration
     @ObservationIgnored private var session: URLSession?
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    /// The clock for freshness (tests move it).
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
     /// Where gke-gcloud-auth-plugin contexts get their Google token. Default: the `gcp` integration.
     @ObservationIgnored var googleConnection: @MainActor @Sendable () -> IntegrationConnection?
 

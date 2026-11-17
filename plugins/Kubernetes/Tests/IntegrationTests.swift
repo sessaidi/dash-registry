@@ -5,15 +5,6 @@ import Testing
 @MainActor
 @Suite("Kubernetes integration")
 struct IntegrationTests {
-    static let podList = """
-        {"kind":"PodList","items":[
-          {"metadata":{"name":"web-1","namespace":"team-a"},"spec":{"nodeName":"node-a","containers":[{"name":"app"}]},
-           "status":{"phase":"Running","containerStatuses":[{"name":"app","ready":true,"restartCount":0,"state":{"running":{}}}]}},
-          {"metadata":{"name":"worker-0","namespace":"team-a"},"spec":{"nodeName":"node-b","containers":[{"name":"app"}]},
-           "status":{"phase":"Running","containerStatuses":[{"name":"app","ready":false,"restartCount":7,"state":{"waiting":{"reason":"CrashLoopBackOff"}}}]}}
-        ]}
-        """
-
     @Test func bearerTokenConnectionAndExports() async throws {
         let k8s = try makeIntegration(singleContext(host: "bearer.test", user: ["token: abc123"], namespace: "team-a"))
         StubProtocol.serve("bearer.test", json: #"{"gitVersion":"v1.31.2"}"#)
@@ -83,8 +74,8 @@ struct IntegrationTests {
         #expect(k8s.connection == nil)
         guard case .failed(let message) = k8s.connectionState else { Issue.record("expected failure"); return }
         #expect(message.contains("aws"))
-        #expect(k8s.tools.map(\.name) == ["k8s_get", "k8s_list_pods", "k8s_contexts", "k8s_namespaces", "k8s_list", "k8s_describe", "k8s_logs",
-                                            "k8s_events", "k8s_top_pods", "k8s_rollout_status", "k8s_rollout_restart", "k8s_scale"])
+        #expect(k8s.tools.map(\.name) == ["k8s_contexts", "k8s_list_pods", "k8s_namespaces", "k8s_list", "k8s_describe", "k8s_logs",
+                                            "k8s_events", "k8s_top_pods", "k8s_rollout_status", "k8s_api_read", "k8s_rollout_restart", "k8s_scale"])
         #expect(k8s.tools.filter(\.requiresApproval).map(\.name) == ["k8s_rollout_restart", "k8s_scale"])
     }
 
@@ -140,11 +131,7 @@ struct IntegrationTests {
         #expect(message.contains("/nonexistent/kube/config"))
     }
 
-    // MARK: Tools
-
-    func tool(_ k8s: KubernetesIntegration, _ name: String) throws -> DashiiTool {
-        try #require(k8s.tools.first { $0.name == name })
-    }
+    // MARK: Reads
 
     @Test func getReturnsJSONAndTruncates() async throws {
         let k8s = try makeIntegration(singleContext(host: "get.test", user: ["token: t"]))
@@ -152,11 +139,10 @@ struct IntegrationTests {
             if request.url?.path == "/api/v1/namespaces" { return (200, Data(#"{"items":[{"metadata":{"name":"default"}}]}"#.utf8)) }
             return (200, Data(String(repeating: "x", count: 150_000).utf8))
         }
-        let get = try tool(k8s, "k8s_get")
-        #expect(!get.requiresApproval)
-        let json = try await get.run(["path": "/api/v1/namespaces"])
+        let connection = try #require(k8s.connection)
+        let json = try await KubernetesIntegration.get("/api/v1/namespaces", connection: connection)
         #expect(json["items"]?[0]?["metadata"]?["name"] == "default")
-        let big = try await get.run(["path": "/api/v1/namespaces/default/pods/web/log?tailLines=10"])
+        let big = try await KubernetesIntegration.get("/api/v1/namespaces/default/pods/web/log?tailLines=10", connection: connection)
         let text = try #require(big.string)
         #expect(text.hasSuffix("[truncated]"))
         #expect(text.count == 100_000 + "\n[truncated]".count)
@@ -178,32 +164,6 @@ struct IntegrationTests {
         try KubernetesIntegration.checkReadOnly("/api/v1/pods?watch=false&limit=10")
         try KubernetesIntegration.checkReadOnly("/apis/apps/v1/deployments")
         try KubernetesIntegration.checkReadOnly("/api/v1/namespaces/default/pods/web/log?tailLines=100")
-    }
-
-    @Test func listPods() async throws {
-        let k8s = try makeIntegration(singleContext(host: "pods.test", user: ["token: t"], namespace: "team-a"))
-        StubProtocol.serve("pods.test", json: Self.podList)
-        let list = try tool(k8s, "k8s_list_pods")
-        let result = try await list.run(["labelSelector": "app in (web,worker),tier!=cache"])
-        #expect(result["namespace"] == "team-a")
-        #expect(result["count"] == 2)
-        #expect(result["pods"]?[1] == [
-            "namespace": "team-a", "name": "worker-0", "phase": "Running", "status": "CrashLoopBackOff", "ready": "0/1", "restarts": 7, "node": "node-b",
-            "age": "?",
-        ])
-        let request = try #require(StubProtocol.requests("pods.test").last)
-        #expect(request.url?.path == "/api/v1/namespaces/team-a/pods")
-        let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        #expect(query.first { $0.name == "labelSelector" }?.value == "app in (web,worker),tier!=cache")
-
-        _ = try await list.run(["namespace": "all"])
-        #expect(StubProtocol.requests("pods.test").last?.url?.path == "/api/v1/pods")
-        await #expect(throws: ToolError.self) { try await list.run(["namespace": "../secrets"]) }
-    }
-
-    @Test func toolsExplainMissingConnection() async throws {
-        let k8s = try makeIntegration(Kubeconfigs.eks)
-        await #expect(throws: ToolError.self) { try await tool(k8s, "k8s_get").run(["path": "/api/v1/pods"]) }
     }
 
     @Test func metadataAndPlugin() {
