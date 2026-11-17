@@ -28,6 +28,8 @@ final class DatadogIntegration: Integration {
     @ObservationIgnored private let readSecret: @MainActor (String) -> String?
     @ObservationIgnored private let session: URLSession?
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    /// The clock for freshness and relative windows (tests move it).
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
 
     var site: String {
         didSet {
@@ -143,6 +145,4 @@ final class DatadogIntegration: Integration {
         let text = value.jsonString()
         return text.count > maxToolCharacters ? .string(String(text.prefix(maxToolCharacters)) + "\n[truncated]") : value
     }
-
-    var tools: [DashiiTool] { DatadogTools.tools(self) }
 }
