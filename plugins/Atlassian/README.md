@@ -8,8 +8,8 @@ needs them, and Dashii reads them there. Install it if your team uses Jira or Co
 | | |
 |---|---|
 | Plugin id | `atlassian` |
-| Version | 1.1.0 |
-| Minimum DashKit | 1.0.0 |
+| Version | 1.7.0 |
+| Minimum DashKit | 2.4.0 |
 | Layer | integration (provides `atlassian`) |
 | Requires | nothing |
 
@@ -79,7 +79,7 @@ TEST=1 scripts/build-plugins.sh Atlassian   # generate the project, run Atlassia
 scripts/build-plugins.sh Atlassian          # build and zip without the tests
 ```
 
-The script writes `dist/atlassian-1.1.0.dashplugin.zip` and regenerates `registry.json`. To
+The script writes `dist/atlassian-1.7.0.dashplugin.zip` and regenerates `registry.json`. To
 try a build in a running Dash, copy
 `build/Atlassian/Build/Products/Release/AtlassianPlugin.dashplugin` into
 `~/Library/Application Support/Dash/Plugins`.
