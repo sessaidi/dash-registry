@@ -6,7 +6,7 @@ import SwiftData
 import SwiftUI
 
 /// Layer 2 on Jira: your board and followed issues, synced into SwiftData,
-/// plus Claude tools to search, comment and transition.
+/// plus Dashii tools to list and follow them and to read what the Atlassian integration fetched.
 @MainActor
 @Observable
 final class JiraBoardFeature: DashExtension {
@@ -208,6 +208,18 @@ final class JiraBoardFeature: DashExtension {
     func unfollow(_ key: String) async {
         followedKeys.removeAll { $0 == key.uppercased() }
         await sync()
+    }
+
+    /// Follows or unfollows a ticket by key without waiting for Jira (the next sync picks it up).
+    func setFollowed(_ key: String, _ follow: Bool) {
+        let key = key.trimmingCharacters(in: .whitespaces).uppercased()
+        if !follow { followedKeys.removeAll { $0 == key } } else if Self.isIssueKey(key), !followedKeys.contains(key) { followedKeys.append(key) }
+    }
+
+    /// Syncs now, outside the caller's task: a Dashii tool answers at once and never goes online
+    /// itself; the sync is the feature's own job, as when the poller runs it.
+    func syncInBackground() {
+        Task.detached { [weak self] in await self?.sync() }
     }
 
     static func isIssueKey(_ text: String) -> Bool {
