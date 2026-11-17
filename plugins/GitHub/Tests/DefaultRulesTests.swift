@@ -17,5 +17,6 @@ struct DefaultRulesTests {
         let rules = extensions.compactMap(\.defaultRules).joined(separator: "\n")
         #expect(rules.contains("github_pulls"))
         #expect(rules.contains("Nothing here writes to GitHub"))
+        #expect(rules.contains("data_fetch") && rules.contains("synced_at"))
     }
 }

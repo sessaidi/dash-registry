@@ -12,6 +12,7 @@ final class GitHubIntegration: Integration {
     static let defaultAPI = "https://api.github.com"
     static let apiKey = "github.api"
     static let reposKey = "github.repos"
+    static let freshKey = "github.freshMinutes"
 
     let id = "github"
     let name = "GitHub"
@@ -27,13 +28,17 @@ final class GitHubIntegration: Integration {
     @ObservationIgnored private let readToken: @MainActor () -> String?
     /// URLSession for requests; nil uses the shared session. Tests inject a stubbed one.
     @ObservationIgnored private let session: URLSession?
-    /// Dash, once started: the sync tools write into its synced store.
+    /// Dash, once started: fetchers and the sync tools write into its synced store.
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
 
     /// https://api.github.com, or https://<host>/api/v3 for GitHub Enterprise Server.
     var apiURL: String { didSet { defaults.set(apiURL, forKey: Self.apiKey) } }
     /// Watched repositories, "owner/name", one per line. Shared by every GitHub feature.
     var reposText: String { didSet { defaults.set(reposText, forKey: Self.reposKey); publishRepos() } }
+    /// Fetched data older than this is stale: readers say so and Dashii may fetch it again.
+    var freshMinutes: Int { didSet { defaults.set(freshMinutes, forKey: Self.freshKey) } }
+    /// The clock for freshness (tests move it).
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
     private(set) var hasToken: Bool
     private(set) var viewer = ""
     private(set) var lastError: String?
@@ -48,6 +53,7 @@ final class GitHubIntegration: Integration {
         self.session = session
         apiURL = defaults.string(forKey: Self.apiKey) ?? Self.defaultAPI
         reposText = defaults.string(forKey: Self.reposKey) ?? ""
+        freshMinutes = defaults.object(forKey: Self.freshKey) as? Int ?? 15
         hasToken = !(readToken() ?? "").isEmpty
     }
 

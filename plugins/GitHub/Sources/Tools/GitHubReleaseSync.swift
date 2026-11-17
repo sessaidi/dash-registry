@@ -87,8 +87,8 @@ extension GitHubIntegration {
         }
         store.replace(kind: Self.tagKind, scope: scope, with: tags.map { tag in
             SyncedRecord(kind: Self.tagKind, scope: scope, key: tag.name,
-                         value: ["commit": .string(tag.commit), "date": .string(tag.date), "subject": .string(tag.subject),
-                                 "on_base": .bool(onBase[tag.name] ?? true)], source: id)
+                         value: Sanitizer.clean(["commit": .string(tag.commit), "date": .string(tag.date), "subject": .string(tag.subject),
+                                                 "on_base": .bool(onBase[tag.name] ?? true)]), source: id)
         })
         store.replace(kind: Self.repoKind, scope: scope, with: [
             SyncedRecord(kind: Self.repoKind, scope: scope, key: "info", value: ["default_branch": .string(defaultBranch)], source: id),
@@ -116,15 +116,25 @@ extension GitHubIntegration {
             if items.count < 100 { break }
             page += 1
         }
+        commits = commits.map(Sanitizer.clean)
         store.upsert([SyncedRecord(kind: Self.rangeKind, scope: scope, key: key, value: .array(commits), source: id)])
         return commits
     }
 
+    /// "owner/name" as given (Releases keys its mirror by it), checked.
+    nonisolated static func slug(_ input: JSONValue) throws -> String {
+        let repo = input["repo"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        _ = try repoPath(["repo": .string(repo)])
+        return repo
+    }
+
+    /// For other extensions (Releases runs them by name): they call GitHub, so Dashii and agents
+    /// never get them; they use the github.tags and github.range fetchers.
     var syncTools: [DashiiTool] {
         [
             DashiiTool(name: "github_sync_tags",
                        description: "Mirror a repository's tags (commit, date, on the default branch or not) from GitHub into Dash, for release timelines. Reads GitHub only; replaces the local mirror with what GitHub has.",
-                       properties: ["repo": JSONSchema.string("owner/name")], required: ["repo"]) { [weak self] input in
+                       properties: ["repo": JSONSchema.string("owner/name")], required: ["repo"], callsService: true) { [weak self] input in
                 guard let self, let host else { return nil }
                 let count = try await syncTags(input["repo"]?.string ?? "", store: host.synced)
                 return ["tags": .number(Double(count))]
@@ -132,9 +142,78 @@ extension GitHubIntegration {
             DashiiTool(name: "github_sync_compare",
                        description: "Mirror the commits between two commits or tags of a repository (merges left out) from GitHub into Dash. Reads GitHub only.",
                        properties: ["repo": JSONSchema.string("owner/name"), "base": JSONSchema.string("Base commit or tag."), "head": JSONSchema.string("Head commit or tag.")],
-                       required: ["repo", "base", "head"]) { [weak self] input in
+                       required: ["repo", "base", "head"], callsService: true) { [weak self] input in
                 guard let self, let host else { return nil }
                 return .array(try await syncRange(input["repo"]?.string ?? "", base: input["base"]?.string ?? "", head: input["head"]?.string ?? "", store: host.synced))
+            },
+        ]
+    }
+
+    private static let rangeProperties: [String: JSONValue] = [
+        "repo": JSONSchema.string("owner/name"), "base": JSONSchema.string("Base commit or tag."), "head": JSONSchema.string("Head commit or tag."),
+    ]
+
+    private static func rangeInput(_ input: JSONValue) throws -> (repo: String, base: String, head: String) {
+        let repo = try slug(input)
+        let base = input["base"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let head = input["head"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !base.isEmpty, !head.isEmpty else { throw ToolError("Give base and head.") }
+        return (repo, base, head)
+    }
+
+    var releaseFetchers: [DataFetcher] {
+        [
+            DataFetcher(name: "github.tags", summary: "A repository's tags (commit, date, on the default branch or not), for release timelines. Read them with github_tags.",
+                        properties: ["repo": JSONSchema.string("owner/name")], required: ["repo"]) { [weak self] input in
+                guard let self, let host else { return nil }
+                let repo = try Self.slug(input)
+                let scope = Self.scope(repo)
+                let before = Dictionary(host.synced.records(kind: Self.tagKind, scope: scope).map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+                try await syncTags(repo, store: host.synced)
+                let after = host.synced.records(kind: Self.tagKind, scope: scope)
+                let changed = after.filter { before[$0.key] != $0.value }.map(\.key)
+                return Self.receipt(stored: changed.count, unchanged: after.count - changed.count, keys: changed.prefix(50).map { Self.tagKind + "/" + $0 },
+                                    syncedAt: host.synced.lastSynced(kind: Self.tagKind, scope: scope) ?? now(), readWith: "github_tags " + (["repo": .string(repo)] as JSONValue).jsonString())
+            },
+            DataFetcher(name: "github.range", summary: "The commits between two commits or tags of a repository (merges left out). Read them with github_range.",
+                        properties: Self.rangeProperties, required: ["repo", "base", "head"]) { [weak self] input in
+                guard let self, let host else { return nil }
+                let (repo, base, head) = try Self.rangeInput(input)
+                let key = base + "..." + head
+                let had = host.synced.record(kind: Self.rangeKind, scope: Self.scope(repo), key: key) != nil
+                _ = try await syncRange(repo, base: base, head: head, store: host.synced)
+                let syncedAt = host.synced.record(kind: Self.rangeKind, scope: Self.scope(repo), key: key)?.updatedAt ?? now()
+                return Self.receipt(stored: had ? 0 : 1, unchanged: had ? 1 : 0, keys: [Self.rangeKind + "/" + key], syncedAt: syncedAt,
+                                    readWith: "github_range " + (["repo": .string(repo), "base": .string(base), "head": .string(head)] as JSONValue).jsonString())
+            },
+        ]
+    }
+
+    var releaseReaders: [DashiiTool] {
+        [
+            DashiiTool(name: "github_tags",
+                       description: "A repository's tags as Dash mirrored them (commit, date, subject, on the default branch), newest first, with synced_at and stale. Fetch with data_fetch github.tags.",
+                       properties: ["repo": JSONSchema.string("owner/name")], required: ["repo"]) { [weak self] input in
+                guard let self, let host else { return nil }
+                let repo = try Self.slug(input)
+                let scope = Self.scope(repo)
+                guard let synced = host.synced.lastSynced(kind: Self.tagKind, scope: scope) else { return notFetched("github.tags", input: ["repo": .string(repo)]) }
+                let freshness = Freshness(syncedAt: synced, maxAge: maxAge, refresh: ["fetcher": "github.tags", "input": ["repo": .string(repo)]], now: now())
+                let tags = host.synced.records(kind: Self.tagKind, scope: scope).map { $0.value.merging(["tag": .string($0.key)]) }
+                    .sorted { ($0["date"]?.string ?? "") > ($1["date"]?.string ?? "") }
+                return Self.answer(.array(Array(tags.prefix(200))), freshness).merging(["total": .number(Double(tags.count))])
+            },
+            DashiiTool(name: "github_range",
+                       description: "The commits between two commits or tags (merges left out) as Dash mirrored them. Fetch with data_fetch github.range.",
+                       properties: Self.rangeProperties, required: ["repo", "base", "head"]) { [weak self] input in
+                guard let self, let host else { return nil }
+                let (repo, base, head) = try Self.rangeInput(input)
+                let refresh: JSONValue = ["fetcher": "github.range", "input": ["repo": .string(repo), "base": .string(base), "head": .string(head)]]
+                guard let record = host.synced.record(kind: Self.rangeKind, scope: Self.scope(repo), key: base + "..." + head) else {
+                    return notFetched("github.range", input: refresh["input"] ?? [:])
+                }
+                // The commits between two commits never change.
+                return Self.answer(record.value, Freshness(syncedAt: record.updatedAt, maxAge: .seconds(10 * 365 * 86_400), refresh: refresh, now: now()))
             },
         ]
     }
