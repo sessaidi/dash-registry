@@ -24,7 +24,7 @@ final class AtlassianIntegration: Integration {
     private(set) var hasToken: Bool
     private(set) var accountName: String?
     private(set) var lastError: String?
-    /// How long a page or issue read for Claude is reused before it's fetched again.
+    /// How long fetched Jira and Confluence data stays fresh; older answers are marked stale.
     var cacheMinutes: Int { didSet { defaults.set(cacheMinutes, forKey: "atlassian.cacheMinutes") } }
     /// The host's mirror of online data (Dash's database); nil until started, and in some tests.
     @ObservationIgnored var mirror: (any SyncedStore)?

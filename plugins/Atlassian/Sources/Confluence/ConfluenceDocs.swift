@@ -11,8 +11,8 @@ extension AtlassianIntegration {
     /// Text kept per page: enough for search and for Dashii to read it whole.
     static let docLimit = 60_000
 
-    var fetchers: [DataFetcher] {
-        [DataFetcher(
+    var docsFetcher: DataFetcher {
+        DataFetcher(
             name: "confluence.pages",
             summary: "Confluence pages that mention some words (a repository, service, feature or ticket), stored in Dash's database and the knowledge graph as docs. Read them with knowledge search (kind doc) or `from confluence_docs`.",
             properties: ["query": JSONSchema.string("Words the pages should mention, e.g. a repository or service name."),
@@ -24,11 +24,11 @@ extension AtlassianIntegration {
             guard let self else { throw ToolError("Atlassian isn't ready.") }
             return try await fetchPages(query: input["query"]?.string ?? "", repo: input["repo"]?.string,
                                         space: input["space"]?.string, limit: input["limit"]?.int ?? 20)
-        }]
+        }
     }
 
     /// Searches pages mentioning `query` and stores each one (its body fetched only when it
-    /// changed). Returns what was stored.
+    /// changed). Returns the receipt, with the pages' ids, titles and links.
     func fetchPages(query: String, repo: String?, space: String?, limit: Int) async throws -> JSONValue {
         let words = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty else { throw ToolError("Say what the pages should mention.") }
@@ -42,6 +42,7 @@ extension AtlassianIntegration {
                                   service: "Confluence")
         var stored = 0, unchanged = 0
         var pages: [JSONValue] = []
+        var keys: [String] = []
         for hit in found["results"]?.array ?? [] {
             guard let id = hit["content"]?["id"]?.string, Self.validPageID(id) else { continue }
             let version = hit["content"]?["version"]?["number"]?.int
@@ -60,9 +61,11 @@ extension AtlassianIntegration {
             record = Self.adding(term: words, repo: repo, to: record, previous: existing)
             remember(Self.docKind, key: id, value: record)
             pages.append(["id": .string(id), "title": record["title"] ?? .null, "url": record["url"] ?? .null])
+            keys.append(Self.docKind + "/" + id)
         }
-        return ["stored": .number(Double(stored)), "unchanged": .number(Double(unchanged)), "pages": .array(pages),
-                "read_with": "knowledge search (kind doc), or `from confluence_docs` in DashQL"]
+        return Self.receipt(stored: stored, unchanged: unchanged, keys: keys, syncedAt: now(),
+                            readWith: "knowledge search (kind doc), or `from confluence_docs` in DashQL")
+            .merging(["pages": .array(pages)])
     }
 
     /// A page as stored: its text as Markdown, cut at `docLimit`.

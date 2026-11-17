@@ -2,7 +2,9 @@
 import Foundation
 import Testing
 
-/// Answers every request from a handler and records what was sent. No real network.
+/// Answers every request from a handler and records what was sent. No real network. A handler
+/// served for one host (`serve`) wins over the shared one, so suites running side by side on
+/// their own hosts don't see each other's replies.
 final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     struct Response: Sendable {
         var status = 200
@@ -12,6 +14,8 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var handler: @Sendable (URLRequest) -> Response = { _ in Response() }
     nonisolated(unsafe) private static var recorded: [(request: URLRequest, body: Data?)] = []
+    nonisolated(unsafe) private static var hosts: [String: @Sendable (URLRequest) -> Response] = [:]
+    nonisolated(unsafe) private static var recordedByHost: [String: [(request: URLRequest, body: Data?)]] = [:]
 
     static func reset(_ handler: @escaping @Sendable (URLRequest) -> Response) {
         lock.withLock {
@@ -21,6 +25,15 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     static var requests: [(request: URLRequest, body: Data?)] { lock.withLock { recorded } }
+
+    static func serve(_ host: String, _ handler: @escaping @Sendable (URLRequest) -> Response) {
+        lock.withLock {
+            hosts[host] = handler
+            recordedByHost[host] = []
+        }
+    }
+
+    static func requests(_ host: String) -> [(request: URLRequest, body: Data?)] { lock.withLock { recordedByHost[host] ?? [] } }
 
     static func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
@@ -33,7 +46,12 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         let body = request.httpBody ?? request.httpBodyStream.map(Self.read)
+        let host = request.url?.host() ?? ""
         let response = Self.lock.withLock {
+            if let handler = Self.hosts[host] {
+                Self.recordedByHost[host, default: []].append((request, body))
+                return handler
+            }
             Self.recorded.append((request, body))
             return Self.handler
         }(request)
@@ -112,8 +130,12 @@ struct AtlassianIntegrationTests {
             "jira_myself_issues", "jira_jql_search", "jira_issue", "jira_issue_comments", "jira_issue_changelog", "jira_projects",
             "atlassian_cached",
         ])
-        // Every tool only reads.
-        #expect(atlassian.tools.allSatisfy { !$0.requiresApproval && !$0.writesRemotely })
+        // Every tool only reads what Dash stored; the fetchers go online.
+        #expect(atlassian.tools.allSatisfy { $0.isForDashii && !$0.requiresApproval })
+        #expect(atlassian.fetchers.map(\.name) == [
+            "confluence.search", "confluence.page", "confluence.children", "confluence.attachments", "confluence.spaces",
+            "jira.my_issues", "jira.search", "jira.issue", "jira.comments", "jira.changelog", "jira.projects", "confluence.pages",
+        ])
         #expect(AtlassianPlugin.makeExtensions().map(\.id) == ["atlassian"])
     }
 
@@ -233,76 +255,5 @@ struct AtlassianIntegrationTests {
     @Test func storageToText() {
         let html = "<h1>Runbook</h1><p>Restart &amp; check <strong>logs</strong>.</p><ul><li>One</li><li>Two &lt;3&gt;</li></ul><p>Line<br/>break&nbsp;here &quot;ok&quot; it&#39;s</p><p></p><p></p><p>End &amp;lt;</p>"
         #expect(AtlassianIntegration.text(fromStorage: html) == "Runbook\nRestart & check logs.\nOne\nTwo <3>\nLine\nbreak here \"ok\" it's\n\nEnd &lt;")
-    }
-
-    @Test func confluenceGetPage() async throws {
-        let sandbox = Sandbox()
-        defer { sandbox.cleanUp() }
-        sandbox.configure()
-        StubURLProtocol.reset { _ in
-            .init(body: Data(#"{"id":"12345","title":"Runbook","space":{"key":"OPS","name":"Ops"},"version":{"number":7,"when":"2026-11-01T10:00:00Z","by":{"displayName":"Ada"}},"_links":{"webui":"/spaces/OPS/pages/12345"},"metadata":{"labels":{"results":[{"name":"oncall"}]}},"ancestors":[{"id":"1","title":"Ops home"}],"body":{"storage":{"value":"<p>Hello &amp; bye</p>"}}}"#.utf8))
-        }
-        let atlassian = sandbox.integration()
-        let tool = try #require(atlassian.tools.first { $0.name == "confluence_get_page" })
-        let result = try await tool.run(["id": "12345"])
-        #expect(result["title"] == "Runbook" && result["space"]?["name"] == "Ops" && result["version"] == 7)
-        #expect(result["markdown"] == "Hello & bye" && result["labels"] == ["oncall"] && result["ancestors"]?[0]?["title"] == "Ops home")
-        #expect(result["url"] == "https://acme.atlassian.net/wiki/spaces/OPS/pages/12345" && result["from_cache"] == false)
-        let url = try #require(StubURLProtocol.requests.first?.request.url)
-        #expect(url.path() == "/wiki/rest/api/content/12345")
-        #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems == [URLQueryItem(name: "expand", value: "body.storage,version,space,ancestors,metadata.labels")])
-        await #expect(throws: ToolError.self) { try await tool.run(["id": "../../x"]) }
-    }
-
-    @Test func confluenceSearch() async throws {
-        let sandbox = Sandbox()
-        defer { sandbox.cleanUp() }
-        sandbox.configure()
-        StubURLProtocol.reset { _ in
-            .init(body: Data(#"{"results":[{"content":{"id":"9","title":"Deploys"},"resultGlobalContainer":{"title":"Eng"},"excerpt":"how to","url":"/spaces/ENG/pages/9"}]}"#.utf8))
-        }
-        let atlassian = sandbox.integration()
-        let tool = try #require(atlassian.tools.first { $0.name == "confluence_search" })
-        let result = try await tool.run(["query": "c++ \"deploy\"", "space": "ENG"])
-        #expect(result == [["id": "9", "title": "Deploys", "space": "Eng", "excerpt": "how to", "url": "https://acme.atlassian.net/wiki/spaces/ENG/pages/9"]])
-        let url = try #require(StubURLProtocol.requests.first?.request.url)
-        #expect(url.path() == "/wiki/rest/api/search")
-        #expect(url.query()?.contains("c%2B%2B") == true)
-        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        #expect(items.first { $0.name == "cql" }?.value == #"siteSearch ~ "c++ \"deploy\"" AND type = page AND space = "ENG""#)
-        #expect(items.first { $0.name == "limit" }?.value == "15")
-    }
-
-    @Test func myselfIssuesRequestAndResult() async throws {
-        let sandbox = Sandbox()
-        defer { sandbox.cleanUp() }
-        sandbox.configure()
-        StubURLProtocol.reset { _ in
-            .init(body: Data(#"{"issues":[{"key":"DASH-1","fields":{"summary":"Ship plugins","status":{"name":"In Progress"},"priority":{"name":"High"},"updated":"2026-11-01T10:00:00.000+0000"}}]}"#.utf8))
-        }
-        let atlassian = sandbox.integration()
-        let tool = try #require(atlassian.tools.first { $0.name == "jira_myself_issues" })
-        let result = try await tool.run([:])
-        #expect(result == [["key": "DASH-1", "summary": "Ship plugins", "status": "In Progress", "url": "https://acme.atlassian.net/browse/DASH-1"]])
-
-        let sent = try #require(StubURLProtocol.requests.first)
-        #expect(sent.request.httpMethod == "POST")
-        #expect(sent.request.url?.absoluteString == "https://acme.atlassian.net/rest/api/3/search/jql")
-        #expect(sent.request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(sent.request.value(forHTTPHeaderField: "Authorization") == "Basic " + Data("me@acme.dev:s3cret".utf8).base64EncodedString())
-        let body = try JSONValue.parse(try #require(sent.body))
-        #expect(body == [
-            "jql": "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC",
-            "fields": ["summary", "status", "priority", "updated"],
-            "maxResults": 50,
-        ])
-    }
-
-    @Test func toolsExplainMissingSetup() async throws {
-        let sandbox = Sandbox()
-        defer { sandbox.cleanUp() }
-        let atlassian = sandbox.integration()
-        let tool = try #require(atlassian.tools.first { $0.name == "jira_myself_issues" })
-        await #expect(throws: ToolError("Set your Atlassian site (https://your-team.atlassian.net) in Settings › Atlassian.")) { try await tool.run([:]) }
     }
 }
