@@ -9,7 +9,7 @@ board.
 | | |
 |---|---|
 | Plugin id | `jira-board` (folder `JiraBoard`) |
-| Version | 1.13.3 |
+| Version | 1.15.0 |
 | Minimum DashKit | 2.0.0 |
 | Layer | feature (provides `jira-board`) |
 | Requires | `atlassian` |
