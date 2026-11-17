@@ -45,6 +45,8 @@ final class PullRequestsFeature: DashExtension {
     @ObservationIgnored private var poller: Task<Void, Never>?
     @ObservationIgnored private var reviewer: Task<Void, Never>?
     @ObservationIgnored private var etags: [String: String] = [:]
+    /// The clock, for freshness (tests move it).
+    @ObservationIgnored var now: () -> Date = { .now }
     private let defaults: UserDefaults
 
     /// `defaults` is injectable for tests; the keys are the ones the built-in feature used.

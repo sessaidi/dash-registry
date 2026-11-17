@@ -2,7 +2,8 @@ import DashKit
 import Foundation
 import SwiftData
 
-/// What Dashii can do with pull requests: list, read, diff, re-review, open one.
+/// What Dashii can do with pull requests: list, read what Dash fetched (a PR, its diff, a
+/// branch's PRs), re-review, save a review in Dash. Opening a PR is the user's (approval, remote).
 extension PullRequestsFeature {
     private struct PRInput: Decodable { let repo: String; let number: Int }
     private struct ListInput: Decodable { let repo: String?; let filter: String? }
@@ -24,7 +25,7 @@ extension PullRequestsFeature {
         return [
             DashiiTool(
                 name: "github_list_prs",
-                description: "List open pull requests on the watched repositories, each with its latest Dashii review verdict and risk.",
+                description: "List open pull requests on the watched repositories (kept in sync by Dash), each with its latest Dashii review verdict and risk, and when they were synced.",
                 properties: [
                     "repo": JSONSchema.string("Optional owner/name filter."),
                     "filter": JSONSchema.string("Optional: review_requested (your review is requested), mine (you authored), or all.", enum: ["review_requested", "mine", "all"]),
@@ -33,6 +34,7 @@ extension PullRequestsFeature {
                 guard let self, let host else { return [] }
                 let request = try input.toolInput(ListInput.self)
                 let pulls = (try? host.context.fetch(FetchDescriptor<PullRequest>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))) ?? []
+                let syncedAt: JSONValue = lastSync.map { .string($0.formatted(.iso8601)) } ?? .null
                 return .array(pulls.filter { pr in
                     (request.repo == nil || pr.repo == request.repo)
                         && (request.filter != "review_requested" || pr.reviewRequested)
@@ -45,43 +47,15 @@ extension PullRequestsFeature {
                             "mine": .bool(pr.isMine), "review_requested": .bool(pr.reviewRequested),
                             "approvals": .number(Double(pr.approvals)), "changes_requested": .number(Double(pr.changesRequested)),
                             "branch": .string(pr.headRef),
-                            "dashii_review": review.map { ["status": .string($0.status), "verdict": .string($0.verdict), "risk": .string($0.risk)] } ?? .null]
+                            "dashii_review": review.map { ["status": .string($0.status), "verdict": .string($0.verdict), "risk": .string($0.risk)] } ?? .null,
+                            "synced_at": syncedAt]
                 })
             },
-            DashiiTool(
-                name: "github_get_pr",
-                description: "Fetch a pull request live: description, changed files, human reviews, recent comments, and the latest Dashii review with its findings.",
-                properties: prProperties, required: ["repo", "number"]
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(PRInput.self)
-                let client = try client
-                let pull = try await client.pull(request.repo, request.number)
-                let files = try await client.files(request.repo, request.number)
-                let reviews = try await client.reviews(request.repo, request.number)
-                let comments = try await client.comments(request.repo, request.number)
-                return [
-                    "title": pull["title"] ?? .null, "body": pull["body"] ?? .null, "author": pull["user"]?["login"] ?? .null,
-                    "state": pull["state"] ?? .null, "mergeable_state": pull["mergeable_state"] ?? .null,
-                    "head": pull["head"]?["ref"] ?? .null, "base": pull["base"]?["ref"] ?? .null,
-                    "files": .array(files.map { ["file": $0["filename"] ?? .null, "status": $0["status"] ?? .null, "additions": $0["additions"] ?? .null, "deletions": $0["deletions"] ?? .null] }),
-                    "reviews": .array(reviews.map { ["user": $0["user"]?["login"] ?? .null, "state": $0["state"] ?? .null, "body": $0["body"] ?? .null] }),
-                    "comments": .array(comments.suffix(20).map { ["user": $0["user"]?["login"] ?? .null, "body": $0["body"] ?? .null] }),
-                    "dashii_review": latestReview(PullRequest.uid(request.repo, request.number))?.json ?? .null,
-                ]
+            reader("pr", description: "A pull request as Dash fetched it (data_fetch github.pr): description, changed files, human reviews, recent comments, with synced_at and stale; plus the latest Dashii review with its findings, from Dash.") { feature, repo, number in
+                ["dashii_review": feature.latestReview(PullRequest.uid(repo, number))?.json ?? .null]
             },
-            DashiiTool(
-                name: "github_get_diff",
-                description: "Fetch a pull request's unified diff. Large diffs are cut at 200,000 characters and marked as truncated.",
-                properties: prProperties, required: ["repo", "number"]
-            ) { [weak self] input in
-                guard let self else { return nil }
-                let request = try input.toolInput(PRInput.self)
-                let diff = try await client.diff(request.repo, request.number)
-                return diff.count > 200_000
-                    ? ["truncated": true, "total_characters": .number(Double(diff.count)), "diff": .string(String(diff.prefix(200_000)))]
-                    : ["truncated": false, "diff": .string(diff)]
-            },
+            reader("pr_diff", description: "A pull request's unified diff as Dash fetched it (data_fetch github.pr_diff), with synced_at and stale. Large diffs are cut at 190,000 characters and marked as truncated."),
+            branchPullsReader,
             DashiiTool(
                 name: "github_rerun_review",
                 description: "Queue a fresh automatic Dashii review of a pull request's current head commit.",
@@ -137,5 +111,16 @@ extension PullRequestsFeature {
                 return ["url": pull["html_url"] ?? .null, "number": pull["number"] ?? .null]
             },
         ]
+    }
+
+    /// The reader of a fetched resource: same name and input as the old live tool.
+    private func reader(_ what: String, description: String,
+                        extra: @escaping @MainActor (PullRequestsFeature, String, Int) -> [String: JSONValue] = { _, _, _ in [:] }) -> DashiiTool {
+        let resource = resources.first { $0.what == what }!
+        return DashiiTool(name: resource.reader, description: description,
+                          properties: PullRequestResource.properties, required: PullRequestResource.required) { [weak self] input in
+            guard let self else { return nil }
+            return try read(resource, input) { extra(self, $0, $1) }
+        }
     }
 }
