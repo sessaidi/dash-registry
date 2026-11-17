@@ -30,6 +30,7 @@ struct JiraBoardFeatureTests {
     @Test func identityMatchesBuiltIn() {
         let feature = JiraBoardFeature(defaults: UserDefaults(suiteName: "jira-board-tests-\(UUID().uuidString)")!)
         #expect(feature.id == "jira-board" && feature.storagePrefix == "jira-board")
+        #expect(feature.metadata.version == "1.15.0" && feature.metadata.minimumDashKit == "2.0.0")
         #expect(feature.requires == ["atlassian"] && feature.layer == .feature)
         #expect(feature.widgets.map(\.kind) == ["jira.board"])
         #expect(feature.widgets.first?.sizeLimits == GridLimits(minW: 4, minH: 6, maxW: 12, maxH: 24))
