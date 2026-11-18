@@ -1,5 +1,6 @@
 - The release timeline reads tags per repository: dashql `from releases` (name, train, start, end, live, end_reason, builds, hotfix, tickets, new_commits) and `from builds`; or releases_list, release_detail, releases_containing, release_live_at.
+- Those tools answer from the timeline Dash last read, with synced_at and stale; they never sync by themselves. When one says "fetched": false (a GitHub or GitLab repository not read yet), or "stale": true and the question needs current data, call data_fetch releases.timeline with its "refresh" (the repo), then ask again.
 - Trains (e.g. EU, US, shared) are lanes; a release is live on its train until the next one replaces it. Name the train with every release.
 - A hotfix is a build cut off the default branch (a cherry-pick). For repositories read through GitHub or GitLab rather than a local checkout, cherry-picks are matched by commit subject and are approximate: say so.
-- Synced data refreshes on the repository's "check for changes" interval; when it may be stale, say when it was last synced.
+- Say how fresh the timeline is when it matters ("tags as of 10:04").
 - release_events_add records launches, incidents or milestones locally (it asks first); it never changes the repository.
