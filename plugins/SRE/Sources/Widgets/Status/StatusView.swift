@@ -13,6 +13,8 @@ struct StatusView: View {
     let family: WidgetLayout.Family
     /// Sends a prompt to Dashii: the whole status from the header, one item from its row.
     var ask: ((String) -> Void)?
+    /// Draws the report the way Dash draws notes (nil: inline Markdown, as in previews).
+    var markdown: ((String) -> AnyView)?
 
     var body: some View {
         Group {
@@ -26,6 +28,7 @@ struct StatusView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Each signal and finding can be asked about on its own (hover buttons, right-click).
         .environment(\.sreAsk, ask)
+        .environment(\.sreMarkdown, markdown)
         .widgetHeader {
             if let ask, snapshot.level != .ok {
                 Button { ask("Ask the on-call SRE (agent sre.oncall ask): \(snapshot.question)") } label: {
@@ -225,6 +228,8 @@ enum SREQuestion {
 extension EnvironmentValues {
     /// Sends a question about one item to Dashii (nil: no asking, as in previews).
     @Entry var sreAsk: ((String) -> Void)?
+    /// Draws the SRE's report as a Dash note (nil: inline Markdown, as in previews).
+    @Entry var sreMarkdown: ((String) -> AnyView)?
 }
 
 extension Signal {
@@ -359,7 +364,7 @@ private struct ReportPanel: View {
                 Spacer(minLength: 4)
                 RelativeTime(report.at).font(.caption).foregroundStyle(.secondary)
             }
-            Text(report.summary).font(.callout).lineLimit(summaryLines).fixedSize(horizontal: false, vertical: summaryLines == nil)
+            Text(ReportSheet.markdown(report.summary)).font(.callout).lineLimit(summaryLines).fixedSize(horizontal: false, vertical: summaryLines == nil)
             if showsFindings, !report.findings.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(report.findings, id: \.self) { finding in
@@ -375,12 +380,13 @@ private struct ReportPanel: View {
     }
 }
 
-/// The on-call SRE's report in full: the summary, then every finding with its evidence, target
-/// and suggestion.
+/// The on-call SRE's report in full, drawn as a Dash note: the summary, then every finding with
+/// its target, evidence and suggestion.
 struct ReportSheet: View {
     let report: StatusSnapshot.Report
     @Environment(\.dismiss) private var dismiss
     @Environment(\.sreAsk) private var ask
+    @Environment(\.sreMarkdown) private var markdown
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -391,26 +397,11 @@ struct ReportSheet: View {
                 Text(report.at.formatted(date: .abbreviated, time: .shortened)).font(.callout).foregroundStyle(.secondary)
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(Self.markdown(report.summary)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                    if !report.items.isEmpty {
-                        Text("Findings").font(.headline)
-                        ForEach(Array(report.items.enumerated()), id: \.offset) { _, finding in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Badge(finding.severity.rawValue, tone: finding.severity == .critical ? .danger : finding.severity == .warning ? .warning : .info)
-                                    Text(finding.title).font(.callout.weight(.semibold))
-                                }
-                                if !finding.target.isEmpty { Text(finding.target).font(.caption.monospaced()).foregroundStyle(.secondary) }
-                                if !finding.detail.isEmpty { Text(Self.markdown(finding.detail)).font(.callout).textSelection(.enabled) }
-                                if !finding.suggestion.isEmpty {
-                                    Label(finding.suggestion, systemImage: "arrow.turn.down.right").font(.callout).foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
-                        }
+                Group {
+                    if let markdown {
+                        markdown(report.markdown)
+                    } else {
+                        Text(Self.markdown(report.markdown)).textSelection(.enabled)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -39,3 +39,38 @@ struct StatusSnapshot: Sendable, Equatable {
         lastReport: Report(summary: "5xx on api started at 10:02 with v1.42 rolling out; the new pods crash-loop on a missing config key.",
                            at: .now.addingTimeInterval(-600), findings: ["Roll back api to v1.41", "Add FEATURE_FLAGS_URL to the api config map", "Checkout latency follows the api errors"], critical: true))
 }
+
+extension StatusSnapshot.Report {
+    /// The report in Dash's note syntax: the summary as a callout, then one callout per finding in
+    /// its severity's colour, with the target, the evidence and what to do.
+    var markdown: String {
+        var lines = ["> [!summary] Summary"] + Self.quoted(summary)
+        if !items.isEmpty { lines += ["", "## Findings"] }
+        for finding in items {
+            let title = finding.title.replacingOccurrences(of: "\n", with: " ")
+            lines += ["", "> [!\(Self.callout(finding.severity))] \(title)"]
+            if !finding.target.isEmpty { lines.append("> `\(finding.target.replacingOccurrences(of: "`", with: "'"))`") }
+            if !finding.detail.isEmpty { lines += [">"] + Self.quoted(finding.detail) }
+            let suggestion = finding.suggestion.trimmingCharacters(in: .whitespacesAndNewlines)
+            if suggestion.contains("\n") {
+                lines += [">", "> **What to do**", ">"] + Self.quoted(suggestion)
+            } else if !suggestion.isEmpty {
+                lines += [">", "> **What to do:** \(suggestion)"]
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func callout(_ severity: AgentFinding.Severity) -> String {
+        switch severity {
+        case .critical: "danger"
+        case .warning: "warning"
+        default: "note"
+        }
+    }
+
+    /// Every line inside the callout, blank ones included, so lists and code blocks stay in it.
+    private static func quoted(_ text: String) -> [String] {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n").map { $0.isEmpty ? ">" : "> \($0)" }
+    }
+}

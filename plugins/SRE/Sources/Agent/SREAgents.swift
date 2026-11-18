@@ -7,6 +7,15 @@ enum SREAgents {
 
     static var all: [AgentDefinition] { [oncall, review] }
 
+    /// Dash draws the report as a note: the summary and each finding become callouts, so their
+    /// text uses the note syntax inside them.
+    static let reportSyntax = """
+        Write the summary, details and suggestions in Dash's note syntax (Markdown): `code` for names, ids, \
+        namespaces and times; a short bullet list for the evidence, one fact per line; a fenced block for log lines; \
+        a table when comparing several pods or monitors; a numbered list for mitigations, safest first. \
+        No headings or callouts inside them (Dash adds those); the summary stays sentences, with inline `code` at most.
+        """
+
     static let oncall = AgentDefinition(
         id: "oncall", name: "On-call SRE", summary: "Investigates alerts, failing pods and \"is prod OK?\" questions with evidence; read-only.",
         systemImage: "stethoscope", role: "senior site reliability engineer",
@@ -25,7 +34,7 @@ enum SREAgents {
             order of safety (roll back, scale, restart, wait) with who should act. You never act yourself.
             Say plainly what you couldn't check (a source not connected, no data in the window). Never paste secrets.
             In the report: the summary is the answer (or the incident in two sentences); one finding per real problem, \
-            critical for S1/S2, warning for S3, info for notable but harmless.
+            critical for S1/S2, warning for S3, info for notable but harmless. \(reportSyntax)
             """,
         tools: ["sre_status", "sre_investigate", "sre_logs"], integrations: integrations,
         scope: "Observe and advise only; production changes are the user's.",
@@ -44,7 +53,7 @@ enum SREAgents {
             Review reliability over the last day: monitors that alert or flap, pods restarting or pending, recurring log \
             errors. Use sre_status, sre_logs and function_run (rank, logs.digest); when sre_logs returns a refresh, \
             data_fetch it and call sre_logs again. Report what deserves a ticket, ranked, \
-            with evidence; skip what is already known and harmless.
+            with evidence; skip what is already known and harmless. \(reportSyntax)
             """,
         tools: ["sre_status", "sre_logs"], integrations: integrations,
         scope: "Observe and advise only.",

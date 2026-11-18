@@ -1,3 +1,4 @@
+import DashKit
 import DashKitUI
 import SwiftUI
 import Testing
@@ -23,6 +24,36 @@ struct StatusLayoutTests {
     @Test func headlineCounts() {
         #expect(StatusSnapshot.sample.countLine == "3 critical · 3 warning")
         #expect(StatusSnapshot.sample.tone == .danger)
+    }
+}
+
+/// The report sheet draws a Dash note: callouts for the summary and each finding.
+struct ReportDocumentTests {
+    @Test func eachFindingIsACalloutInItsSeverityWithEverythingInside() {
+        let report = StatusSnapshot.Report(
+            summary: "billing-api is down in `bill-eu`.", at: .now, findings: [], critical: true,
+            items: [AgentFinding(severity: .critical, title: "api crash-loops", detail: "Evidence:\n\n- 14 restarts\n- `BackOff` since 10:02",
+                                 target: "deployment bill-eu/api", suggestion: "1. Roll back to v1.41\n2. Add the key"),
+                    AgentFinding(severity: .warning, title: "checkout slow", target: "", suggestion: "Wait for api."),
+                    AgentFinding(severity: .info, title: "a `flaky` monitor")])
+        let lines = report.markdown.components(separatedBy: "\n")
+        #expect(lines.prefix(2) == ["> [!summary] Summary", "> billing-api is down in `bill-eu`."])
+        #expect(lines.contains("## Findings"))
+        #expect(lines.contains("> [!danger] api crash-loops") && lines.contains("> [!warning] checkout slow") && lines.contains("> [!note] a `flaky` monitor"))
+        #expect(lines.contains("> `deployment bill-eu/api`"))
+        #expect(lines.contains("> - `BackOff` since 10:02") && lines.contains("> **What to do**") && lines.contains("> 2. Add the key"))
+        #expect(lines.contains("> **What to do:** Wait for api."))
+        // Between the callouts only blank lines and the heading: nothing escapes a callout.
+        #expect(lines.allSatisfy { $0.hasPrefix(">") || $0.isEmpty || $0 == "## Findings" })
+    }
+
+    @Test func aQuietReportIsTheSummaryAlone() {
+        let report = StatusSnapshot.Report(summary: "All clear.", at: .now, findings: [], critical: false)
+        #expect(report.markdown == "> [!summary] Summary\n> All clear.")
+    }
+
+    @Test func theAgentsWriteInNoteSyntax() {
+        #expect(SREAgents.all.allSatisfy { $0.instructions.contains("Dash's note syntax") })
     }
 }
 

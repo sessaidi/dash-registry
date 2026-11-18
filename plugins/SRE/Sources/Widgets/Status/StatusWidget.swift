@@ -21,7 +21,8 @@ struct StatusWidget: DashboardWidget {
     static func content(config: Binding<Config>, context: WidgetContext) -> some View {
         ProvidedWidget(StatusProvider(host: context.host), config: config.wrappedValue, loading: "Checking monitors and pods…") { snapshot, layout in
             // The header button asks about everything; a row or finding asks about itself.
-            StatusView(snapshot: snapshot, family: layout.family) { prompt in context.host.askDashii(prompt) }
+            StatusView(snapshot: snapshot, family: layout.family, ask: { prompt in context.host.askDashii(prompt) },
+                       markdown: { context.host.markdown($0) })
         }
     }
 
