@@ -6,6 +6,12 @@ answers with evidence.
 
 - **Investigates with evidence** from the plugins you have on: Datadog monitors, events and
   logs; Kubernetes pods, events and logs; Google Cloud Logging; recent releases.
+- **Reads what Dash fetched, never the services.** It uses the other plugins' datasets and
+  readers (`k8s_events`, `k8s_logs`, `datadog_events`, `datadog_logs_search`…), never a tool
+  that calls a service or changes something. When a source isn't in Dash yet or is stale,
+  `sre_investigate` and `sre_logs` say so and return a `refresh` (the `data_fetch` call that
+  brings it); the agent fetches and asks again. Until Google Cloud moves to fetch-then-read,
+  `sre_logs source=gcp` still goes through its live logs tool.
 - **Hands narrow jobs to smaller models** (Dashii functions): log patterns, ranking likely
   causes, severity. The lead model reads conclusions, not raw logs.
 - **Wakes up on its own** when a monitor alerts or a pod crash-loops (hook presets in
