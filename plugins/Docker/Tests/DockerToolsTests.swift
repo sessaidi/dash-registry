@@ -18,6 +18,11 @@ struct DockerToolsTests {
         ])
     }
 
+    @MainActor @Test func metadata() {
+        let docker = DockerIntegration()
+        #expect(docker.metadata.version == "1.7.0" && docker.metadata.minimumDashKit == "2.4.0")
+    }
+
     @Test func filtersAreEncodedJSON() throws {
         #expect(DockerIntegration.filtersQuery([:]) == nil)
         #expect(DockerIntegration.filtersQuery(["label": []]) == nil)
