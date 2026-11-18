@@ -1,8 +1,8 @@
 import DashKit
 import Foundation
 
-/// Cloud Logging reads: entries matching a filter, newest first. Used by the `gcp_logs_query`
-/// tool, which features (e.g. Workspaces) call instead of talking to Google themselves.
+/// Cloud Logging reads: entries matching a filter, newest first. The `gcp.logs` fetcher stores
+/// them; features (e.g. Workspaces) fetch and read them instead of talking to Google themselves.
 extension GCPIntegration {
     struct LogsInput: Decodable {
         let project: String
@@ -70,7 +70,7 @@ extension GCPIntegration {
         var request = URLRequest(url: URL(string: "https://logging.googleapis.com/v2/entries:list")!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let filter = Self.logFilter(input)
+        let filter = Self.logFilter(input, now: now())
         let body: JSONValue = ["resourceNames": .array([.string("projects/\(input.project)")]), "filter": .string(filter),
                                "orderBy": "timestamp desc", "pageSize": .number(Double(min(max(input.limit ?? 200, 1), 1000)))]
         request.httpBody = Data(body.jsonString().utf8)
@@ -81,29 +81,5 @@ extension GCPIntegration {
                 // The same request, to get the same entries yourself (raw), and the everyday command.
                 "command": .string("curl -s -X POST 'https://logging.googleapis.com/v2/entries:list' -H \"Authorization: Bearer $(gcloud auth application-default print-access-token)\" -H 'Content-Type: application/json' -d '\(bodyText.replacingOccurrences(of: "'", with: "'\\''"))'"),
                 "gcloud": .string("gcloud logging read '\(filter.replacingOccurrences(of: "'", with: "'\\''"))' --project \(input.project) --limit \(min(max(input.limit ?? 200, 1), 1000)) --order desc --format json")]
-    }
-
-    var loggingTool: DashiiTool {
-        DashiiTool(
-            name: "gcp_logs_query",
-            description: "Read Google Cloud Logging entries (newest first): Kubernetes container logs of a namespace/pod/container, or any filter (e.g. k8s_pod events, k8s_node logs for OOM kills and disk pressure). Read-only.",
-            properties: [
-                "project": JSONSchema.string("GCP project id, e.g. acme-dev."),
-                "filter": JSONSchema.string("Optional Cloud Logging filter, e.g. resource.type=\"k8s_node\" AND jsonPayload.MESSAGE:\"OOM\"."),
-                "namespace": JSONSchema.string("Kubernetes namespace (a workspace name)."),
-                "cluster": JSONSchema.string("GKE cluster name."),
-                "pod": JSONSchema.string("Pod name."),
-                "container": JSONSchema.string("Container name."),
-                "minSeverity": JSONSchema.string("Lowest severity.", enum: ["DEFAULT", "DEBUG", "INFO", "NOTICE", "WARNING", "ERROR", "CRITICAL"]),
-                "text": JSONSchema.string("Text the entry must contain."),
-                "since": JSONSchema.string("How far back: 30m, 1h, 6h, 24h, 7d, or an ISO-8601 time (default 1h)."),
-                "until": JSONSchema.string("End: ISO-8601 or relative like since."),
-                "limit": JSONSchema.integer("Max entries, 1-1000 (default 200)."),
-            ],
-            required: ["project"]
-        ) { [weak self] input in
-            guard let self else { throw ToolError("Google Cloud is unavailable.") }
-            return try await self.queryLogs(input.toolInput(LogsInput.self))
-        }
     }
 }
