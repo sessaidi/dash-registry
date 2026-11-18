@@ -17,5 +17,6 @@ struct DefaultRulesTests {
         let rules = extensions.compactMap(\.defaultRules).joined(separator: "\n")
         #expect(rules.contains("gitlab_merge_requests"))
         #expect(rules.contains("Nothing here writes to GitLab"))
+        #expect(rules.contains("data_fetch"))
     }
 }

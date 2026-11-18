@@ -1,5 +1,6 @@
-- Read GitLab: gitlab_merge_requests for the watched projects, gitlab_api_get (GET only) for the rest.
+- Read GitLab from Dash, not from GitLab: gitlab_merge_requests (watched projects, or scope= across the instance), gitlab_api_read (any GET endpoint), gitlab_tags and gitlab_range (release data) answer from what Dash fetched, with synced_at and stale.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. gitlab.merge_requests, or gitlab.api with the same path), then read again. Merge requests go stale in 5 minutes, tags in 10; a range between two commits never changes.
+- data_fetch gitlab.api takes a path after /api/v4 starting with / (e.g. /projects/group%2Fservice/pipelines?per_page=5); read it with gitlab_api_read and the same path.
 - Nothing here writes to GitLab: no notes, approvals, merges or pushes.
-- gitlab_sync_tags and gitlab_sync_compare fill Dash's local mirror for the release timeline; call them only when release data is missing or stale.
-- Cite projects as group/project and merge requests as !123 with their link.
+- Say how fresh an answer is ("merge requests as of 10:04"). Cite projects as group/project and merge requests as !123 with their link.
 - Never paste tokens.
