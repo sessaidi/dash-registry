@@ -44,19 +44,23 @@ extension StatusSnapshot.Report {
     /// The report in Dash's note syntax: the summary as a callout, then one callout per finding in
     /// its severity's colour, with the target, the evidence and what to do.
     var markdown: String {
-        var lines = ["> [!summary] Summary"] + Self.quoted(summary)
-        if !items.isEmpty { lines += ["", "## Findings"] }
-        for finding in items {
-            let title = finding.title.replacingOccurrences(of: "\n", with: " ")
-            lines += ["", "> [!\(Self.callout(finding.severity))] \(title)"]
-            if !finding.target.isEmpty { lines.append("> `\(finding.target.replacingOccurrences(of: "`", with: "'"))`") }
-            if !finding.detail.isEmpty { lines += [">"] + Self.quoted(finding.detail) }
-            let suggestion = finding.suggestion.trimmingCharacters(in: .whitespacesAndNewlines)
-            if suggestion.contains("\n") {
-                lines += [">", "> **What to do**", ">"] + Self.quoted(suggestion)
-            } else if !suggestion.isEmpty {
-                lines += [">", "> **What to do:** \(suggestion)"]
-            }
+        ([summaryMarkdown] + (items.isEmpty ? [] : [Self.findingsHeading] + items.map(Self.markdown(for:)))).joined(separator: "\n\n")
+    }
+
+    static let findingsHeading = "## Findings"
+
+    var summaryMarkdown: String { (["> [!summary] Summary"] + Self.quoted(summary)).joined(separator: "\n") }
+
+    /// One finding as a callout; the sheet draws each on its own, with buttons to ask about it.
+    static func markdown(for finding: AgentFinding) -> String {
+        var lines = ["> [!\(callout(finding.severity))] \(finding.title.replacingOccurrences(of: "\n", with: " "))"]
+        if !finding.target.isEmpty { lines.append("> `\(finding.target.replacingOccurrences(of: "`", with: "'"))`") }
+        if !finding.detail.isEmpty { lines += [">"] + quoted(finding.detail) }
+        let suggestion = finding.suggestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        if suggestion.contains("\n") {
+            lines += [">", "> **What to do**", ">"] + quoted(suggestion)
+        } else if !suggestion.isEmpty {
+            lines += [">", "> **What to do:** \(suggestion)"]
         }
         return lines.joined(separator: "\n")
     }

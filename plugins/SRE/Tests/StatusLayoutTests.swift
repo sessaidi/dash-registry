@@ -52,6 +52,20 @@ struct ReportDocumentTests {
         #expect(report.markdown == "> [!summary] Summary\n> All clear.")
     }
 
+    @Test func theWholeReportIsTheSummaryThenEachFinding() {
+        let finding = AgentFinding(severity: .warning, title: "checkout slow")
+        let report = StatusSnapshot.Report(summary: "One issue.", at: .now, findings: [], critical: false, items: [finding])
+        #expect(report.markdown == [report.summaryMarkdown, "## Findings", StatusSnapshot.Report.markdown(for: finding)].joined(separator: "\n\n"))
+    }
+
+    @MainActor
+    @Test func theSheetDrawsEveryFindingWithItsButtons() {
+        let report = StatusSnapshot.Report(summary: "One issue.", at: .now, findings: ["api crash-loops"], critical: true,
+                                           items: [AgentFinding(severity: .critical, title: "api crash-loops", detail: "- 14 restarts", suggestion: "Roll back.")])
+        let sheet = ReportSheet(report: report).environment(\.sreAsk) { _ in }.environment(\.sreMarkdown) { AnyView(Text($0)) }
+        #expect(ImageRenderer(content: sheet.frame(width: 680, height: 560)).nsImage != nil)
+    }
+
     @Test func theAgentsWriteInNoteSyntax() {
         #expect(SREAgents.all.allSatisfy { $0.instructions.contains("Dash's note syntax") })
     }
@@ -68,5 +82,15 @@ struct SignalQuestionTests {
         #expect(investigate.hasPrefix("Ask the on-call SRE (agent sre.oncall ask): investigate only this"))
         #expect(investigate.contains("bill-eu/api-7d9f8-x2k") && !investigate.contains("api 5xx rate"))
         #expect(SREQuestion.explain.prompt(about: monitor.subject).hasPrefix("Explain this to me in plain words"))
+    }
+
+    @Test func aFindingIsAskedAboutWithItsEvidenceAndTheUserFixesIt() {
+        let finding = AgentFinding(severity: .warning, title: "api never becomes Ready", detail: "Evicted every 2 minutes.",
+                                   target: "deployment bill-eu/api", suggestion: "Add anti-affinity.")
+        #expect(finding.subject == "the on-call SRE's warning finding “api never becomes Ready” on deployment bill-eu/api "
+            + "(evidence: Evicted every 2 minutes.; suggested: Add anti-affinity.)")
+        let fix = SREQuestion.fix.prompt(about: finding.subject)
+        #expect(fix.hasPrefix("Ask the on-call SRE (agent sre.oncall ask): only this") && fix.contains("You change nothing yourself"))
+        #expect(SREQuestion.allCases.map(\.shortLabel) == ["Explain", "Dig Deeper", "How to Fix"])
     }
 }

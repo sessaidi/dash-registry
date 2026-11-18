@@ -64,7 +64,7 @@ struct StatusNarrowView: View {
                             Text(signal.title).font(.callout).lineLimit(1).truncationMode(.tail)
                         }
                         .help(signal.detail)
-                        .modifier(SignalActions(signal: signal))
+                        .modifier(AskActions(subject: signal.subject, copyText: "\(signal.title) — \(signal.detail)"))
                     }
                 }
                 if snapshot.allSignals.count > 3 {
@@ -204,16 +204,18 @@ private struct SignalRow: View {
 
     var body: some View {
         ItemRow(signal.title, subtitle: signal.detail) { SignalIcon(level: signal.level) }
-            .modifier(SignalActions(signal: signal))
+            .modifier(AskActions(subject: signal.subject, copyText: "\(signal.title) — \(signal.detail)"))
     }
 }
 
 /// What asking about one item means.
-enum SREQuestion {
-    /// The on-call SRE agent investigates it: cause, evidence, what to do.
-    case investigate
+enum SREQuestion: CaseIterable {
     /// Dashii explains it in plain words.
     case explain
+    /// The on-call SRE agent investigates it: cause, evidence, what to do.
+    case investigate
+    /// The on-call SRE walks the user through fixing it; the user makes the change.
+    case fix
 
     func prompt(about subject: String) -> String {
         switch self {
@@ -221,6 +223,42 @@ enum SREQuestion {
             "Ask the on-call SRE (agent sre.oncall ask): investigate only this, not the rest of the status: \(subject). Why is it failing, since when, what changed (deploys, config, dependencies), and what should I do?"
         case .explain:
             "Explain this to me in plain words, on its own: \(subject). What does it mean, what usually causes it, and how bad is it? Look at its details (logs, events, monitor) if you can."
+        case .fix:
+            "Ask the on-call SRE (agent sre.oncall ask): only this, not the rest of the status: \(subject). How do I fix it, step by step: the exact change or commands for me to run, how to check it worked, the risk, and who should do it. You change nothing yourself."
+        }
+    }
+
+    /// The menu item.
+    var label: String {
+        switch self {
+        case .explain: "Explain This"
+        case .investigate: "Ask the SRE to Investigate"
+        case .fix: "How Do I Fix It?"
+        }
+    }
+
+    /// The button under a finding in the report sheet.
+    var shortLabel: String {
+        switch self {
+        case .explain: "Explain"
+        case .investigate: "Dig Deeper"
+        case .fix: "How to Fix"
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .explain: "Explain this"
+        case .investigate: "Ask the SRE to investigate this"
+        case .fix: "Ask the SRE how to fix this"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .explain: "questionmark.bubble"
+        case .investigate: "stethoscope"
+        case .fix: "wrench.and.screwdriver"
         }
     }
 }
@@ -240,9 +278,25 @@ extension Signal {
     }
 }
 
-/// Hover buttons and a right-click menu that ask about one signal.
-private struct SignalActions: ViewModifier {
-    let signal: Signal
+extension AgentFinding {
+    /// The finding as the SRE and Dashii should read it: the report isn't in their context.
+    var subject: String {
+        func flat(_ text: String, _ limit: Int) -> String {
+            String(text.split(whereSeparator: \.isNewline).joined(separator: " ").prefix(limit))
+        }
+        var text = "the on-call SRE's \(severity.rawValue) finding “\(title)”"
+        if !target.isEmpty { text += " on \(target)" }
+        let notes = [detail.isEmpty ? nil : "evidence: " + flat(detail, 1500), suggestion.isEmpty ? nil : "suggested: " + flat(suggestion, 600)].compactMap { $0 }
+        if !notes.isEmpty { text += " (\(notes.joined(separator: "; ")))" }
+        return text
+    }
+}
+
+/// Hover buttons and a right-click menu that ask about one item (a signal, a finding).
+private struct AskActions: ViewModifier {
+    let subject: String
+    /// What Copy puts on the pasteboard.
+    let copyText: String
     @Environment(\.sreAsk) private var ask
     @State private var hovering = false
 
@@ -252,10 +306,10 @@ private struct SignalActions: ViewModifier {
                 .overlay(alignment: .trailing) {
                     if hovering {
                         HStack(spacing: 2) {
-                            Button { ask(SREQuestion.explain.prompt(about: signal.subject)) } label: { Image(systemName: "questionmark.bubble") }
-                                .help("Explain this")
-                            Button { ask(SREQuestion.investigate.prompt(about: signal.subject)) } label: { Image(systemName: "stethoscope") }
-                                .help("Ask the SRE to investigate this")
+                            ForEach(SREQuestion.allCases, id: \.self) { question in
+                                Button { ask(question.prompt(about: subject)) } label: { Image(systemName: question.systemImage) }
+                                    .help(question.help)
+                            }
                         }
                         .buttonStyle(.borderless)
                         .padding(.horizontal, 6).padding(.vertical, 3)
@@ -264,12 +318,13 @@ private struct SignalActions: ViewModifier {
                 }
                 .onHover { hovering = $0 }
                 .contextMenu {
-                    Button("Explain This", systemImage: "questionmark.bubble") { ask(SREQuestion.explain.prompt(about: signal.subject)) }
-                    Button("Ask the SRE to Investigate", systemImage: "stethoscope") { ask(SREQuestion.investigate.prompt(about: signal.subject)) }
+                    ForEach(SREQuestion.allCases, id: \.self) { question in
+                        Button(question.label, systemImage: question.systemImage) { ask(question.prompt(about: subject)) }
+                    }
                     Divider()
                     Button("Copy", systemImage: "doc.on.doc") {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("\(signal.title) — \(signal.detail)", forType: .string)
+                        NSPasteboard.general.setString(copyText, forType: .string)
                     }
                 }
         } else {
@@ -367,9 +422,17 @@ private struct ReportPanel: View {
             Text(ReportSheet.markdown(report.summary)).font(.callout).lineLimit(summaryLines).fixedSize(horizontal: false, vertical: summaryLines == nil)
             if showsFindings, !report.findings.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(report.findings, id: \.self) { finding in
-                        Label(finding, systemImage: "arrow.turn.down.right").font(.caption).lineLimit(2)
-                            .modifier(FindingActions(finding: finding))
+                    if report.items.isEmpty {
+                        ForEach(report.findings, id: \.self) { title in
+                            Label(title, systemImage: "arrow.turn.down.right").font(.caption).lineLimit(2)
+                                .modifier(AskActions(subject: "the on-call SRE's finding “\(title)”", copyText: title))
+                        }
+                    } else {
+                        ForEach(Array(report.items.prefix(3).enumerated()), id: \.offset) { _, finding in
+                            Label(finding.title, systemImage: "arrow.turn.down.right").font(.caption).lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .modifier(AskActions(subject: finding.subject, copyText: StatusSnapshot.Report.markdown(for: finding)))
+                        }
                     }
                 }
             }
@@ -397,11 +460,26 @@ struct ReportSheet: View {
                 Text(report.at.formatted(date: .abbreviated, time: .shortened)).font(.callout).foregroundStyle(.secondary)
             }
             ScrollView {
-                Group {
-                    if let markdown {
-                        markdown(report.markdown)
-                    } else {
-                        Text(Self.markdown(report.markdown)).textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 12) {
+                    note(report.summaryMarkdown)
+                    if !report.items.isEmpty { note(StatusSnapshot.Report.findingsHeading) }
+                    ForEach(Array(report.items.enumerated()), id: \.offset) { _, finding in
+                        VStack(alignment: .leading, spacing: 6) {
+                            note(StatusSnapshot.Report.markdown(for: finding))
+                            if let ask {
+                                HStack(spacing: 8) {
+                                    ForEach(SREQuestion.allCases, id: \.self) { question in
+                                        Button(question.shortLabel, systemImage: question.systemImage) {
+                                            ask(question.prompt(about: finding.subject))
+                                            dismiss()
+                                        }
+                                        .help(question.help)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -421,27 +499,16 @@ struct ReportSheet: View {
         .frame(minWidth: 560, idealWidth: 680, minHeight: 420, idealHeight: 560)
     }
 
+    @ViewBuilder private func note(_ text: String) -> some View {
+        if let markdown {
+            markdown(text)
+        } else {
+            Text(Self.markdown(text)).textSelection(.enabled)
+        }
+    }
+
     static func markdown(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
-    }
-}
-
-/// A right-click menu on one finding of the SRE's report.
-private struct FindingActions: ViewModifier {
-    let finding: String
-    @Environment(\.sreAsk) private var ask
-
-    func body(content: Content) -> some View {
-        if let ask {
-            content.contextMenu {
-                Button("Explain This", systemImage: "questionmark.bubble") { ask(SREQuestion.explain.prompt(about: "the SRE's finding “\(finding)”")) }
-                Button("Ask the SRE for More", systemImage: "stethoscope") {
-                    ask("Ask the on-call SRE (agent sre.oncall ask): about your finding “\(finding)” only: the evidence, and exactly what to do.")
-                }
-            }
-        } else {
-            content
-        }
     }
 }
 
