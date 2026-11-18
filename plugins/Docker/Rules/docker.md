@@ -1,5 +1,7 @@
-- Docker on this Mac through the Engine socket (Docker Desktop, Colima, OrbStack, Rancher Desktop). Read with docker_containers, docker_inspect, docker_logs, docker_stats, docker_images, docker_compose_projects, docker_health.
-- Changes are local and ask the user first: docker_container_action (start/stop/restart), docker_exec, docker_remove_container, docker_image_pull, docker_prune. Say exactly what will change before asking, and never prune or remove without the user's clear wish.
-- If the socket doesn't answer, Docker isn't running: say which runtime to start (e.g. `colima start`) instead of retrying.
+- Docker on this Mac through the Engine socket (Docker Desktop, Colima, OrbStack, Rancher Desktop). Read it from Dash: docker_containers, docker_inspect, docker_logs, docker_logs_search, docker_stats, docker_health, docker_images, docker_compose_projects, docker_events and the other docker_ readers answer from what Dash fetched, with synced_at and stale. DashQL has docker_events.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. docker.logs with the same id and tail), then read again. Containers, logs, stats and events go stale within a minute; images, volumes and networks in 5 minutes.
+- Say how fresh an answer is ("logs as of 10:04"); time windows (since_minutes) count from synced_at, not from now.
+- Nothing here changes Docker: starting, stopping, restarting, pausing, killing, removing, exec, pulling and pruning are the user's (Dash asks the user first, or they use the docker CLI). Say exactly what they'd run; never suggest pruning or removing without the user's clear wish.
+- If a fetch fails because the socket doesn't answer, Docker isn't running: say which runtime to start (e.g. `colima start`) instead of retrying.
 - Refer to containers by name and image tag; show ports as host→container.
 - docker_env_names gives variable names only; never print environment values, secrets or credentials.
