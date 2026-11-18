@@ -16,9 +16,9 @@ final class DailyStandupFeature: DashExtension {
     let name = "Daily Standup"
     let systemImage = "person.3.sequence"
     let metadata = ExtensionMetadata(
-        version: "1.0.0", author: .dash,
+        version: "1.8.0", author: .dash,
         summary: "Your daily update from commits, PRs, tickets and agents; blockers tracked day to day; Zoom standups followed and reported.",
-        category: .productivity, tags: ["standup", "daily", "zoom"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.0.0")
+        category: .productivity, tags: ["standup", "daily", "zoom"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
     /// Zoom for the meeting days; the rest (PRs, Jira, Agents, Workspaces, Notes, Knowledge) is used when installed.
     let requires = ["zoom"]
     let optional = ["pull-requests", "jira-board", "agents", "workspaces"]

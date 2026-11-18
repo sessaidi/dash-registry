@@ -36,6 +36,11 @@ struct StandupOfflineTests {
         return (standup, service, host)
     }
 
+    @Test func metadata() {
+        let metadata = DailyStandupFeature(defaults: UserDefaults(suiteName: "standup-\(UUID().uuidString)")!).metadata
+        #expect(metadata.version == "1.8.0" && metadata.minimumDashKit == "2.4.0")
+    }
+
     @Test func onlyToolsDashiiMayRun() async throws {
         let (standup, service, host) = try make()
         defer { _ = host }
