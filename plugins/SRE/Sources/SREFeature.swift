@@ -11,7 +11,7 @@ final class SREFeature: DashExtension {
     let name = "SRE"
     let systemImage = "stethoscope"
     let metadata = ExtensionMetadata(
-        version: "1.3.2", summary: "A senior on-call SRE: watches monitors and pods, investigates with evidence, reports likely causes and next steps. Read-only.",
+        version: "1.3.3", summary: "A senior on-call SRE: watches monitors and pods, investigates with evidence, reports likely causes and next steps. Read-only.",
         category: .monitoring, tags: ["sre", "on-call", "incident"], homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
     let layer = ExtensionLayer.feature
     /// Each one adds evidence when present; none is required.
