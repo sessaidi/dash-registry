@@ -239,6 +239,7 @@ struct FeatureTests {
 
         let list = try #require(try await host.runTool("releases_list", ["train": "eu"])?.array?.first)
         #expect(list["releases"]?.array?.map { $0["release"]?.string } == ["release-2026W05-01-eu", "release-2026W04-01-eu"])
+        #expect(list["stale"] == false && list["refresh"] == ["fetcher": "releases.timeline", "input": ["repo": .string(repo.url.lastPathComponent)]])
         #expect(list["releases"]?.array?.last?["hotfix"] == .bool(true))
         let since = try await host.runTool("releases_list", ["since": "2026-02-05"])?.array?.first?["releases"]?.array
         #expect(since?.count == 2)
@@ -277,6 +278,7 @@ struct FeatureTests {
 
     @Test func remoteRepositoryReadsTheIntegrationMirror() async throws {
         let github = FakeGitHub()
+        github.offersFetchers = false
         let feature = makeFeature()
         feature.now = { TempRepo.day(40) }
         let host = try TestHost([github, feature])
@@ -306,6 +308,46 @@ struct FeatureTests {
         var orphan = RepositoryConfig(name: "web", path: "")
         orphan.source = "gitlab:acme/web"
         await #expect(throws: ToolError.self) { try await feature.syncedSource(orphan) }
+    }
+
+    @Test func remoteRepositoriesSyncThroughTheIntegrationsFetchers() async throws {
+        let github = FakeGitHub()
+        let feature = makeFeature()
+        feature.now = { TempRepo.day(40) }
+        let host = try TestHost([github, feature])
+        github.hostStore = host.synced
+        feature.start(host: host)
+        feature.stop()
+        var repository = RepositoryConfig(name: "api", path: "")
+        repository.source = "github:acme/api"
+        feature.repositories = [repository]
+
+        // Not read yet: the tools say what to fetch and sync nothing.
+        let list = try #require(try await host.runTool("releases_list")?.array?.first)
+        #expect(list["fetched"] == false && list["repo"] == "api" && list["refresh"] == ["fetcher": "releases.timeline", "input": ["repo": "api"]])
+        #expect(try await host.runTool("release_detail", ["tag": "release-2026W03-01.01"])?["fetched"] == false)
+        #expect(try await host.runTool("release_live_at", ["date": "2026-01-21"])?.array?.first?["fetched"] == false)
+        #expect(try await host.runTool("releases_containing", ["text": "KAN-10"])?.array?.first?["fetched"] == false)
+        #expect(github.calls.isEmpty)
+        #expect(await NetworkSentinel.requests(running: feature.tools, values: ["repo": "api", "tag": "x", "date": "2026-01-21", "text": "KAN-10"]) == [])
+        #expect(github.calls.isEmpty)
+
+        // data_fetch releases.timeline syncs through github.tags and github.range, then the tools read it.
+        let receipt = try await host.fetch("releases.timeline", ["repo": "api"])
+        #expect(receipt["stored"] == 1 && receipt["keys"] == ["releases/api"] && receipt["read_with"] == #"releases_list {"repo":"api"}"#)
+        #expect(github.calls.contains("github.tags") && github.calls.contains("github.range") && !github.calls.contains("github_sync_tags"))
+        let loaded = try #require(try await host.runTool("releases_list")?.array?.first)
+        #expect(loaded["releases"]?.array?.count == 3 && loaded["stale"] == false && loaded["synced_at"] != nil)
+        let detail = try #require(try await host.runTool("release_detail", ["tag": "release-2026W04-01.01"]))
+        #expect(detail["release"] == "release-2026W04-01" && detail["refresh"]?["fetcher"] == "releases.timeline")
+
+        // Past the refresh interval it says stale, and still syncs nothing by itself.
+        let calls = github.calls.count
+        feature.now = { TempRepo.day(40).addingTimeInterval(12 * 60) }
+        #expect(try await host.runTool("releases_list")?.array?.first?["stale"] == true)
+        #expect(github.calls.count == calls)
+        #expect(try await host.fetch("releases.timeline")["unchanged"] == 1)
+        await #expect(throws: ToolError.self) { try await host.fetch("releases.timeline", ["repo": "other"]) }
     }
 
     @Test func searchesParseDates() {
@@ -437,7 +479,8 @@ func renderWidget() async throws {
     try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])).write(to: folder.appending(path: "releases-detail.png"))
 }
 
-/// A GitHub integration whose sync tools write a canned repository into the host's mirror.
+/// A GitHub integration whose fetchers (or, with `offersFetchers` off, sync tools as before
+/// DashKit 2.4) write a canned repository into the host's mirror.
 @MainActor
 final class FakeGitHub: Integration {
     let id = "github"
@@ -447,37 +490,59 @@ final class FakeGitHub: Integration {
     var connection: IntegrationConnection? { nil }
     var exports: JSONValue { ["repos": ["acme/api"], "webURL": "https://github.com"] }
     private(set) var calls: [String] = []
+    var offersFetchers = true
 
     func settingsView() -> AnyView { AnyView(EmptyView()) }
     func start(host: any ExtensionContext) {}
 
     static func iso(_ day: Double) -> JSONValue { .string(TempRepo.day(day).formatted(.iso8601)) }
 
+    private func writeTags(_ call: String) {
+        guard let store = hostStore else { return }
+        calls.append(call)
+        let scope = "github:acme/api"
+        store.replace(kind: "git.tag", scope: scope, with: [("release-2026W02-01.01", "c1", 0.0), ("release-2026W03-01.01", "c2", 7), ("release-2026W04-01.01", "c3", 14)].map { tag in
+            SyncedRecord(kind: "git.tag", scope: scope, key: tag.0,
+                         value: ["commit": .string(tag.1), "date": Self.iso(tag.2), "subject": "", "on_base": true], source: "github")
+        })
+        store.replace(kind: "git.repo", scope: scope, with: [SyncedRecord(kind: "git.repo", scope: scope, key: "info", value: ["default_branch": "main"], source: "github")])
+    }
+
+    private func writeRange(_ call: String, _ input: JSONValue) -> JSONValue {
+        calls.append(call)
+        let base = input["base"]?.string ?? "", head = input["head"]?.string ?? ""
+        let commits: JSONValue = switch (base, head) {
+        case ("c1", "c2"): [["sha": "x2", "author": "Ann", "date": Self.iso(6), "subject": "KAN-10: second"]]
+        case ("c2", "c3"): [["sha": "x3", "author": "Ann", "date": Self.iso(12), "subject": "KAN-10: second"],
+                            ["sha": "x4", "author": "Bob", "date": Self.iso(13), "subject": "PPT-5: third"]]
+        default: []
+        }
+        hostStore?.upsert([SyncedRecord(kind: "git.range", scope: "github:acme/api", key: base + "..." + head, value: commits, source: "github")])
+        return commits
+    }
+
+    var fetchers: [DataFetcher] {
+        guard offersFetchers else { return [] }
+        return [
+            DataFetcher(name: "github.tags", summary: "") { [weak self] _ in
+                self?.writeTags("github.tags")
+                return ["stored": 3]
+            },
+            DataFetcher(name: "github.range", summary: "") { [weak self] input in
+                _ = self?.writeRange("github.range", input)
+                return ["stored": 1]
+            },
+        ]
+    }
+
     var tools: [DashiiTool] {
         [
-            DashiiTool(name: "github_sync_tags", description: "") { [weak self] _ in
-                guard let self, let store = self.hostStore else { return nil }
-                calls.append("github_sync_tags")
-                let scope = "github:acme/api"
-                store.replace(kind: "git.tag", scope: scope, with: [("release-2026W02-01.01", "c1", 0.0), ("release-2026W03-01.01", "c2", 7), ("release-2026W04-01.01", "c3", 14)].map { tag in
-                    SyncedRecord(kind: "git.tag", scope: scope, key: tag.0,
-                                 value: ["commit": .string(tag.1), "date": Self.iso(tag.2), "subject": "", "on_base": true], source: "github")
-                })
-                store.replace(kind: "git.repo", scope: scope, with: [SyncedRecord(kind: "git.repo", scope: scope, key: "info", value: ["default_branch": "main"], source: "github")])
+            DashiiTool(name: "github_sync_tags", description: "", callsService: true) { [weak self] _ in
+                self?.writeTags("github_sync_tags")
                 return ["tags": 3]
             },
-            DashiiTool(name: "github_sync_compare", description: "") { [weak self] input in
-                guard let self, let store = self.hostStore else { return nil }
-                calls.append("github_sync_compare")
-                let base = input["base"]?.string ?? "", head = input["head"]?.string ?? ""
-                let commits: JSONValue = switch (base, head) {
-                case ("c1", "c2"): [["sha": "x2", "author": "Ann", "date": Self.iso(6), "subject": "KAN-10: second"]]
-                case ("c2", "c3"): [["sha": "x3", "author": "Ann", "date": Self.iso(12), "subject": "KAN-10: second"],
-                                    ["sha": "x4", "author": "Bob", "date": Self.iso(13), "subject": "PPT-5: third"]]
-                default: []
-                }
-                store.upsert([SyncedRecord(kind: "git.range", scope: "github:acme/api", key: base + "..." + head, value: commits, source: "github")])
-                return commits
+            DashiiTool(name: "github_sync_compare", description: "", callsService: true) { [weak self] input in
+                self?.writeRange("github_sync_compare", input) ?? []
             },
         ]
     }

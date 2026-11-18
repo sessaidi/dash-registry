@@ -21,7 +21,7 @@ final class ReleasesFeature: DashExtension {
 
     /// How often the poller looks for repositories due a refresh (each has its own interval).
     static let tick: Duration = .seconds(60)
-    /// A cached timeline younger than this answers tools without asking git again.
+    /// A local checkout's timeline younger than this answers tools without asking git again.
     static let freshness: TimeInterval = 120
 
     /// Configured in Settings › Releases; starts empty.
@@ -143,12 +143,45 @@ final class ReleasesFeature: DashExtension {
         }
     }
 
-    /// A timeline fresh enough to answer from, loading it if needed.
-    func timeline(_ repository: RepositoryConfig) async throws -> RepositoryTimeline {
+    /// What the tools read: the loaded timeline whatever its age. A local checkout is read again
+    /// with git when older than `freshness`; a remote repository's timeline is only built by the
+    /// poller, Refresh or `data_fetch releases.timeline` (nil until then), never synced here.
+    func storedTimeline(_ repository: RepositoryConfig) async throws -> RepositoryTimeline? {
+        if repository.isRemote { return timelines[repository.id] }
         if let cached = timelines[repository.id], now().timeIntervalSince(cached.loadedAt) < Self.freshness { return cached }
         await reload(repository)
         if let timeline = timelines[repository.id] { return timeline }
         throw ToolError(errors[repository.id] ?? "Couldn't read \(repository.name).")
+    }
+
+    /// How fresh a timeline is: stale once the poller should have read it again.
+    func freshness(_ repository: RepositoryConfig, _ timeline: RepositoryTimeline) -> Freshness {
+        Freshness(syncedAt: timeline.loadedAt, maxAge: .seconds(repository.refreshInterval) + Self.tick,
+                  refresh: ["fetcher": "releases.timeline", "input": ["repo": .string(repository.name)]], now: now())
+    }
+
+    /// Reads repositories again (synced from GitHub or GitLab first for remote ones): the fetcher
+    /// Dashii and agents call when a timeline is missing or stale.
+    var fetchers: [DataFetcher] {
+        [DataFetcher(name: "releases.timeline",
+                     summary: "Reads a repository's release timeline again: its tags and the commits between them, with git in the checkout or synced from GitHub or GitLab. Read it with releases_list, release_detail, release_live_at or releases_containing.",
+                     properties: ["repo": JSONSchema.string("Repository name (omit for every configured one).")]) { [weak self] input in
+            guard let self else { return nil }
+            var changed = 0
+            var keys: [String] = []
+            let targets = try repositories(input["repo"]?.string)
+            for repository in targets {
+                let before = timelines[repository.id]?.releases.flatMap(\.builds).map(\.tag)
+                await reload(repository, force: true)
+                if let error = errors[repository.id] { throw ToolError("\(repository.name): \(error)") }
+                if timelines[repository.id]?.releases.flatMap(\.builds).map(\.tag) != before { changed += 1 }
+                keys.append("releases/" + repository.name)
+            }
+            lastRefresh = now()
+            let readWith: JSONValue = input["repo"].map { ["repo": $0] } ?? [:]
+            return ["stored": .number(Double(changed)), "unchanged": .number(Double(targets.count - changed)), "keys": .array(keys.map(JSONValue.string)),
+                    "synced_at": .string(now().formatted(.iso8601)), "read_with": .string("releases_list " + readWith.jsonString())]
+        }]
     }
 
     /// Repositories a tool asks about: one by name, path or id, or every one when nil.
@@ -212,15 +245,22 @@ final class ReleasesFeature: DashExtension {
 
     // MARK: Mirror
 
-    /// The integration's tool, e.g. github_sync_tags.
-    private func syncTool(_ service: String, _ name: String) throws -> DashiiTool {
-        guard let integration = host?.integration(service) else {
-            throw ToolError("Install and connect the \(service == "gitlab" ? "GitLab" : "GitHub") integration to read this repository.")
-        }
+    /// The integration's tool, e.g. github_sync_tags (integrations older than DashKit 2.4).
+    private func syncTool(_ integration: any Integration, _ service: String, _ name: String) throws -> DashiiTool {
         guard let tool = integration.tools.first(where: { $0.name == "\(service)_\(name)" }) else {
             throw ToolError("Update the \(integration.name) integration: it can't sync release data yet.")
         }
         return tool
+    }
+
+    /// Asks the integration to mirror something: its fetcher (e.g. github.tags), or its sync tool
+    /// when it predates fetchers.
+    private func mirror(_ service: String, _ what: String, tool: String, _ input: JSONValue) async throws -> JSONValue {
+        guard let host, let integration = host.integration(service) else {
+            throw ToolError("Install and connect the \(service == "gitlab" ? "GitLab" : "GitHub") integration to read this repository.")
+        }
+        if host.fetchers.contains(where: { $0.name == "\(service).\(what)" }) { return try await host.fetch("\(service).\(what)", input) }
+        return try await syncTool(integration, service, tool).run(input)
     }
 
     /// Tags from the mirror, synced through the integration first when they're missing, older than
@@ -230,7 +270,7 @@ final class ReleasesFeature: DashExtension {
         let scope = repository.source ?? ""
         let synced = host.synced.lastSynced(kind: SyncedReleaseSource.tagKind, scope: scope)
         if force || synced == nil || now().timeIntervalSince(synced ?? .distantPast) >= repository.refreshInterval - 5 {
-            _ = try await syncTool(service, "sync_tags").run(["repo": .string(slug)])
+            _ = try await mirror(service, "tags", tool: "sync_tags", ["repo": .string(slug)])
         }
         let (tags, onBase) = SyncedReleaseSource.tags(host.synced.records(kind: SyncedReleaseSource.tagKind, scope: scope))
         let defaultBranch = host.synced.record(kind: SyncedReleaseSource.repoKind, scope: scope, key: "info")?.value["default_branch"]?.string ?? "main"
@@ -242,11 +282,13 @@ final class ReleasesFeature: DashExtension {
 
     /// Commits between two commits, from the mirror or fetched once through the integration.
     private func syncedRange(service: String, slug: String, scope: String, base: String, head: String) async throws -> [ReleaseCommit] {
-        if let cached = host?.synced.record(kind: SyncedReleaseSource.rangeKind, scope: scope, key: base + "..." + head) {
+        let key = base + "..." + head
+        if let cached = host?.synced.record(kind: SyncedReleaseSource.rangeKind, scope: scope, key: key) {
             return SyncedReleaseSource.commits(cached.value)
         }
-        let value = try await syncTool(service, "sync_compare").run(["repo": .string(slug), "base": .string(base), "head": .string(head)])
-        return SyncedReleaseSource.commits(value)
+        let answer = try await mirror(service, "range", tool: "sync_compare", ["repo": .string(slug), "base": .string(base), "head": .string(head)])
+        // A fetcher answers with a receipt; the commits are in the mirror.
+        return SyncedReleaseSource.commits(host?.synced.record(kind: SyncedReleaseSource.rangeKind, scope: scope, key: key)?.value ?? answer)
     }
 
     // MARK: Storage

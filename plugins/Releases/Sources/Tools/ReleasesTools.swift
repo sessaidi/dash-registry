@@ -2,7 +2,8 @@ import DashKit
 import Foundation
 
 /// Releases for Dashii: list releases, one release's detail, what was live when, which release
-/// shipped a change, and events for the timeline's events lane.
+/// shipped a change (from the timelines Dash read, with their freshness), and events for the
+/// timeline's events lane.
 extension ReleasesFeature {
     private struct ListInput: Decodable { let repo: String?; let train: String?; let since: String? }
     private struct TagInput: Decodable { let tag: String; let repo: String? }
@@ -25,14 +26,15 @@ extension ReleasesFeature {
                 let since = try input.since.map { try self.date($0) }
                 var out: [JSONValue] = []
                 for repository in try repositories(input.repo) {
-                    let timeline = try await timeline(repository)
+                    guard let timeline = try await storedTimeline(repository) else { out.append(notLoaded(repository)); continue }
                     let train = input.train.map { $0.lowercased() == "shared" ? "" : $0.lowercased() }
                     let releases = timeline.releases.filter { release in
                         (train == nil || release.train == train) && (since.map { release.end >= $0 } ?? true)
                     }
-                    out.append(["repo": .string(repository.name), "base_branch": .string(timeline.baseBranch),
-                                "trains": .array(timeline.trains.map { .string(timeline.trainTitle($0)) }),
-                                "releases": .array(releases.reversed().prefix(200).map { Self.summary($0, timeline) })])
+                    let entry: JSONValue = ["repo": .string(repository.name), "base_branch": .string(timeline.baseBranch),
+                                            "trains": .array(timeline.trains.map { .string(timeline.trainTitle($0)) }),
+                                            "releases": .array(releases.reversed().prefix(200).map { Self.summary($0, timeline) })]
+                    out.append(entry.merging(freshness(repository, timeline).json))
                 }
                 return .array(out)
             },
@@ -43,10 +45,12 @@ extension ReleasesFeature {
                 required: ["tag"]) { [weak self] input in
                 guard let self else { return .null }
                 let input = try input.toolInput(TagInput.self)
+                var unloaded: [RepositoryConfig] = []
                 for repository in try repositories(input.repo) {
-                    let timeline = try await timeline(repository)
-                    if let release = timeline.release(named: input.tag) { return Self.detail(release, timeline) }
+                    guard let timeline = try await storedTimeline(repository) else { unloaded.append(repository); continue }
+                    if let release = timeline.release(named: input.tag) { return Self.detail(release, timeline).merging(freshness(repository, timeline).json) }
                 }
+                if let repository = unloaded.first { return notLoaded(repository) }
                 throw ToolError("No release tag \(input.tag).")
             },
             DashiiTool(
@@ -60,13 +64,14 @@ extension ReleasesFeature {
                 let date = try self.date(input.date)
                 var out: [JSONValue] = []
                 for repository in try repositories(input.repo) {
-                    let timeline = try await timeline(repository)
-                    out.append(["repo": .string(repository.name), "at": .string(date.formatted(.iso8601)),
-                                "live": .array(timeline.liveAt(date).map { live in
-                                    ["train": .string(timeline.trainTitle(live.train)), "tag": .string(live.build.tag),
-                                     "tagged": .string(live.build.date.formatted(.iso8601)), "release": .string(live.release.name),
-                                     "hotfix": .bool(!live.build.onBase)]
-                                })])
+                    guard let timeline = try await storedTimeline(repository) else { out.append(notLoaded(repository)); continue }
+                    let live: [JSONValue] = timeline.liveAt(date).map { live in
+                        ["train": .string(timeline.trainTitle(live.train)), "tag": .string(live.build.tag),
+                         "tagged": .string(live.build.date.formatted(.iso8601)), "release": .string(live.release.name),
+                         "hotfix": .bool(!live.build.onBase)]
+                    }
+                    let entry: JSONValue = ["repo": .string(repository.name), "at": .string(date.formatted(.iso8601)), "live": .array(live)]
+                    out.append(entry.merging(freshness(repository, timeline).json))
                 }
                 return .array(out)
             },
@@ -79,15 +84,16 @@ extension ReleasesFeature {
                 let input = try input.toolInput(TextInput.self)
                 var out: [JSONValue] = []
                 for repository in try repositories(input.repo) {
-                    let timeline = try await timeline(repository)
+                    guard let timeline = try await storedTimeline(repository) else { out.append(notLoaded(repository)); continue }
                     let hits = try await Self.containing(input.text, in: timeline)
-                    out.append(["repo": .string(repository.name),
-                                "first_shipped": .array(hits.map { hit in
-                                    ["train": .string(timeline.trainTitle(hit.train)), "release": .string(hit.release.name),
-                                     "first_build": .string(hit.release.builds.first?.tag ?? ""),
-                                     "tagged": .string(hit.release.start.formatted(.iso8601)),
-                                     "commit": hit.commit.map { ["sha": .string($0.shortSHA), "subject": .string($0.subject), "build": .string($0.build)] } ?? .null]
-                                })])
+                    let shipped: [JSONValue] = hits.map { hit in
+                        ["train": .string(timeline.trainTitle(hit.train)), "release": .string(hit.release.name),
+                         "first_build": .string(hit.release.builds.first?.tag ?? ""),
+                         "tagged": .string(hit.release.start.formatted(.iso8601)),
+                         "commit": hit.commit.map { ["sha": .string($0.shortSHA), "subject": .string($0.subject), "build": .string($0.build)] } ?? .null]
+                    }
+                    let entry: JSONValue = ["repo": .string(repository.name), "first_shipped": .array(shipped)]
+                    out.append(entry.merging(freshness(repository, timeline).json))
                 }
                 return .array(out)
             },
@@ -118,6 +124,11 @@ extension ReleasesFeature {
                 return ["added": .string(event.id), "count": .number(Double(timelineEvents.count))]
             },
         ]
+    }
+
+    /// A remote repository Dash hasn't read yet: what to fetch.
+    private func notLoaded(_ repository: RepositoryConfig) -> JSONValue {
+        notFetched("releases.timeline", input: ["repo": .string(repository.name)]).merging(["repo": .string(repository.name)])
     }
 
     private func date(_ text: String) throws -> Date {
