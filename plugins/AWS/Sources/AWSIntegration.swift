@@ -24,6 +24,9 @@ final class AWSIntegration: Integration {
     @ObservationIgnored private let session: URLSession?
     /// The host from `start(host:)`, for the "Features using this integration" section.
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    /// The identity check `start(host:)` runs.
+    @ObservationIgnored private(set) var loading: Task<Void, Never>?
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
 
     var profileName: String { didSet { defaults.set(profileName, forKey: Self.profileKey); Task { await reload() } } }
     /// Empty: the profile's region.
@@ -31,6 +34,8 @@ final class AWSIntegration: Integration {
     private(set) var profiles: [AWSCredentialsProvider.Profile] = []
     private(set) var identity: String?
     private(set) var lastError: String?
+    /// When `identity` (or `lastError`) was last checked with STS.
+    private(set) var checkedAt: Date?
 
     @ObservationIgnored let provider: AWSCredentialsProvider
 
@@ -66,7 +71,7 @@ final class AWSIntegration: Integration {
 
     func start(host: any ExtensionContext) {
         self.host = host
-        Task { await reload() }
+        loading = Task { await reload() }
     }
 
     func reload() async {
@@ -74,6 +79,7 @@ final class AWSIntegration: Integration {
         profiles = await provider.profiles()
         guard profile != nil else {
             identity = nil
+            checkedAt = nil
             lastError = profiles.isEmpty ? "No profiles in ~/.aws/config or ~/.aws/credentials." : "Choose a profile."
             return
         }
@@ -84,6 +90,7 @@ final class AWSIntegration: Integration {
             identity = nil
             lastError = error.localizedDescription
         }
+        checkedAt = now()
     }
 
     /// Sends a request through the connection (signed for the URL's service and region).
