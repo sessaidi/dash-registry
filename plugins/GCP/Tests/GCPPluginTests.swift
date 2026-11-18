@@ -237,7 +237,7 @@ struct GCPPluginTests {
         defer { try? FileManager.default.removeItem(at: file) }
         #expect(gcp.id == "gcp")
         #expect(gcp.layer == .integration)
-        #expect(gcp.metadata.version == "1.3.0" && gcp.metadata.minimumDashKit == "2.0.0")
+        #expect(gcp.metadata.version == "1.5.0" && gcp.metadata.minimumDashKit == "2.4.0")
         #expect(gcp.metadata.category == .cloud)
         #expect(gcp.metadata.author == .dash)
         #expect(gcp.metadata.homepage == "https://github.com/sessaidi/dash")
