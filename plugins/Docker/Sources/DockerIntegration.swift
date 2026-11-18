@@ -27,6 +27,9 @@ final class DockerIntegration: Integration {
     /// Containers acted on recently (reference → when), so their exits aren't reported as crashes.
     private(set) var recentActions: [String: Date] = [:]
     @ObservationIgnored private(set) var host: (any ExtensionContext)?
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
+    /// Answers the engine's requests instead of the socket (tests).
+    @ObservationIgnored var transport: (@Sendable (URLRequest) async throws -> (Data, HTTPURLResponse))?
 
     var socketPreference: String {
         get { _ = revision; return preferences.string("socket") ?? "" }
@@ -52,6 +55,7 @@ final class DockerIntegration: Integration {
     }
 
     var connection: IntegrationConnection? {
+        if let transport { return IntegrationConnection(baseURL: Self.baseURL, headers: ["Accept": "application/json"], transport: transport) }
         guard let path = socketPath else { return nil }
         return IntegrationConnection(baseURL: Self.baseURL, headers: ["Accept": "application/json"], transport: { request in
             try await UnixHTTP.send(request, socketPath: path)

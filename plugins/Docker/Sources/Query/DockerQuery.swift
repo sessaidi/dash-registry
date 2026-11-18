@@ -21,6 +21,19 @@ extension DockerContainer {
     }
 }
 
+/// What DashQL reads from the engine's stored answers: the events Dash fetched, one row each.
+extension DockerIntegration {
+    var datasets: [QueryDataset] {
+        [QueryDataset(name: "docker_events", summary: "Docker engine events Dash fetched (data_fetch docker.events), newest first.",
+                      fields: [.init("time", .date), .init("type"), .init("action"), .init("name", "string", "Container, image, volume or network"),
+                               .init("image"), .init("exit_code", "string", "Exit code when a container died"),
+                               .init("synced_at", .date, "When Dash fetched it"),
+                               .init("stale", .bool, "Older than its freshness window: fetch again for current data")]) { [weak self] _ in
+            (self?.storedEventRows() ?? []).sorted { ($0["time"]?.string ?? "") > ($1["time"]?.string ?? "") }
+        }]
+    }
+}
+
 extension DockerContainersFeature {
     var datasets: [QueryDataset] {
         [QueryDataset(name: "containers", aliases: ["docker"], summary: "Local Docker containers, running and stopped.", fields: DockerContainer.queryFields) { [weak self] _ in
