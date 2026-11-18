@@ -89,5 +89,5 @@ once it's over. Without one, the configured time and Zoom days apply.
 ## Build & test
 
 ```sh
-TEST=1 scripts/build-plugins.sh DailyStandup   # writes dist/daily-standup-1.0.0.dashplugin.zip
+TEST=1 scripts/build-plugins.sh DailyStandup   # writes dist/daily-standup-1.8.0.dashplugin.zip
 ```
