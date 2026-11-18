@@ -1,3 +1,4 @@
+import CoreGraphics
 import DashKit
 import DashKitUI
 import Foundation
@@ -249,5 +250,22 @@ struct AutoRecordTests {
         #expect(zoom.autoStartHeld)
         zoom.observe(inMeeting: false, participants: [])
         #expect(!zoom.autoStartHeld)
+    }
+    /// Without screen capture, a meeting's polls must not stack prompts: one start at a time, one
+    /// prompt per launch for automatic starts, then auto-record waits for the next meeting.
+    @Test(.enabled(if: !CGPreflightScreenCaptureAccess(), "only where the test process can't capture the screen"))
+    func withoutScreenCaptureAutoRecordAsksOnceAndHolds() async {
+        let (zoom, host) = makeZoom()
+        async let first: Void = zoom.startRecording(automatically: true)
+        async let second: Void = zoom.startRecording(automatically: true)
+        _ = await (first, second)
+        #expect(host.fakePermissions.asked == ["Allow Dash to capture Zoom's audio"])
+        #expect(zoom.autoStartHeld && !zoom.isRecording)
+        await zoom.startRecording(automatically: true)
+        #expect(host.fakePermissions.asked.count == 1)
+        #expect(zoom.lastError?.contains("Screen & System Audio Recording") == true)
+        // Starting it yourself asks again.
+        await zoom.startRecording()
+        #expect(host.fakePermissions.asked.count == 2)
     }
 }
