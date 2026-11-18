@@ -13,7 +13,7 @@ final class AgentsExtension: DashExtension {
     let id = "agents"
     let name = "Agents"
     let systemImage = "hammer"
-    let metadata = ExtensionMetadata(version: "1.10.0", summary: "Dashii agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.14.0", summary: "Dashii agents working on Jira tickets with extreme TDD.", category: .ai, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
     /// Tickets come from Jira; GitHub is only needed to open a PR, which the user confirms.
     let requires = ["atlassian"]
     let optional = ["github"]
