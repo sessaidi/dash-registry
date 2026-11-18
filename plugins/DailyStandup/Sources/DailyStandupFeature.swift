@@ -249,7 +249,7 @@ final class DailyStandupFeature: DashExtension {
 
     /// Calls another extension's tool when it's installed (nil otherwise).
     func tool(_ name: String, _ input: JSONValue = [:]) async throws -> JSONValue? {
-        guard let host, let tool = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools).first(where: { $0.name == name }) else { return nil }
+        guard let host, let tool = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools).first(where: { $0.name == name && $0.isForDashii }) else { return nil }
         return try await tool.run(input)
     }
 
