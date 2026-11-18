@@ -12,7 +12,6 @@ final class GitLabIntegration: Integration {
     static let defaultInstance = "https://gitlab.com"
     static let urlKey = "gitlab.url"
     static let projectsKey = "gitlab.projects"
-    static let maxToolCharacters = 100_000
 
     let id = "gitlab"
     let name = "GitLab"
@@ -27,6 +26,7 @@ final class GitLabIntegration: Integration {
     @ObservationIgnored private let session: URLSession?
     /// The host from `start(host:)`, for the "Features using this integration" section.
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
 
     var instanceURL: String { didSet { defaults.set(instanceURL, forKey: Self.urlKey) } }
     /// Watched projects, "group/subgroup/project", one per line.
