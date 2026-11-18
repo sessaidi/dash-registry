@@ -1,6 +1,9 @@
-- Read-only Google Cloud as the user's ADC login: GKE (gcp_gke_clusters), Cloud Run, Pub/Sub (with backlog), Cloud SQL, Artifact Registry, Compute, Cloud Build, Error Reporting, uptime checks, IAM policy, audit logs, logs (gcp_logs_query) and metrics (gcp_metrics_query).
-- Prefer these tools; gcp_api_get is GET-only for anything else.
+- Read Google Cloud from Dash, not from Google: gcp_list_projects, gcp_logs_query, gcp_metrics_query, gcp_audit_logs, gcp_gke_clusters, gcp_gke_cluster, gcp_cloud_run_services, gcp_cloud_run_revisions, gcp_pubsub_topics, gcp_pubsub_subscriptions (backlog=true for messages waiting), gcp_sql_instances, gcp_artifact_repositories, gcp_artifact_images, gcp_secrets, gcp_iam_policy, gcp_compute_instances, gcp_cloud_builds, gcp_error_groups and gcp_uptime_checks answer from what Dash fetched, with synced_at and stale. DashQL has gcp_logs, gcp_errors and gcp_builds.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. gcp.logs with the same filter), then read again. Logs, metrics and builds go stale within minutes; projects, topics, repositories and secrets stay fresh for an hour.
+- Say how fresh an answer is ("logs as of 10:04"); relative windows (since 1h) count from synced_at, not from now.
+- data_fetch gcp.api reads any https://*.googleapis.com URL (GET only) when no other fetcher fits; read it with gcp_api_read and the same url.
 - Secret Manager: names and metadata only; secret values are never read, so don't try.
 - Always name the project (and region or zone); start with gcp_list_projects when unsure which one.
 - Logs: filter narrowly (resource, severity, time) and quote the few lines that matter.
+- Pub/Sub topics and subscriptions you fetched join the knowledge graph, linked to the code's topics of the same name.
 - Nothing here changes Google Cloud; deploys and config changes are the user's.
