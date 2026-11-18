@@ -2,9 +2,16 @@ import DashKit
 import Foundation
 import SwiftData
 
+/// Declines every prompt and keeps their titles; yields first, like a sheet the user answers later.
 @MainActor
 final class FakePermissions: PermissionAsking {
-    func ask(_ prompt: PermissionPrompt) async -> Bool { false }
+    private(set) var asked: [String] = []
+
+    func ask(_ prompt: PermissionPrompt) async -> Bool {
+        asked.append(prompt.title)
+        await Task.yield()
+        return false
+    }
 }
 
 /// Answers every request with `response` and keeps the prompts it was sent.
@@ -25,7 +32,8 @@ final class FakeDashii: DashiiService {
 final class FakeHost: ExtensionContext, @unchecked Sendable {
     let context: ModelContext
     var extensions: [any DashExtension]
-    let permissions: any PermissionAsking = FakePermissions()
+    let fakePermissions = FakePermissions()
+    var permissions: any PermissionAsking { fakePermissions }
     let fakeDashii = FakeDashii()
     var dashii: any DashiiService { fakeDashii }
     let activity = ActivityLog()

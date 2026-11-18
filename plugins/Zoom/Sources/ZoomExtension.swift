@@ -71,6 +71,11 @@ final class ZoomExtension: DashExtension {
     /// the meeting is over.
     @ObservationIgnored private(set) var autoStartHeld = false
     @ObservationIgnored private var outOfMeetingChecks = 0
+    /// A start is checking permissions: every poll during a meeting would start (and prompt) again.
+    @ObservationIgnored private var isStarting = false
+    /// The screen recording prompt was shown since launch: automatic starts don't show it again
+    /// (a grant only takes effect after Dash relaunches).
+    @ObservationIgnored private var askedScreenCapture = false
     /// Checks left to try opening Zoom's transcript panel in the current recording.
     @ObservationIgnored private var transcriptTries = 0
     /// Why the last recording stopped, shown in the widget and logged.
@@ -230,9 +235,14 @@ final class ZoomExtension: DashExtension {
 
     /// Explains and requests the macOS permissions recording needs. Returns false if capture can't start.
     /// The usage strings macOS shows (microphone, speech, screen capture) are Dash.app's: plugins run in its process.
-    private func ensurePermissions() async -> Bool {
+    private func ensurePermissions(automatically: Bool) async -> Bool {
         guard let host else { return false }
         if !CGPreflightScreenCaptureAccess() {
+            guard !automatically || !askedScreenCapture else {
+                lastError = "Dash can't capture Zoom's audio: allow Dash in Screen & System Audio Recording, then quit and reopen Dash."
+                return false
+            }
+            askedScreenCapture = true
             let proceed = await host.permissions.ask(
                 icon: "record.circle", title: "Allow Dash to capture Zoom's audio",
                 message: "macOS needs Screen & System Audio Recording permission so Dash can hear the meeting. Audio is transcribed on this Mac. After granting it, quit and reopen Dash.",
@@ -274,8 +284,13 @@ final class ZoomExtension: DashExtension {
     }
 
     func startRecording(automatically: Bool = false) async {
-        guard host != nil, !isRecording else { return }
-        guard await ensurePermissions() else { return }
+        guard host != nil, !isRecording, !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
+        guard await ensurePermissions(automatically: automatically) else {
+            if automatically { autoStartHeld = true }
+            return
+        }
         guard let meetingID = beginMeeting(automatically: automatically) else { return }
         let recorder = MeetingRecorder(
             onSegment: { [weak self] segment in
