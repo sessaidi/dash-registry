@@ -16,7 +16,7 @@ final class GitLabIntegration: Integration {
     let id = "gitlab"
     let name = "GitLab"
     let systemImage = "point.3.connected.trianglepath.dotted"
-    let metadata = ExtensionMetadata(version: "1.2.0", summary: "gitlab.com or self-managed: token, instance URL and watched projects.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.0.0")
+    let metadata = ExtensionMetadata(version: "1.5.0", summary: "gitlab.com or self-managed: token, instance URL, watched projects, and fetchers for merge requests, API answers and release data.", category: .sourceControl, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
     let secretKeys = [SecretKey("token", "Personal access token")]
     let secrets: SecretStore? = SecretStore(extensionID: "gitlab", legacy: ["token": "gitlab"])
 
