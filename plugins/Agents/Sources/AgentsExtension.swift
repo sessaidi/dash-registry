@@ -235,8 +235,9 @@ final class AgentsExtension: DashExtension {
     }
 
     /// A local path (absolute or ~), or a repository ("owner/name", git URL) cloned into
-    /// `<codeRoot>/<name>` when it isn't there yet. `.worktrees/` is kept out of git status.
-    static func ensureClone(_ reference: String, codeRoot: String) async throws -> URL {
+    /// `<codeRoot>/<name>` when it isn't there yet (unless `clone` is off). `.worktrees/` is kept
+    /// out of git status.
+    static func ensureClone(_ reference: String, codeRoot: String, clone allowed: Bool = true) async throws -> URL {
         let trimmed = reference.trimmingCharacters(in: .whitespaces)
         if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
             let url = URL(filePath: (trimmed as NSString).expandingTildeInPath)
@@ -250,6 +251,7 @@ final class AgentsExtension: DashExtension {
         let root = URL(filePath: (codeRoot as NSString).expandingTildeInPath)
         let clone = root.appending(path: name)
         if !FileManager.default.fileExists(atPath: clone.appending(path: ".git").path) {
+            guard allowed else { throw ToolError("\(name) isn't cloned in \(codeRoot) yet. Start the agent from the Agents widget (it clones the repository), or clone it there.") }
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             try await Git.git(["clone", remote, clone.path], in: root)
         }
@@ -267,23 +269,34 @@ final class AgentsExtension: DashExtension {
         try (current + (current.isEmpty || current.hasSuffix("\n") ? "" : "\n") + ".worktrees/\n").write(to: exclude, atomically: true, encoding: .utf8)
     }
 
-    /// Creates a worktree and branch for a Jira issue and starts the planning conversation.
-    func start(issueKey: String, repoPath explicitRepo: String? = nil) async throws -> AgentSession {
+    /// The ticket as Dash stored it (Atlassian's `jira_issue` reader), or what to fetch; nil
+    /// without Atlassian.
+    func storedTicket(_ key: String) async -> JSONValue? {
+        guard let host, let reader = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools)
+            .first(where: { $0.name == "jira_issue" && $0.isForDashii }) else { return nil }
+        return try? await reader.run(["key": .string(key)])
+    }
+
+    /// Creates a worktree and branch for a Jira issue and starts the planning conversation. The
+    /// user's start (the widget) may clone the repository and fetches it and the ticket; an
+    /// `offline` start (Dashii's) only uses what's on the Mac and in Dash.
+    func start(issueKey: String, repoPath explicitRepo: String? = nil, offline: Bool = false) async throws -> AgentSession {
         guard let host else { throw ToolError("Agents are not ready.") }
         let key = issueKey.uppercased()
         let project = String(key.split(separator: "-").first ?? "")
         guard let reference = explicitRepo ?? repoMap[project] else {
             throw ToolError("No repository for project \(project). Add \"\(project)=owner/name\" (or a local path) in Settings › Agents, or pass repo_path.")
         }
-        let repoPath = try await Self.ensureClone(reference, codeRoot: codeRoot).path
-        let jira = host.integration("atlassian")?.connection.map(JiraClient.init(connection:))
-        let detail = try await jira?.issueDetail(key)
+        let repoPath = try await Self.ensureClone(reference, codeRoot: codeRoot, clone: !offline).path
+        if !offline, host.fetchers.contains(where: { $0.name == "jira.issue" }) { _ = try? await host.fetch("jira.issue", ["key": .string(key)]) }
+        let detail = await storedTicket(key).flatMap { $0["fetched"]?.bool == false ? nil : $0 }
         let summary = detail?["summary"]?.string.flatMap { $0.isEmpty ? nil : $0 } ?? key
 
         let repo = URL(filePath: repoPath)
         let branch = Git.branchName(key: key, summary: summary)
         let worktree = Self.worktreeURL(repo: repo, branch: branch)
-        _ = try? await Git.git(["fetch", "origin", "--prune"], in: repo)
+        // Offline, the base is origin as the worktree scan last fetched it.
+        if !offline { _ = try? await Git.git(["fetch", "origin", "--prune"], in: repo) }
         let base = await Git.remoteDefaultBranch(repo)
         if !FileManager.default.fileExists(atPath: worktree.path) {
             try FileManager.default.createDirectory(at: worktree.deletingLastPathComponent(), withIntermediateDirectories: true)

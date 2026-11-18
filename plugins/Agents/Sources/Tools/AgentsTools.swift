@@ -24,7 +24,7 @@ extension AgentsExtension {
             },
             DashiiTool(
                 name: "agents_start",
-                description: "Start a Dashii agent on a Jira ticket: creates a git worktree and branch, then the agent proposes a TDD plan.",
+                description: "Start a Dashii agent on a Jira ticket: creates a git worktree and branch in a repository already cloned on this Mac, then the agent proposes a TDD plan from the ticket as Dash stored it (data_fetch jira.issue first if it says not fetched).",
                 properties: [
                     "issue_key": JSONSchema.string("Jira issue key."),
                     "repo_path": JSONSchema.string("Local repository path; defaults to the project's mapping in settings."),
@@ -33,7 +33,11 @@ extension AgentsExtension {
             ) { [weak self] input in
                 guard let self else { return nil }
                 let request = try input.toolInput(StartInput.self)
-                return try await start(issueKey: request.issue_key, repoPath: request.repo_path).json
+                let key = request.issue_key.uppercased()
+                if let ticket = await storedTicket(key), ticket["fetched"]?.bool == false {
+                    return ticket.merging(["hint": .string("Dash hasn't stored \(key) yet: call data_fetch with fetcher jira.issue and key \(key), then agents_start again.")])
+                }
+                return try await start(issueKey: key, repoPath: request.repo_path, offline: true).json
             },
             DashiiTool(
                 name: "agents_open",

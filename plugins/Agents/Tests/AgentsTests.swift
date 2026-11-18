@@ -405,39 +405,6 @@ struct GitTests {
 @MainActor
 @Suite(.serialized)
 struct ClientTests {
-    @Test func jiraIssueDetailFlattensFieldsAndComments() async throws {
-        StubProtocol.serve("jira-detail.test", json: """
-            {"key":"KAN-5","fields":{"summary":"Add retry","status":{"name":"In Progress"},"issuetype":{"name":"Story"},
-             "priority":{"name":"High"},"assignee":null,"reporter":{"displayName":"Ana"},"labels":["api"],"parent":{"key":"KAN-1"},
-             "description":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Retry "},{"type":"mention","attrs":{"text":"@Bo"}}]}]},
-             "comment":{"comments":[{"author":{"displayName":"Bo"},"created":"2026-01-02T03:04:05.000+0000","body":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"ok"}]}]}}]}}}
-            """)
-        let jira = try #require(FakeIntegration(id: "atlassian", baseURL: URL(string: "https://jira-detail.test")!).connection.map(JiraClient.init(connection:)))
-        let detail = try await jira.issueDetail("KAN-5")
-        #expect(detail["summary"] == "Add retry" && detail["status"] == "In Progress" && detail["type"] == "Story")
-        #expect(detail["assignee"] == "Unassigned" && detail["reporter"] == "Ana" && detail["parent"] == "KAN-1")
-        #expect(detail["labels"] == ["api"] && detail["description"] == "Retry @Bo")
-        #expect(detail["url"] == "https://jira-detail.test/browse/KAN-5")
-        #expect(detail["comments"]?[0]?["author"] == "Bo" && detail["comments"]?[0]?["body"] == "ok")
-
-        let request = try #require(StubProtocol.requests("jira-detail.test").first)
-        #expect(request.url?.path() == "/rest/api/3/issue/KAN-5")
-        #expect(request.url?.query()?.contains("description,comment") == true)
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fake")
-    }
-
-    @Test func plainTextFromDocumentFormat() throws {
-        let doc = try JSONValue.parse(#"""
-            {"type":"doc","content":[
-              {"type":"heading","content":[{"type":"text","text":"Goal"}]},
-              {"type":"bulletList","content":[{"type":"listItem","content":[{"type":"text","text":"one"}]}]},
-              {"type":"paragraph","content":[{"type":"text","text":"a"},{"type":"hardBreak"},{"type":"text","text":"b"}]}]}
-            """#)
-        #expect(JiraClient.plainText(doc) == "Goal\n• one\na\nb")
-        #expect(JiraClient.plainText("already text") == "already text")
-        #expect(JiraClient.plainText(nil) == "")
-    }
-
     @Test func gitHubCreatesADraftPull() async throws {
         StubProtocol.serve("github-pulls.test", json: #"{"html_url":"https://github.com/acme/api/pull/9"}"#, status: 201)
         let github = try #require(FakeIntegration(id: "github", baseURL: URL(string: "https://github-pulls.test")!).connection.map(GitHubClient.init(connection:)))

@@ -58,8 +58,9 @@ final class WorktreeStore {
         if let host { await refreshPulls(host: host) }
     }
 
-    /// Open PRs from the Pull Requests plugin's database; merged or closed ones fetched on request.
-    func refreshPulls(host: any ExtensionContext, now: Date = .now) async {
+    /// Open PRs from the Pull Requests plugin's database; merged or closed ones fetched on request
+    /// (`fetch`), at most every few hours per worktree.
+    func refreshPulls(host: any ExtensionContext, now: Date = .now, fetch: Bool = true) async {
         let open = (try? await Self.tool("github_list_prs", host: host))?.array ?? []
         for tree in items where !tree.isMain {
             guard let slug = tree.slug else { continue }
@@ -72,7 +73,7 @@ final class WorktreeStore {
                 continue
             }
             // Not open: ask the Pull Requests plugin to fetch the branch's PRs (merged, closed).
-            guard let branch = links[tree.path] == nil ? tree.branch : nil,
+            guard fetch, let branch = links[tree.path] == nil ? tree.branch : nil,
                   now.timeIntervalSince(lastPullCheck[tree.path] ?? .distantPast) > Self.pullCheckHours * 3600,
                   host.fetchers.contains(where: { $0.name == "github.branch_pulls" }) else { continue }
             lastPullCheck[tree.path] = now
@@ -83,12 +84,13 @@ final class WorktreeStore {
         defaults.set(try? JSONEncoder().encode(pulls), forKey: "agents.worktrees.pulls")
     }
 
-    /// Links a worktree to a PR ("owner/name#123"), or unlinks it (nil).
+    /// Links a worktree to a PR ("owner/name#123"), or unlinks it (nil), then matches PRs again
+    /// from what Dash stored (Dashii's `worktree_link` fetches nothing).
     func link(_ path: String, to pull: String?, host: (any ExtensionContext)?) async {
         links[path] = pull
         if pull == nil { pulls[path] = nil; lastPullCheck[path] = nil }
         defaults.set(links, forKey: "agents.worktrees.links")
-        if let host { await refreshPulls(host: host) }
+        if let host { await refreshPulls(host: host, fetch: false) }
     }
 
     /// Removes a merged, clean worktree (`git worktree remove`), after the user agrees.
@@ -125,7 +127,7 @@ final class WorktreeStore {
     }
 
     static func tool(_ name: String, host: any ExtensionContext, _ input: JSONValue = [:]) async throws -> JSONValue? {
-        guard let tool = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools).first(where: { $0.name == name }) else { return nil }
+        guard let tool = host.extensions.filter({ host.isEnabled($0) }).flatMap(\.tools).first(where: { $0.name == name && $0.isForDashii }) else { return nil }
         return try await tool.run(input)
     }
 }
