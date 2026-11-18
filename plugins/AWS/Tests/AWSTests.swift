@@ -1,4 +1,5 @@
 import DashKit
+import DashKitTesting
 import DashKitUI
 import CryptoKit
 import Foundation
@@ -109,6 +110,15 @@ extension AWSPluginTests {
             try #require(aws.tools.first { $0.name == name })
         }
 
+        /// `make()` in a started test host, its identity check done.
+        func hosted(config: String = "[default]\nregion = eu-west-1\n") async throws -> (AWSIntegration, TestHost) {
+            let aws = try await make(config: config)
+            let dash = try TestHost([aws])
+            dash.start([aws])
+            await aws.loading?.value
+            return (aws, dash)
+        }
+
         // MARK: Identity
 
         @Test func identityAndMetadata() {
@@ -119,8 +129,8 @@ extension AWSPluginTests {
             #expect(aws.metadata.version == "1.1.0")
             #expect(aws.metadata.category == .cloud)
             #expect(aws.secretKeys.isEmpty && aws.secrets?.extensionID == nil)
-            #expect(aws.tools.map(\.name) == ["aws_whoami", "aws_api"])
-            #expect(aws.tools.map(\.requiresApproval) == [false, false])
+            #expect(aws.tools.map(\.name) == ["aws_whoami", "aws_log_groups", "aws_logs", "aws_lambda_functions", "aws_eks_clusters", "aws_api_read"])
+            #expect(aws.tools.allSatisfy { !$0.requiresApproval && $0.isForDashii && !$0.callsService })
         }
 
         @Test func pluginEntryPoint() {
@@ -194,16 +204,17 @@ extension AWSPluginTests {
             #expect(!connection.allows(URL(string: "http://ec2.eu-west-1.amazonaws.com/")!))
         }
 
-        // MARK: Claude tools
+        // MARK: Fetch, then read
 
         @Test func apiSignsForTheHostServiceAndRegion() async throws {
             StubURLProtocol.reset(["/": .json(#"{"logGroups":[]}"#)])
-            let aws = try await make()
-            let result = try await tool(aws, "aws_api").run([
+            let (_, dash) = try await hosted()
+            let input: JSONValue = [
                 "url": "https://logs.us-west-2.amazonaws.com/", "body": "{}",
                 "content_type": "application/x-amz-json-1.1", "target": "Logs_20140328.DescribeLogGroups",
-            ])
-            #expect(result == ["logGroups": []])
+            ]
+            _ = try await dash.fetch("aws.api", input)
+            #expect(try await dash.runTool("aws_api_read", input)?["logGroups"] == [])
             let sent = try #require(StubURLProtocol.requests.last)
             #expect(sent.httpMethod == "POST")
             #expect(sent.value(forHTTPHeaderField: "X-Amz-Target") == "Logs_20140328.DescribeLogGroups")
@@ -213,23 +224,26 @@ extension AWSPluginTests {
 
         @Test func apiRefusesOtherHosts() async throws {
             StubURLProtocol.reset(["/": .json(Self.identity)])
-            let aws = try await make()
+            let (_, dash) = try await hosted()
             let before = StubURLProtocol.requests.count
             await #expect(throws: ToolError("Only https://*.amazonaws.com URLs can be signed.")) {
-                try await tool(aws, "aws_api").run(["url": "https://example.com/", "method": "GET"])
+                try await dash.fetch("aws.api", ["url": "https://example.com/", "method": "GET"])
+            }
+            await #expect(throws: ToolError("Only https://*.amazonaws.com URLs can be signed.")) {
+                try await dash.runTool("aws_api_read", ["url": "https://amazonaws.com.evil.test/", "method": "GET"])
             }
             #expect(StubURLProtocol.requests.count == before)
         }
 
         @Test func apiRefusesActionsThatChangeAWS() async throws {
             StubURLProtocol.reset(["/": .json(Self.identity)])
-            let aws = try await make()
+            let (aws, dash) = try await hosted()
             let before = StubURLProtocol.requests.count
             await #expect(throws: ToolError.self) {
-                try await tool(aws, "aws_api").run(["url": "https://ec2.eu-west-1.amazonaws.com/", "body": "Action=TerminateInstances&InstanceId.1=i-1"])
+                try await dash.fetch("aws.api", ["url": "https://ec2.eu-west-1.amazonaws.com/", "body": "Action=TerminateInstances&InstanceId.1=i-1"])
             }
             await #expect(throws: ToolError.self) {
-                try await tool(aws, "aws_api").run(["url": "https://logs.us-west-2.amazonaws.com/", "body": "{}", "target": "Logs_20140328.DeleteLogGroup"])
+                try await dash.fetch("aws.api", ["url": "https://logs.us-west-2.amazonaws.com/", "body": "{}", "target": "Logs_20140328.DeleteLogGroup"])
             }
             #expect(StubURLProtocol.requests.count == before)
             #expect(aws.tools.allSatisfy { !$0.requiresApproval })
@@ -240,18 +254,27 @@ extension AWSPluginTests {
 
         @Test func apiTruncatesLargeResponses() async throws {
             StubURLProtocol.reset(["/": .json(String(repeating: "x", count: 120_000))])
-            let aws = try await make()
-            let result = try await tool(aws, "aws_api").run(["url": "https://ec2.eu-west-1.amazonaws.com/", "method": "GET"])
-            #expect(result.string?.hasSuffix("\n[truncated]") == true)
-            #expect(result.string?.count == AWSIntegration.maxToolCharacters + "\n[truncated]".count)
+            let (_, dash) = try await hosted()
+            let input: JSONValue = ["url": "https://ec2.eu-west-1.amazonaws.com/", "method": "GET"]
+            _ = try await dash.fetch("aws.api", input)
+            let text = try #require(try await dash.runTool("aws_api_read", input)?["text"]?.string)
+            #expect(text.hasSuffix("\n[truncated]"))
+            #expect(text.count == AWSIntegration.maxToolCharacters + "\n[truncated]".count)
         }
 
-        @Test func whoamiReportsProfileAndRegion() async throws {
+        @Test func whoamiReadsTheCheckedIdentity() async throws {
             StubURLProtocol.reset(["/": .json(Self.identity)])
             let aws = try await make()
-            #expect(try await tool(aws, "aws_whoami").run([:]) == [
-                "arn": "arn:aws:iam::123456789012:user/jdoe", "profile": "default", "region": "eu-west-1",
-            ])
+            let before = StubURLProtocol.requests.count
+            let answer = try await tool(aws, "aws_whoami").run([:])
+            #expect(answer["arn"] == "arn:aws:iam::123456789012:user/jdoe" && answer["profile"] == "default" && answer["region"] == "eu-west-1")
+            #expect(answer["checked_at"]?.string != nil && answer["error"] == nil)
+            #expect(StubURLProtocol.requests.count == before)
+
+            StubURLProtocol.reset(["/": .json("<ErrorResponse/>", status: 403)])
+            await aws.reload()
+            let failed = try await tool(aws, "aws_whoami").run([:])
+            #expect(failed["arn"] == .null && failed["error"]?.string != nil && failed["hint"]?.string != nil)
         }
 
         // MARK: Settings
