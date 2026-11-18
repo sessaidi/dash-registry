@@ -13,9 +13,9 @@ final class DockerIntegration: Integration {
     let name = "Docker"
     let systemImage = "shippingbox"
     let metadata = ExtensionMetadata(
-        version: "1.2.0", author: .dash,
-        summary: "Lists, inspects and controls local Docker containers through the Engine API socket.",
-        category: .cloud, tags: ["docker", "containers", "local"])
+        version: "1.7.0", author: .dash,
+        summary: "Fetches local Docker containers, logs, stats, images and events through the Engine API socket into Dash.",
+        category: .cloud, tags: ["docker", "containers", "local"], minimumDashKit: "2.4.0")
 
     static let baseURL = URL(string: "http://docker")!
 
