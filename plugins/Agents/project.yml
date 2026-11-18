@@ -35,8 +35,8 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: agents
-        DashPluginVersion: "1.13.1"
-        DashKitMinimumVersion: "2.3.0"
+        DashPluginVersion: "1.14.0"
+        DashKitMinimumVersion: "2.4.0"
     settings:
       base:
         WRAPPER_EXTENSION: dashplugin
