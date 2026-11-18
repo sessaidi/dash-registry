@@ -171,14 +171,14 @@
       "id": "gcp",
       "name": "Google Cloud",
       "kind": "integration",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/gcp-1.4.1.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/gcp-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "gcp"
         ],
-        "sha256": "cbe047b7d09b3738103c7528f119044e88440b4e2a0fdbf27c7788e26b1e62dc"
+        "sha256": "fa8698f90f84e434ae864905b7a251d91acd1dc4e6673e628d4edaf94cd0dc73"
       },
       "description": "Google credentials refreshed in-process; signs *.googleapis.com requests.",
       "icon": "cloud",
