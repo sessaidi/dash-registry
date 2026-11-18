@@ -304,14 +304,14 @@
       "id": "releases",
       "name": "Releases",
       "kind": "feature",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "plugin": {
-        "download": "dist/releases-1.7.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/releases-1.8.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "releases"
         ],
-        "sha256": "c6250e8728019805f674b521ca4c17e644c366cb59be170a6ce6714a1bb85ac4"
+        "sha256": "0714ebfdff59a8ccab4190d770d225a850f56bc993a2fcfc776f6d881491f4fa"
       },
       "description": "A native release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
       "icon": "point.bottomleft.forward.to.point.topright.scurvepath",
