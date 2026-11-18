@@ -126,7 +126,7 @@ extension AWSPluginTests {
             #expect(aws.id == "aws")
             #expect(aws.name == "AWS")
             #expect(aws.layer == .integration)
-            #expect(aws.metadata.version == "1.1.0")
+            #expect(aws.metadata.version == "1.4.0" && aws.metadata.minimumDashKit == "2.4.0")
             #expect(aws.metadata.category == .cloud)
             #expect(aws.secretKeys.isEmpty && aws.secrets?.extensionID == nil)
             #expect(aws.tools.map(\.name) == ["aws_whoami", "aws_log_groups", "aws_logs", "aws_lambda_functions", "aws_eks_clusters", "aws_api_read"])

@@ -17,7 +17,7 @@ final class AWSIntegration: Integration {
     let id = "aws"
     let name = "AWS"
     let systemImage = "server.rack"
-    let metadata = ExtensionMetadata(version: "1.1.0", summary: "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.", category: .cloud, homepage: "https://github.com/sessaidi/dash")
+    let metadata = ExtensionMetadata(version: "1.4.0", summary: "Profiles from ~/.aws (keys or SSO), SigV4-signed in-process.", category: .cloud, homepage: "https://github.com/sessaidi/dash", minimumDashKit: "2.4.0")
 
     @ObservationIgnored private let defaults: UserDefaults
     /// URLSession for signed requests; nil uses the shared session. Tests inject a stubbed one.
