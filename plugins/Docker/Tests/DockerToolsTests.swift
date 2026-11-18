@@ -7,11 +7,11 @@ struct DockerToolsTests {
     @MainActor @Test func toolNamesAndApprovals() {
         let docker = DockerIntegration()
         #expect(docker.tools.map(\.name) == [
-            "docker_containers", "docker_inspect", "docker_logs", "docker_container_action",
+            "docker_containers", "docker_inspect", "docker_logs",
             "docker_info", "docker_find_containers", "docker_compose_projects", "docker_stats", "docker_top", "docker_logs_search",
             "docker_health", "docker_env_names", "docker_ports", "docker_diff", "docker_images", "docker_image_inspect",
             "docker_image_history", "docker_volumes", "docker_networks", "docker_disk_usage", "docker_events",
-            "docker_container_state", "docker_remove_container", "docker_exec", "docker_image_pull", "docker_prune",
+            "docker_container_action", "docker_container_state", "docker_remove_container", "docker_exec", "docker_image_pull", "docker_prune",
         ])
         #expect(docker.tools.filter(\.requiresApproval).map(\.name) == [
             "docker_container_action", "docker_container_state", "docker_remove_container", "docker_exec", "docker_image_pull", "docker_prune",

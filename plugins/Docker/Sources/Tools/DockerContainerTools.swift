@@ -1,7 +1,7 @@
 import DashKit
 import Foundation
 
-/// Dashii's core container tools: list, inspect, logs, and start/stop/restart (asks first).
+/// The tools: readers for Dashii and agents; start/stop/restart and the other changes for the user (asked first).
 extension DockerIntegration {
     func requireConnection() throws -> IntegrationConnection {
         guard let connection else { throw ToolError("No Docker socket found. Start Docker or set the socket in Settings → Docker.") }
@@ -18,48 +18,15 @@ extension DockerIntegration {
         return "/containers/\(name)/\(suffix)"
     }
 
+    /// The readers of what Dash fetched, then the changes only the user makes.
     var tools: [DashiiTool] {
-        [
-            DashiiTool(
-                name: "docker_containers", description: "List local Docker containers (id, name, image, state, status).",
-                properties: ["all": JSONSchema.boolean("Include stopped containers (default true).")]
-            ) { [weak self] input in
-                guard let self else { return [] }
-                let all = input["all"]?.bool ?? true
-                let list = try await requireConnection().get("/containers/json?all=\(all ? 1 : 0)", service: "Docker")
-                return .array(DockerContainer.list(list).map(\.json))
-            },
-            DashiiTool(
-                name: "docker_inspect", description: "Inspect a Docker container: state, health, image, command, ports, mounts, labels (no environment variables).",
-                properties: ["id": JSONSchema.string("Container id, id prefix or name.")], required: ["id"]
-            ) { [weak self] input in
-                guard let self else { return .null }
-                guard let id = input["id"]?.string else { throw ToolError("Missing id") }
-                let info = try await requireConnection().get(Self.containerPath(id, "json"), service: "Docker")
-                return Self.inspectSummary(info)
-            },
-            DashiiTool(
-                name: "docker_logs", description: "Recent logs (stdout and stderr) of a Docker container. Output is cut to the last 50,000 characters.",
-                properties: [
-                    "id": JSONSchema.string("Container id, id prefix or name."),
-                    "tail": JSONSchema.integer("Number of lines from the end (default 200, max 5000)."),
-                ], required: ["id"]
-            ) { [weak self] input in
-                guard let self else { return .null }
-                guard let id = input["id"]?.string else { throw ToolError("Missing id") }
-                let tail = min(max(input["tail"]?.int ?? 200, 1), 5000)
-                let connection = try requireConnection()
-                guard let url = connection.url(try Self.containerPath(id, "logs") + "?stdout=1&stderr=1&tail=\(tail)") else { throw ToolError("Bad id") }
-                let (data, _) = try await connection.send(URLRequest(url: url), service: "Docker")
-                let (text, truncated) = DockerLogs.truncate(DockerLogs.text(data, markStderr: true))
-                return ["logs": .string(text), "truncated": .bool(truncated)]
-            },
+        readers + [
             DashiiTool(
                 name: "docker_container_action", description: "Start, stop or restart a Docker container.",
                 properties: [
                     "id": JSONSchema.string("Container id, id prefix or name."),
                     "action": JSONSchema.string("What to do.", enum: ["start", "stop", "restart"]),
-                ], required: ["id", "action"], requiresApproval: true
+                ], required: ["id", "action"], requiresApproval: true, writesRemotely: true
             ) { [weak self] input in
                 guard let self else { return .null }
                 guard let id = input["id"]?.string else { throw ToolError("Missing id") }
@@ -70,11 +37,11 @@ extension DockerIntegration {
                 guard let url = connection.url(try Self.containerPath(id, action)) else { throw ToolError("Bad id") }
                 noteAction(on: id)
                 let (_, response) = try await connection.send(try HTTP.request(url, method: "POST"), service: "Docker")
-                host?.emit("docker.container.\(action)", from: self, title: "Dashii ran \(action) on container \(id)")
+                host?.emit("docker.container.\(action)", from: self, title: "Ran \(action) on container \(id)")
                 return ["ok": true, "id": .string(id), "action": .string(action),
                         "note": response.statusCode == 304 ? "Container was already in that state." : nil]
             },
-        ] + granularTools
+        ] + changeTools
     }
 
     /// The parts of GET /containers/{id}/json worth showing; environment variables are left out (secrets).
