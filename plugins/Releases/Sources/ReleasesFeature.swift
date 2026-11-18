@@ -15,9 +15,9 @@ final class ReleasesFeature: DashExtension {
     let name = "Releases"
     let systemImage = "point.bottomleft.forward.to.point.topright.scurvepath"
     let metadata = ExtensionMetadata(
-        version: "1.4.0", author: .dash,
+        version: "1.8.0", author: .dash,
         summary: "A release timeline from your repositories' git tags: trains, builds, hotfixes, what each release shipped and what was live when.",
-        category: .sourceControl, tags: ["git", "releases", "timeline"], minimumDashKit: "2.0.0")
+        category: .sourceControl, tags: ["git", "releases", "timeline"], minimumDashKit: "2.4.0")
 
     /// How often the poller looks for repositories due a refresh (each has its own interval).
     static let tick: Duration = .seconds(60)
