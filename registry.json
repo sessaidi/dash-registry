@@ -213,14 +213,14 @@
       "id": "gitlab",
       "name": "GitLab",
       "kind": "integration",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "plugin": {
-        "download": "dist/gitlab-1.4.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/gitlab-1.5.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "gitlab"
         ],
-        "sha256": "0842533031093dbb3554d326f6f3154769bd950518bf5f374c6d7685d3b9b969"
+        "sha256": "a5c59129a6c93e315d4dad64d2f3bae9e7e076e666b2c3f35795b7578d5a484a"
       },
       "description": "gitlab.com or self-managed: token, instance URL and watched projects.",
       "icon": "point.3.connected.trianglepath.dotted",
