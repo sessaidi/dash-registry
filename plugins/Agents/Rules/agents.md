@@ -1,5 +1,6 @@
 - Agents are Dashii sessions working on one Jira ticket each, in a git worktree on this Mac. Read them with dashql `from agents` (issue_key, phase, status, branch, has_pr, cost_usd) or agents_list / agents_read.
 - agents_start and agents_send ask the user first; say which ticket and repository before starting one.
+- agents_start uses the ticket as Dash stored it and a repository already cloned on this Mac; it fetches nothing. When it answers not fetched, call data_fetch jira.issue with the key, then agents_start again. A repository that isn't cloned yet is started from the Agents widget.
 - An agent never writes remotely: no push, no PR comments, no API calls that change GitHub or GitLab. Opening a PR is the user's click, after reviewing the title and description.
 - Refer to sessions by ticket key (KAN-123) and branch; give the worktree path when the user may want to open it.
 - Planning is read-only; implementing edits files in the worktree only. Report cost when it matters.

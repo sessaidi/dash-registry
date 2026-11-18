@@ -17,5 +17,6 @@ struct DefaultRulesTests {
         let rules = extensions.compactMap(\.defaultRules).joined(separator: "\n")
         #expect(rules.contains("from agents"))
         #expect(rules.contains("never writes remotely"))
+        #expect(rules.contains("data_fetch jira.issue"))
     }
 }

@@ -43,14 +43,20 @@ Settings › Agents:
   cargo test/build commands. Any other tool call opens an "Allow Once" dialog in Dash.
   `git push` and `gh pr` are always blocked.
 
-When an agent starts, Dash runs `git fetch origin --prune`. It then creates a branch named after
-the ticket (for example `kan-1234-add-retry-to-the-fetcher`) from the remote default branch,
-and adds a worktree for it.
+When you start an agent (the widget or Jira Board's button), Dash clones the repository if it
+isn't in the code folder yet, fetches the ticket through Atlassian's `jira.issue` fetcher and runs
+`git fetch origin --prune`. It then creates a branch named after the ticket (for example
+`kan-1234-add-retry-to-the-fetcher`) from the remote default branch, and adds a worktree for it.
+
+When Dashii starts one with `agents_start`, nothing is fetched: it needs the ticket already
+stored in Dash (otherwise it answers "not fetched" with the `data_fetch jira.issue` call to make
+first) and a clone already on this Mac, and it branches from origin as the worktree scan last
+fetched it.
 
 ## What it stores
 
-Sessions are kept in Dash's local SwiftData database. The ticket text is fetched live from Jira
-when the agent starts and goes into the prompt; it isn't stored separately.
+Sessions are kept in Dash's local SwiftData database. The ticket goes into the prompt as the
+Atlassian plugin stored it; Agents doesn't keep its own copy.
 
 - `AgentSession`: Jira key and title, repository, worktree and branch, base ref, the Claude
   Code session id (for resuming), phase (`planning` or `implementing`), status (`idle`,
@@ -74,7 +80,7 @@ enabled.
 | Tool | What it does | Needs approval |
 |---|---|---|
 | `agents_list` | Lists sessions with ticket, branch, worktree, phase, status, cost, PR URL and error. | No |
-| `agents_start` | Starts an agent on a Jira ticket: creates the worktree and branch, then the agent proposes a TDD plan. Takes an optional `repo_path` instead of the project mapping. | Yes |
+| `agents_start` | Starts an agent on a Jira ticket stored in Dash, in a repository already cloned on this Mac: creates the worktree and branch, then the agent proposes a TDD plan. Answers "not fetched" when Dash doesn't have the ticket yet. Takes an optional `repo_path` instead of the project mapping. | Yes |
 | `agents_open` | Opens a session's chat window. | No |
 | `agents_send` | Sends a message to an idle session. Read the reply with `agents_read`. | Yes |
 | `agents_read` | Returns a session's recent transcript (30 messages by default). | No |
