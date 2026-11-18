@@ -47,6 +47,32 @@ struct ReportDocumentTests {
         #expect(lines.allSatisfy { $0.hasPrefix(">") || $0.isEmpty || $0 == "## Findings" })
     }
 
+    @Test func aFindingWrittenAsOneParagraphIsLaidOut() {
+        let finding = AgentFinding(
+            severity: .warning, title: "billing-api never becomes Ready",
+            detail: "S3 (down, dev only). The deployment's Available condition has been False since 2026-10-02T18:40:38Z and 0/2 pods are available. "
+                + "The descheduler (v0.35.1, e.g. RemoveDuplicates) logged 'Evicted pod acme/billing-api-7rn8k' at 09:37:56Z. "
+                + "Each pod lives about 4 minutes, while the startup probe allows up to 600s.",
+            target: "deployment acme/billing-api (cluster-eu, acme-dev)",
+            suggestion: "The billing-api owners should act (no change made): 1) add pod anti-affinity to the deployment; 2) exclude it from RemoveDuplicates, and 3) raise the replicas.")
+        let lines = StatusSnapshot.Report.markdown(for: finding).components(separatedBy: "\n")
+        #expect(lines[1] == "> `deployment acme/billing-api` · cluster-eu, acme-dev")
+        #expect(lines.contains("> **S3 (down, dev only).** The deployment's Available condition has been False since 2026-10-02T18:40:38Z and 0/2 pods are available."))
+        #expect(lines.contains("> - The descheduler (v0.35.1, e.g. RemoveDuplicates) logged 'Evicted pod acme/billing-api-7rn8k' at 09:37:56Z."))
+        #expect(lines.contains("> - Each pod lives about 4 minutes, while the startup probe allows up to 600s."))
+        #expect(lines.contains("> **What to do**") && lines.contains("> The billing-api owners should act (no change made):"))
+        #expect(lines.suffix(3) == ["> 1. Add pod anti-affinity to the deployment", "> 2. Exclude it from RemoveDuplicates", "> 3. Raise the replicas."])
+        #expect(lines.allSatisfy { $0.hasPrefix(">") })
+    }
+
+    @Test func shortOrAlreadyLaidOutTextStaysAsWritten() {
+        #expect(StatusSnapshot.Report.readable("Evicted every 2 minutes. Add anti-affinity.") == "Evicted every 2 minutes. Add anti-affinity.")
+        #expect(StatusSnapshot.Report.readable("Evidence:\n\n- one. Two. Three.") == "Evidence:\n\n- one. Two. Three.")
+        #expect(StatusSnapshot.Report.steps(in: "Roll back to v1.41 (see 2) later).") == nil)
+        #expect(StatusSnapshot.Report.target("pod acme/api-1") == "`pod acme/api-1`")
+        #expect(StatusSnapshot.Report.sentences("Roll back vs. wait. Then 2 pods recover. i.e. fine") == ["Roll back vs. wait.", "Then 2 pods recover. i.e. fine"])
+    }
+
     @Test func aQuietReportIsTheSummaryAlone() {
         let report = StatusSnapshot.Report(summary: "All clear.", at: .now, findings: [], critical: false)
         #expect(report.markdown == "> [!summary] Summary\n> All clear.")
