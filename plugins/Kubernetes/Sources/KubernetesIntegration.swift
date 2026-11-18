@@ -16,8 +16,8 @@ final class KubernetesIntegration: Integration {
     let systemImage = "helm"
     let optional = ["gcp"]
     let metadata = ExtensionMetadata(
-        version: "1.1.0", author: .dash, summary: "Your kubeconfig's clusters, read in-process: read-only API access for Dashii and features.",
-        category: .cloud, tags: ["kubernetes", "k8s", "kubeconfig", "gke"], minimumDashKit: "2.0.0")
+        version: "1.12.0", author: .dash, summary: "Your kubeconfig's clusters, read in-process: read-only API access for Dashii and features.",
+        category: .cloud, tags: ["kubernetes", "k8s", "kubeconfig", "gke"], minimumDashKit: "2.4.0")
 
     static let googleProbe = URL(string: "https://www.googleapis.com")!
 

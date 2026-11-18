@@ -11,8 +11,8 @@ at a time. Its fetchers store what the cluster answers in Dash, and Dashii reads
 | | |
 |---|---|
 | Plugin id | `kubernetes` |
-| Version | 1.1.0 |
-| Minimum DashKit | 1.3.0 |
+| Version | 1.12.0 |
+| Minimum DashKit | 2.4.0 |
 | Layer | integration `kubernetes` + feature `kubernetes-pods` (requires `kubernetes`) |
 | Requires | nothing |
 | Optional | `gcp` (Google Cloud), for contexts that use `gke-gcloud-auth-plugin` |
@@ -97,7 +97,7 @@ TEST=1 scripts/build-plugins.sh Kubernetes   # generate the project, run Kuberne
 scripts/build-plugins.sh Kubernetes          # build and zip without the tests
 ```
 
-The script writes `dist/kubernetes-1.1.0.dashplugin.zip` and regenerates `registry.json`. To
+The script writes `dist/kubernetes-1.12.0.dashplugin.zip` and regenerates `registry.json`. To
 try a build in a running Dash, copy
 `build/Kubernetes/Build/Products/Release/KubernetesPlugin.dashplugin` into
 `~/Library/Application Support/Dash/Plugins`.
