@@ -17,5 +17,6 @@ struct DefaultRulesTests {
         let rules = extensions.compactMap(\.defaultRules).joined(separator: "\n")
         #expect(rules.contains("from releases"))
         #expect(rules.contains("cherry-pick"))
+        #expect(rules.contains("data_fetch releases.timeline"))
     }
 }
