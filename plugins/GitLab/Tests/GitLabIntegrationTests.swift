@@ -20,10 +20,6 @@ struct GitLabIntegrationTests {
         return GitLabIntegration(defaults: defaults, token: { token }, session: StubURLProtocol.session())
     }
 
-    func tool(_ gitlab: GitLabIntegration, _ name: String) throws -> DashiiTool {
-        try #require(gitlab.tools.first { $0.name == name })
-    }
-
     // MARK: Release sync
 
     @Test func syncTagsMirrorsTagsWithTheirBranch() async throws {
@@ -71,7 +67,7 @@ struct GitLabIntegrationTests {
         #expect(gitlab.secrets?.extensionID == "gitlab")
         #expect(gitlab.secrets?.legacy == ["token": ["gitlab"]])
         #expect(gitlab.secretKeys.map(\.key) == ["token"])
-        #expect(gitlab.tools.map(\.name) == ["gitlab_merge_requests", "gitlab_api_get", "gitlab_sync_tags", "gitlab_sync_compare"])
+        #expect(gitlab.tools.map(\.name) == ["gitlab_merge_requests", "gitlab_api_read", "gitlab_tags", "gitlab_range", "gitlab_sync_tags", "gitlab_sync_compare"])
     }
 
     @Test func pluginEntryPoint() {
@@ -151,7 +147,7 @@ struct GitLabIntegrationTests {
         #expect(gitlab.lastError == nil)
     }
 
-    // MARK: gitlab_merge_requests
+    // MARK: Merge requests (gitlab.merge_requests)
 
     static let mergeRequest = """
         [{"references":{"full":"acme/api!12"},"title":"Fix login","author":{"username":"jdoe"},"draft":false,
@@ -164,7 +160,7 @@ struct GitLabIntegrationTests {
             "/api/v4/projects/acme%2Fweb/merge_requests": .json("[]"),
         ])
         let gitlab = make(projects: "acme/api\nacme/web")
-        let result = try await tool(gitlab, "gitlab_merge_requests").run([:])
+        let result = try await gitlab.mergeRequests(project: nil, scope: nil)
         #expect(result == [[
             "project": "acme/api!12", "title": "Fix login", "author": "jdoe", "draft": false,
             "updated_at": "2026-11-01T10:00:00Z", "url": "https://gitlab.com/acme/api/-/merge_requests/12", "pipeline": "success",
@@ -175,7 +171,7 @@ struct GitLabIntegrationTests {
     @Test func mergeRequestsInstanceWideByScope() async throws {
         StubURLProtocol.reset(["/api/v4/merge_requests": .json("[]")])
         let gitlab = make(projects: "acme/api")
-        #expect(try await tool(gitlab, "gitlab_merge_requests").run(["scope": "assigned_to_me"]) == [])
+        #expect(try await gitlab.mergeRequests(project: nil, scope: "assigned_to_me") == [])
         let sent = try #require(StubURLProtocol.requests.last)
         #expect(sent.url?.absoluteString == "https://gitlab.com/api/v4/merge_requests?state=opened&scope=assigned_to_me&per_page=50")
     }
@@ -183,41 +179,8 @@ struct GitLabIntegrationTests {
     @Test func mergeRequestsForOneProject() async throws {
         StubURLProtocol.reset(["/api/v4/projects/group%2Fsub%2Fsvc/merge_requests": .json("[]")])
         let gitlab = make(projects: "acme/api")
-        _ = try await tool(gitlab, "gitlab_merge_requests").run(["project": "group/sub/svc", "scope": "all"])
+        _ = try await gitlab.mergeRequests(project: "group/sub/svc", scope: "all")
         #expect(StubURLProtocol.requests.count == 1)
-    }
-
-    // MARK: gitlab_api_get
-
-    @Test func apiGetReturnsJSON() async throws {
-        StubURLProtocol.reset(["/api/v4/projects/acme%2Fapi/pipelines": .json(#"[{"id":1}]"#)])
-        let gitlab = make()
-        let result = try await tool(gitlab, "gitlab_api_get").run(["path": "/projects/acme%2Fapi/pipelines?per_page=5"])
-        #expect(result == [["id": 1]])
-        #expect(StubURLProtocol.requests.last?.url?.absoluteString == "https://gitlab.com/api/v4/projects/acme%2Fapi/pipelines?per_page=5")
-    }
-
-    @Test func apiGetNeedsLeadingSlash() async throws {
-        StubURLProtocol.reset([:])
-        let gitlab = make()
-        await #expect(throws: ToolError("path must start with /")) { try await tool(gitlab, "gitlab_api_get").run(["path": "projects"]) }
-        #expect(StubURLProtocol.requests.isEmpty)
-    }
-
-    @Test func apiGetNeedsConnection() async throws {
-        let gitlab = make(token: nil)
-        await #expect(throws: ToolError("Connect GitLab in Settings › GitLab.")) {
-            try await tool(gitlab, "gitlab_api_get").run(["path": "/user"])
-        }
-    }
-
-    @Test func apiGetTruncatesLargeResponses() async throws {
-        let big = String(repeating: "a", count: 120_000)
-        StubURLProtocol.reset(["/api/v4/big": .json("{\"blob\":\"\(big)\"}")])
-        let gitlab = make()
-        let result = try await tool(gitlab, "gitlab_api_get").run(["path": "/big"])
-        #expect(result["truncated"] == true)
-        #expect(result["json"]?.string?.count == GitLabIntegration.maxToolCharacters)
     }
 
     // MARK: Settings

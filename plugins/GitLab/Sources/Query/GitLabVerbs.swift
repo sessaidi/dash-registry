@@ -6,7 +6,7 @@ extension GitLabIntegration {
     var verbs: [DashQLVerb] {
         [
             DashQLVerb("mr", "list", tool: "gitlab_merge_requests", summary: "GitLab merge requests (project=, scope=)."),
-            DashQLVerb("gitlab", "get", tool: "gitlab_api_get", arguments: ["path"], summary: "Call the GitLab API (read)."),
+            DashQLVerb("gitlab", "get", tool: "gitlab_api_read", arguments: ["path"], summary: "A GitLab API answer Dash fetched (data_fetch gitlab.api)."),
         ]
     }
 }
