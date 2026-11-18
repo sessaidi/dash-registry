@@ -28,14 +28,14 @@
       "id": "agents",
       "name": "Agents",
       "kind": "feature",
-      "version": "1.13.1",
+      "version": "1.14.0",
       "plugin": {
-        "download": "dist/agents-1.13.1.dashplugin.zip",
-        "minimumDashKit": "2.3.0",
+        "download": "dist/agents-1.14.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "agents"
         ],
-        "sha256": "4e91246be9ab2d5bca0022cafb614f2b22af251db1b1257dfac635a622378b93"
+        "sha256": "7bfbde11c3a6547f591eaabd3ccfb186f58d875837cd3e4d4c5549b869abce1f"
       },
       "description": "Claude Code agents that work on Jira tickets with extreme TDD in their own git worktrees, then open a draft PR.",
       "icon": "hammer",
