@@ -221,6 +221,11 @@ struct FeatureTests {
         ReleasesFeature(defaults: UserDefaults(suiteName: "releases-tests-\(UUID().uuidString)")!, cacheFile: nil)
     }
 
+    @Test func metadata() {
+        let metadata = makeFeature().metadata
+        #expect(metadata.version == "1.8.0" && metadata.minimumDashKit == "2.4.0")
+    }
+
     @Test func startsWithNoRepositories() async throws {
         let feature = makeFeature()
         #expect(feature.repositories.isEmpty)
