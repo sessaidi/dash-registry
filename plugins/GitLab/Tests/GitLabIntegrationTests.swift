@@ -61,7 +61,7 @@ struct GitLabIntegrationTests {
         #expect(gitlab.id == "gitlab")
         #expect(gitlab.name == "GitLab")
         #expect(gitlab.layer == .integration)
-        #expect(gitlab.metadata.version == "1.2.0")
+        #expect(gitlab.metadata.version == "1.5.0" && gitlab.metadata.minimumDashKit == "2.4.0")
         #expect(gitlab.metadata.category == .sourceControl)
         #expect(gitlab.metadata.homepage == "https://github.com/sessaidi/dash")
         #expect(gitlab.secrets?.extensionID == "gitlab")
