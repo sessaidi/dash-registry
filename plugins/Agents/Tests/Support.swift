@@ -121,3 +121,38 @@ func makeAgents(_ integrations: [any DashExtension] = [], configure: (UserDefaul
 func cliMessage(_ line: String) throws -> Message {
     Message(try ClaudeCodeKit.JSON.parse(line))
 }
+
+/// Another plugin's readers and fetchers (Atlassian's jira_issue, Pull Requests' github.branch_pulls),
+/// recording what ran.
+@MainActor
+final class FakeReaders: DashExtension {
+    let id: String
+    let name: String
+    let systemImage = "tray"
+    var answers: [String: JSONValue] = [:]
+    var fetcherNames: [String] = []
+    private(set) var calls: [String] = []
+
+    init(id: String) {
+        self.id = id
+        name = id
+    }
+
+    var tools: [DashiiTool] {
+        answers.keys.sorted().map { name in
+            DashiiTool(name: name, description: "") { [weak self] _ in
+                self?.calls.append(name)
+                return self?.answers[name] ?? .null
+            }
+        }
+    }
+
+    var fetchers: [DataFetcher] {
+        fetcherNames.map { name in
+            DataFetcher(name: name, summary: "") { [weak self] _ in
+                self?.calls.append(name)
+                return ["stored": 0]
+            }
+        }
+    }
+}
