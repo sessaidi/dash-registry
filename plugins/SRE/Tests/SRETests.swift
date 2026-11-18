@@ -189,6 +189,7 @@ struct SRETests {
         let sre = SREFeature()
         #expect(sre.verbs.map(\.usage).contains("sre investigate <symptom> [key=value…]"))
         #expect(sre.datasets.map(\.name) == ["signals"])
+        #expect(sre.metadata.version == "1.3.0" && sre.metadata.minimumDashKit == "2.4.0")
         #expect(Set(sre.verbs.map(\.tool)).isSubset(of: Set(sre.tools.map(\.name))))
     }
 }
