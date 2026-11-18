@@ -2,23 +2,26 @@ import DashKit
 import Foundation
 
 /// What the SRE reads, through the other extensions only: their DashQL datasets (`monitors`,
-/// `pods`, `releases`) and their read tools (`k8s_events`, `datadog_events`, logs). Tools that
-/// change things or write remotely are never called, whatever their name.
+/// `pods`, `releases`) and their readers (`k8s_events`, `datadog_events`, logs), which answer from
+/// what Dash fetched. Only tools Dashii may use are called: never one that changes things, writes
+/// remotely or calls a service.
 @MainActor
 struct Ops {
     let host: any ExtensionContext
 
     private var enabled: [any DashExtension] { host.extensions.filter { host.isEnabled($0) } }
 
-    /// A read-only tool of an enabled extension.
+    /// A reader of an enabled extension.
     func tool(_ name: String) -> DashiiTool? {
-        enabled.flatMap(\.tools).first { $0.name == name && !$0.requiresApproval && !$0.writesRemotely }
+        enabled.flatMap(\.tools).first { $0.name == name && $0.isForDashii && !$0.requiresApproval }
     }
 
     func call(_ name: String, _ input: JSONValue = [:]) async throws -> JSONValue {
         guard let tool = tool(name) else { throw ToolError("\(name) isn't available (its plugin is off or not installed).") }
         return try await tool.run(input)
     }
+
+    func read(_ name: String, _ input: JSONValue = [:]) async throws -> Reading { Reading(value: try await call(name, input)) }
 
     /// A dataset's rows, or nil when no enabled extension offers it.
     func rows(_ dataset: String) async -> [JSONValue]? {
@@ -44,10 +47,19 @@ struct Ops {
 
     // MARK: Evidence
 
-    /// Signals, warning events, recent changes and releases as numbered evidence for `root_cause`.
-    func evidence(namespace: String?, service: String?, minutes: Int) async -> (items: [DashiiFunctions.Evidence], gaps: [String]) {
+    /// Signals, warning events, recent changes and releases as numbered evidence for `root_cause`,
+    /// what couldn't be checked, and the fetches that would bring missing or stale data.
+    func evidence(namespace: String?, service: String?, minutes: Int) async -> (items: [DashiiFunctions.Evidence], gaps: [String], refresh: [JSONValue]) {
         var items: [DashiiFunctions.Evidence] = []
         var gaps: [String] = []
+        var refresh: [JSONValue] = []
+        func note(_ what: String, _ reading: Reading) {
+            guard let fetch = reading.refresh else { return }
+            refresh.append(fetch)
+            let fetcher = fetch["fetcher"]?.string ?? "its fetcher"
+            gaps.append(reading.fetched ? "\(what): as of \(reading.syncedAt ?? "an earlier fetch"), stale (data_fetch \(fetcher) for current data)."
+                                        : "\(what): not in Dash yet (data_fetch \(fetcher), then investigate again).")
+        }
         func add(_ source: String, _ detail: String, at: String? = nil) {
             guard items.count < 60 else { return }
             items.append(.init(id: "e\(items.count + 1)", source: source, detail: String(detail.prefix(300)), at: at))
@@ -62,7 +74,9 @@ struct Ops {
             var input: [String: JSONValue] = ["warningsOnly": true]
             if let namespace { input["namespace"] = .string(namespace) }
             do {
-                for event in try await call("k8s_events", .object(input)).array?.prefix(20) ?? [] {
+                let reading = try await read("k8s_events", .object(input))
+                note("Kubernetes events", reading)
+                for event in reading.rows.prefix(20) {
                     add("k8s event \(event["object"]?.string ?? "")", "\(event["reason"]?.string ?? ""): \(event["message"]?.string ?? "")",
                         at: event["lastSeen"]?.string)
                 }
@@ -74,8 +88,9 @@ struct Ops {
         if tool("datadog_events") != nil {
             let query = service.map { "service:\($0)" } ?? ""
             do {
-                let result = try await call("datadog_events", ["query": .string(query), "minutes": .number(Double(minutes)), "limit": 30])
-                for event in (result["data"]?.array ?? result.array ?? []).prefix(20) {
+                let reading = try await read("datadog_events", ["query": .string(query), "minutes": .number(Double(minutes)), "limit": 30])
+                note("Datadog events", reading)
+                for event in reading.rows.prefix(20) {
                     let attributes = event["attributes"] ?? event
                     let text = attributes["title"]?.string ?? attributes["message"]?.string ?? attributes["attributes"]?["title"]?.string ?? ""
                     guard !text.isEmpty else { continue }
@@ -92,13 +107,14 @@ struct Ops {
                     at: release["date"]?.string)
             }
         }
-        return (items, gaps)
+        return (items, gaps, refresh)
     }
 
     // MARK: Logs
 
-    /// Log lines from Datadog, Cloud Logging or a pod, newest first, at most `limit`.
-    func logLines(source: String, query: String?, project: String?, namespace: String?, pod: String?, minutes: Int, limit: Int = 300) async throws -> [String] {
+    /// Log lines from Datadog, Cloud Logging or a pod, newest first, at most `limit`, with the
+    /// reader's answer (whether Dash has them, and how fresh).
+    func logLines(source: String, query: String?, project: String?, namespace: String?, pod: String?, minutes: Int, limit: Int = 300) async throws -> (lines: [String], reading: Reading) {
         let raw: JSONValue
         switch source {
         case "datadog":
@@ -118,9 +134,11 @@ struct Ops {
         default:
             throw ToolError("Logs come from datadog, gcp or kubernetes.")
         }
+        let reading = Reading(value: raw)
+        guard reading.fetched else { return ([], reading) }
         let lines = Self.lines(raw)
-        if source == "kubernetes", let query, !query.isEmpty { return Array(lines.filter { $0.localizedCaseInsensitiveContains(query) }.prefix(limit)) }
-        return Array(lines.prefix(limit))
+        if source == "kubernetes", let query, !query.isEmpty { return (Array(lines.filter { $0.localizedCaseInsensitiveContains(query) }.prefix(limit)), reading) }
+        return (Array(lines.prefix(limit)), reading)
     }
 
     /// Text lines from whatever a log tool returns: text, entries with a message, or JSON.
@@ -135,11 +153,24 @@ struct Ops {
                 return [status, message].compactMap { $0 }.joined(separator: " ")
             }
         case .object(let object):
-            for key in ["entries", "data", "logs", "lines"] where object[key] != nil { return lines(object[key]!) }
+            for key in ["entries", "data", "logs", "lines", "items", "text"] where object[key] != nil { return lines(object[key]!) }
             return [value.jsonString()]
         default: return []
         }
     }
+}
+
+/// What a reader answered: its rows (a list, `items`, or Datadog's `data`), when Dash fetched
+/// them, and the `data_fetch` call to make when they're missing or stale.
+struct Reading: Sendable, Equatable {
+    let value: JSONValue
+
+    var fetched: Bool { value["fetched"] != false }
+    var stale: Bool { value["stale"] == true }
+    var syncedAt: String? { value["synced_at"]?.string }
+    /// `{fetcher, input}` when the data is missing or stale; nil when it's current.
+    var refresh: JSONValue? { fetched && !stale ? nil : value["refresh"] }
+    var rows: [JSONValue] { value.array ?? value["items"]?.array ?? value["data"]?.array ?? [] }
 }
 
 /// Monitors and pods that need attention, worst first.

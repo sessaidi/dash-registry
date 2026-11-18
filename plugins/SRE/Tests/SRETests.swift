@@ -3,8 +3,9 @@ import DashKitTesting
 import Foundation
 import Testing
 
-/// Stands in for Datadog Monitors, Kubernetes Pods and their read tools, plus one tool that
-/// changes things (which the SRE must never call).
+/// Stands in for Datadog Monitors, Kubernetes Pods and their readers (answering like the real
+/// ones: rows with freshness, or "not fetched"), plus a tool that changes things and one that calls
+/// a service, which the SRE must never call.
 @MainActor
 final class FakeOps: DashExtension {
     let id = "fake-ops"
@@ -14,6 +15,17 @@ final class FakeOps: DashExtension {
     var monitors: [JSONValue] = []
     var pods: [JSONValue] = []
     var calls: [String] = []
+    /// What the readers have: current data, stale data, or nothing yet.
+    enum Stored { case fresh, stale, none }
+    var stored = Stored.fresh
+
+    func answer(_ fetcher: String, _ data: JSONValue) -> JSONValue {
+        switch stored {
+        case .none: notFetched(fetcher, input: [:])
+        case .fresh, .stale:
+            data.merging(["synced_at": "2026-11-15T10:05:00Z", "stale": .bool(stored == .stale), "refresh": ["fetcher": .string(fetcher), "input": [:]]])
+        }
+    }
 
     var datasets: [QueryDataset] {
         [QueryDataset(name: "monitors", summary: "") { [weak self] _ in self?.monitors ?? [] },
@@ -24,15 +36,21 @@ final class FakeOps: DashExtension {
         [
             DashiiTool(name: "k8s_events", description: "") { [weak self] _ in
                 self?.calls.append("k8s_events")
-                return [["object": "Pod/api-1", "reason": "BackOff", "message": "Back-off restarting failed container", "lastSeen": "2026-11-15T10:03:00Z"]]
+                return self?.answer("k8s.events", ["items": [["object": "Pod/api-1", "reason": "BackOff", "message": "Back-off restarting failed container",
+                                                              "lastSeen": "2026-11-15T10:03:00Z"]]]) ?? .null
             },
             DashiiTool(name: "datadog_events", description: "") { [weak self] _ in
                 self?.calls.append("datadog_events")
-                return ["data": [["attributes": ["title": "Deployed api v1.42", "timestamp": "2026-11-15T10:01:00Z"]]]]
+                return self?.answer("datadog.events", ["data": [["attributes": ["title": "Deployed api v1.42", "timestamp": "2026-11-15T10:01:00Z"]]]]) ?? .null
             },
             DashiiTool(name: "datadog_logs_search", description: "") { [weak self] _ in
                 self?.calls.append("datadog_logs_search")
-                return [["status": "error", "message": "missing key FEATURE_FLAGS_URL"], ["status": "error", "message": "missing key FEATURE_FLAGS_URL"]]
+                return self?.answer("datadog.logs", ["items": [["status": "error", "message": "missing key FEATURE_FLAGS_URL"],
+                                                               ["status": "error", "message": "missing key FEATURE_FLAGS_URL"]]]) ?? .null
+            },
+            DashiiTool(name: "gcp_logs_query", description: "", callsService: true) { [weak self] _ in
+                self?.calls.append("gcp_logs_query (service)")
+                return "should not be called"
             },
             DashiiTool(name: "k8s_logs", description: "", requiresApproval: true) { [weak self] _ in
                 self?.calls.append("k8s_logs (approval)")
@@ -93,8 +111,39 @@ struct SRETests {
         host.testDashii.reply = #"{"summary":"Config key missing.","patterns":[{"pattern":"missing key <key>","count":2,"severity":"error","example":"missing key FEATURE_FLAGS_URL"}]}"#
         let digest = try #require(await host.runTool("sre_logs", ["source": "datadog", "query": "service:api status:error"]))
         #expect(digest["lines"] == 2 && digest["patterns"]?[0]?["count"] == 2)
+        #expect(digest["synced_at"] == "2026-11-15T10:05:00Z" && digest["stale"] == false && digest["refresh"] == .null)
         await #expect(throws: (any Error).self) { try await host.runTool("sre_logs", ["source": "kubernetes", "pod": "api-1"]) }
-        #expect(!ops.calls.contains("k8s_logs (approval)"))
+        await #expect(throws: (any Error).self) { try await host.runTool("sre_logs", ["source": "gcp", "project": "acme-prod"]) }
+        #expect(!ops.calls.contains("k8s_logs (approval)") && !ops.calls.contains("gcp_logs_query (service)"))
+    }
+
+    @Test func investigateSaysWhatToFetchWhenDashHasNothing() async throws {
+        let (_, ops, host) = try make()
+        ops.stored = .none
+        let result = try #require(await host.runTool("sre_investigate", ["symptom": "api 5xx", "service": "api"]))
+        #expect(result["refresh"]?.array?.compactMap { $0["fetcher"]?.string } == ["k8s.events", "datadog.events"])
+        #expect(result["gaps"]?.array?.contains { $0.string?.contains("not in Dash yet (data_fetch k8s.events") == true } == true)
+        #expect(result["analysis"]?.string?.hasPrefix("No evidence in Dash yet") == true)
+        #expect(host.testDashii.calls.isEmpty)
+    }
+
+    @Test func staleReadingsStillCountAndAskForAFetch() async throws {
+        let (_, ops, host) = try make()
+        ops.monitors = [Self.alerting]
+        ops.stored = .stale
+        host.testDashii.reply = #"{"summary":"v1.42 broke api","hypotheses":[]}"#
+        let result = try #require(await host.runTool("sre_investigate", ["symptom": "api 5xx"]))
+        #expect(result["evidence"]?.array?.compactMap { $0["source"]?.string } == ["datadog monitor 1201", "k8s event Pod/api-1", "datadog event"])
+        #expect(result["refresh"]?.array?.count == 2)
+        #expect(result["gaps"]?.array?.contains { $0.string?.contains("as of 2026-11-15T10:05:00Z, stale") == true } == true)
+    }
+
+    @Test func logsNotInDashComeBackWithTheirRefresh() async throws {
+        let (_, ops, host) = try make()
+        ops.stored = .none
+        let result = try #require(await host.runTool("sre_logs", ["source": "datadog", "query": "service:api"]))
+        #expect(result["fetched"] == false && result["lines"] == 0 && result["refresh"]?["fetcher"] == "datadog.logs")
+        #expect(host.testDashii.calls.isEmpty)
     }
 
     @Test func oncallSkipsQuietScheduledRunsAndWakesOnAlerts() async throws {
@@ -123,6 +172,17 @@ struct SRETests {
         #expect(loader.snapshot?.signals.monitors.map(\.title) == ["api 5xx rate"])
         #expect(loader.snapshot?.level == .down)
         #expect(StatusSnapshot.sample.level == .down)
+    }
+
+    @Test func noToolDashiiGetsMakesARequest() async throws {
+        let (sre, ops, host) = try make()
+        ops.monitors = [Self.alerting]
+        ops.pods = [Self.crashing]
+        host.testDashii.reply = #"{"summary":"ok","hypotheses":[],"patterns":[]}"#
+        let tools = sre.tools.filter { $0.isForDashii && !$0.requiresApproval }
+        #expect(tools.map(\.name) == ["sre_status", "sre_investigate", "sre_logs"])
+        #expect(await NetworkSentinel.requests(running: tools, values: ["symptom": "api 5xx", "source": "datadog"]) == [])
+        #expect(sre.tools.first { $0.name == "sre_incident_note" }?.requiresApproval == true)
     }
 
     @Test func verbsAndDatasets() throws {
