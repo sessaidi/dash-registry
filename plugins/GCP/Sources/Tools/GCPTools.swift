@@ -1,32 +1,10 @@
 import DashKit
 import Foundation
 
-/// Dashii's Google Cloud tools: any GET on googleapis.com, projects, logs, metrics and resources.
+/// Dashii's Google Cloud tools are the readers of what Dash fetched (`readers`); these calls are
+/// the fetchers' own: any GET on googleapis.com, and the projects.
 extension GCPIntegration {
-    private struct GetInput: Decodable { let url: String }
-
-    var tools: [DashiiTool] {
-        [
-            DashiiTool(
-                name: "gcp_api_get",
-                description: "Read any Google Cloud REST API as the user (GET only), e.g. https://container.googleapis.com/v1/projects/PROJECT/locations/-/clusters or https://logging.googleapis.com/... Responses are cut at 100,000 characters.",
-                properties: ["url": JSONSchema.string("Full https URL on *.googleapis.com.")], required: ["url"]
-            ) { [weak self] input in
-                guard let self else { throw ToolError("Google Cloud is unavailable.") }
-                return try await self.apiGet(input.toolInput(GetInput.self).url)
-            },
-            DashiiTool(
-                name: "gcp_list_projects",
-                description: "List the Google Cloud projects the user can see: projectId, name and state.",
-                properties: [:]
-            ) { [weak self] _ in
-                guard let self else { throw ToolError("Google Cloud is unavailable.") }
-                return try await self.listProjects()
-            },
-            loggingTool,
-            monitoringTool,
-        ] + resourceTools
-    }
+    var tools: [DashiiTool] { readers }
 
     func apiGet(_ address: String) async throws -> JSONValue {
         let connection = try requireConnection()

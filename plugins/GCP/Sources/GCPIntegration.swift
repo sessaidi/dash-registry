@@ -36,6 +36,9 @@ final class GCPIntegration: Integration {
     @ObservationIgnored private(set) var credentials: GoogleCredentials?
     /// nil: `URLSession.shared`. Tests inject a stubbed session.
     @ObservationIgnored private let session: URLSession?
+    @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    /// The clock for freshness and relative windows (tests move it).
+    @ObservationIgnored var now: @MainActor () -> Date = { .now }
 
     init(credentialsPath: String? = nil, session: URLSession? = nil) {
         self.session = session
@@ -80,6 +83,7 @@ final class GCPIntegration: Integration {
     }
 
     func start(host: any ExtensionContext) {
+        self.host = host
         Task { await verify() }
     }
 

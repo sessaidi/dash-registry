@@ -1,4 +1,5 @@
 import DashKit
+import DashKitTesting
 import Foundation
 import Security
 import Synchronization
@@ -218,6 +219,18 @@ struct GCPPluginTests {
         return (GCPIntegration(credentialsPath: file.path, session: session), file)
     }
 
+    /// An integration started in a test host, so its fetchers can store and its readers read.
+    @MainActor
+    func hosted(_ handler: @escaping StubProtocol.Handler) throws -> (GCPIntegration, URL, TestHost) {
+        let (gcp, file) = try integration(handler)
+        let dash = try TestHost([gcp])
+        dash.start([gcp])
+        return (gcp, file, dash)
+    }
+
+    /// The requests that went to Google Cloud itself (not the OAuth token endpoints).
+    var googleRequests: [StubProtocol.Recorded] { StubProtocol.requests.filter { $0.request.url?.host() != "oauth2.googleapis.com" } }
+
     @MainActor
     @Test func metadataAndExports() throws {
         let (gcp, file) = try integration { _, _ in (200, tokenResponse) }
@@ -235,13 +248,13 @@ struct GCPPluginTests {
         #expect(connection.baseURL.absoluteString == "https://www.googleapis.com")
         #expect(connection.hosts == [".googleapis.com"])
         #expect(Set(gcp.tools.map(\.name)) == [
-            "gcp_api_get", "gcp_list_projects", "gcp_logs_query", "gcp_metrics_query",
+            "gcp_api_read", "gcp_list_projects", "gcp_logs_query", "gcp_metrics_query",
             "gcp_gke_clusters", "gcp_gke_cluster", "gcp_cloud_run_services", "gcp_cloud_run_revisions", "gcp_pubsub_topics",
             "gcp_pubsub_subscriptions", "gcp_sql_instances", "gcp_artifact_repositories", "gcp_artifact_images", "gcp_secrets",
             "gcp_iam_policy", "gcp_compute_instances", "gcp_cloud_builds", "gcp_error_groups", "gcp_uptime_checks", "gcp_audit_logs",
         ])
-        // Everything Claude gets here only reads.
-        #expect(gcp.tools.allSatisfy { !$0.writesRemotely && !$0.requiresApproval })
+        // Everything Dashii gets here reads what Dash fetched.
+        #expect(gcp.tools.allSatisfy { $0.isForDashii && !$0.callsService && !$0.writesRemotely && !$0.requiresApproval })
         #expect(GCPPlugin.makeExtensions().first?.id == "gcp")
     }
 
@@ -279,24 +292,29 @@ struct GCPPluginTests {
     }
 
     @MainActor
-    @Test func apiGetAllowsOnlyGoogleAPIs() async throws {
-        let (gcp, file) = try integration { request, _ in
+    @Test func rawURLsAreOnlyGoogleAPIs() async throws {
+        let (gcp, file, dash) = try hosted { request, _ in
             request.url?.host() == "oauth2.googleapis.com" ? (200, tokenResponse) : (200, json(["items": [1, 2]]))
         }
         defer { try? FileManager.default.removeItem(at: file) }
-        let tool = try #require(gcp.tools.first { $0.name == "gcp_api_get" })
-        for url in ["https://evil.com/x", "http://compute.googleapis.com/v1", "https://googleapis.com.evil.com/", "https://evilgoogleapis.com/", "not a url"] {
+        for url in ["https://evil.com/x", "http://compute.googleapis.com/v1", "https://googleapis.com.evil.com/", "https://evilgoogleapis.com/", "not a url",
+                    "https://compute.googleapis.com/compute/v1/projects/p/../q"] {
             await #expect(throws: ToolError("Only https://*.googleapis.com URLs are allowed."), "\(url)") {
-                try await tool.run(["url": .string(url)])
+                try await dash.fetch("gcp.api", ["url": .string(url)])
+            }
+            await #expect(throws: ToolError("Only https://*.googleapis.com URLs are allowed."), "\(url)") {
+                try await dash.runTool("gcp_api_read", ["url": .string(url)])
             }
         }
-        #expect(StubProtocol.requests.isEmpty)
+        #expect(googleRequests.isEmpty)
 
-        let result = try await tool.run(["url": "https://container.googleapis.com/v1/projects/p/locations/-/clusters"])
-        #expect(result == ["items": [1, 2]])
-        let call = try #require(StubProtocol.requests.last)
+        let url: JSONValue = ["url": "https://container.googleapis.com/v1/projects/p/locations/-/clusters"]
+        _ = try await dash.fetch("gcp.api", url)
+        #expect(try await dash.runTool("gcp_api_read", url)?["items"] == [1, 2])
+        let call = try #require(googleRequests.last)
         #expect(call.request.httpMethod == "GET")
         #expect(call.request.value(forHTTPHeaderField: "Authorization") == "Bearer ya29.test")
+        _ = gcp
     }
 
     @MainActor
@@ -313,7 +331,7 @@ struct GCPPluginTests {
 
     @MainActor
     @Test func listProjectsFollowsPages() async throws {
-        let (gcp, file) = try integration { request, _ in
+        let (gcp, file, dash) = try hosted { request, _ in
             guard request.url?.host() == "cloudresourcemanager.googleapis.com" else { return (200, tokenResponse) }
             if request.url?.query()?.contains("pageToken=next") == true {
                 return (200, json(["projects": [["projectId": "b", "name": "B", "lifecycleState": "DELETE_REQUESTED", "projectNumber": "2"]]]))
@@ -321,8 +339,9 @@ struct GCPPluginTests {
             return (200, json(["projects": [["projectId": "a", "name": "A", "lifecycleState": "ACTIVE"]], "nextPageToken": "next"]))
         }
         defer { try? FileManager.default.removeItem(at: file) }
-        let tool = try #require(gcp.tools.first { $0.name == "gcp_list_projects" })
-        let result = try await tool.run([:])
+        _ = try await dash.fetch("gcp.projects")
+        let result = try #require(try await dash.runTool("gcp_list_projects"))
+        #expect(gcp.tools.contains { $0.name == "gcp_list_projects" })
         #expect(result["projects"] == [
             ["projectId": "a", "name": "A", "state": "ACTIVE"],
             ["projectId": "b", "name": "B", "state": "DELETE_REQUESTED"],

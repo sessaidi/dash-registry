@@ -2,7 +2,7 @@ import DashKit
 import Foundation
 
 /// Cloud Monitoring reads: a container's memory, CPU, restarts and disk over time, so a
-/// restart can be traced to what led to it. The `gcp_metrics_query` tool.
+/// restart can be traced to what led to it. The `gcp.metrics` fetcher stores them.
 extension GCPIntegration {
     struct MetricsInput: Decodable {
         let project: String
@@ -38,7 +38,7 @@ extension GCPIntegration {
 
     func queryMetrics(_ input: MetricsInput) async throws -> JSONValue {
         let connection = try requireConnection()
-        let now = Date.now
+        let now = self.now()
         let type = Self.metricPresets[input.metric] ?? input.metric
         // Counters (CPU seconds, restarts) are turned into rates/deltas; gauges are averaged.
         let cumulative = type.hasSuffix("core_usage_time") || type.hasSuffix("restart_count")
@@ -68,26 +68,5 @@ extension GCPIntegration {
                 "points": .array(Array(points.prefix(200))),
             ]
         })]
-    }
-
-    var monitoringTool: DashiiTool {
-        DashiiTool(
-            name: "gcp_metrics_query",
-            description: "Read Google Cloud Monitoring time series for Kubernetes containers: memory used (bytes) and memory/CPU limit utilization (0-1), CPU cores used, restarts per interval, ephemeral storage used. Points newest first, with max and last. Read-only.",
-            properties: [
-                "project": JSONSchema.string("GCP project id."),
-                "metric": JSONSchema.string("Preset or a full metric type.", enum: ["memory", "memory_limit", "cpu", "cpu_limit", "restarts", "ephemeral_storage"]),
-                "namespace": JSONSchema.string("Kubernetes namespace."),
-                "pod": JSONSchema.string("Pod name."),
-                "container": JSONSchema.string("Container name."),
-                "cluster": JSONSchema.string("GKE cluster name."),
-                "since": JSONSchema.string("How far back: 1h, 6h, 24h, 7d (default 6h)."),
-                "step": JSONSchema.integer("Seconds per point (default 300)."),
-            ],
-            required: ["project", "metric"]
-        ) { [weak self] input in
-            guard let self else { throw ToolError("Google Cloud is unavailable.") }
-            return try await self.queryMetrics(input.toolInput(MetricsInput.self))
-        }
     }
 }
