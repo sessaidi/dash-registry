@@ -149,15 +149,15 @@
       "id": "docker",
       "name": "Docker",
       "kind": "integration",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "plugin": {
-        "download": "dist/docker-1.6.0.dashplugin.zip",
-        "minimumDashKit": "2.0.0",
+        "download": "dist/docker-1.7.0.dashplugin.zip",
+        "minimumDashKit": "2.4.0",
         "provides": [
           "docker",
           "docker-containers"
         ],
-        "sha256": "314da4d93998d05611b16b1ec1a583f724f10e481010c7683b008f2284cc0ec8"
+        "sha256": "ef70ceef9eb9e0af901a2b65ca5ebc33558146e189a1a1a6aa9f6c0e8314d7c3"
       },
       "description": "Local Docker containers through the Engine API socket, with a Containers widget and crash alerts.",
       "icon": "shippingbox",
