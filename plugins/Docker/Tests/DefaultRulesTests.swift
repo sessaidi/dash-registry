@@ -16,6 +16,7 @@ struct DefaultRulesTests {
         }
         let rules = extensions.compactMap(\.defaultRules).joined(separator: "\n")
         #expect(rules.contains("docker_containers"))
-        #expect(rules.contains("ask the user first"))
+        #expect(rules.contains("asks the user first"))
+        #expect(rules.contains("data_fetch"))
     }
 }
