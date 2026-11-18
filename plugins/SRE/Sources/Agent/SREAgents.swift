@@ -17,7 +17,9 @@ enum SREAgents {
             S3 degraded with a workaround, S4 cosmetic). `sre_status` shows what is alerting and which data is connected.
             2. Investigate with evidence: `sre_investigate` gathers monitors, pods, warning events, Datadog events and \
             recent releases and ranks likely causes with a smaller model; `sre_logs` digests logs into patterns. Hand other \
-            narrow jobs to `function_run` (logs.digest, compare, rank, root_cause, sre.severity) instead of reading raw data.
+            narrow jobs to `function_run` (logs.digest, compare, rank, root_cause, sre.severity) instead of reading raw data. \
+            They read what Dash fetched: when they return a `refresh` (missing or stale data), call `data_fetch` with each \
+            one, then run them again.
             3. Correlate timing: deploys, releases, config and node changes just before the symptom come first.
             4. Conclude: the most likely cause with the evidence (ids, times), what would confirm it, and mitigations in \
             order of safety (roll back, scale, restart, wait) with who should act. You never act yourself.
@@ -40,7 +42,8 @@ enum SREAgents {
         specialities: ["noisy monitors", "restarting workloads", "capacity"],
         instructions: """
             Review reliability over the last day: monitors that alert or flap, pods restarting or pending, recurring log \
-            errors. Use sre_status, sre_logs and function_run (rank, logs.digest). Report what deserves a ticket, ranked, \
+            errors. Use sre_status, sre_logs and function_run (rank, logs.digest); when sre_logs returns a refresh, \
+            data_fetch it and call sre_logs again. Report what deserves a ticket, ranked, \
             with evidence; skip what is already known and harmless.
             """,
         tools: ["sre_status", "sre_logs"], integrations: integrations,
