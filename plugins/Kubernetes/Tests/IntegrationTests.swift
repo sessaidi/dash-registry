@@ -172,7 +172,7 @@ struct IntegrationTests {
         let k8s = extensions[0]
         #expect(k8s.layer == .integration)
         #expect(k8s.optional == ["gcp"])
-        #expect(k8s.metadata.version == "1.1.0")
+        #expect(extensions.allSatisfy { $0.metadata.version == "1.12.0" && $0.metadata.minimumDashKit == "2.4.0" })
         #expect(k8s.metadata.category == .cloud)
         #expect(k8s.metadata.author == .dash)
         #expect(extensions[1].requires == ["kubernetes"])
