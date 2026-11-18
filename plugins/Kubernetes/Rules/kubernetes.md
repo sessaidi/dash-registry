@@ -1,4 +1,7 @@
-- Read the clusters in the user's kubeconfig: k8s_contexts, k8s_namespaces, k8s_list_pods, k8s_get, k8s_list, k8s_describe, k8s_events, k8s_logs, k8s_top_pods, k8s_rollout_status.
+- Read the clusters from Dash, not from the cluster: k8s_list_pods, k8s_namespaces, k8s_list, k8s_describe, k8s_logs, k8s_events, k8s_top_pods and k8s_rollout_status answer from what Dash fetched on the current context, with synced_at and stale. k8s_contexts reads the kubeconfig. DashQL has `from pods` (refreshed every 30 seconds), k8s_events and k8s_objects.
+- When a reader says "fetched": false, or "stale": true and the question needs current data, call data_fetch with its "refresh" (e.g. k8s.events with the same namespace), then read again. Pods, events and logs go stale within a minute or two.
+- Say how fresh an answer is ("pods as of 10:04") and never call cluster state current without its synced_at.
+- data_fetch k8s.api reads any API path (GET only; no watch, exec, attach, port-forward or proxy) when no other fetcher fits; read it with k8s_api_read and the same path.
 - Nothing here changes a cluster: restarts and scaling are the user's (kubectl or their tooling).
 - Always say the context (cluster) and namespace; EU and US clusters differ, so name the region.
 - For a failing pod: status and restarts, then its events, then the last log lines of the failing container; quote only what explains it.
