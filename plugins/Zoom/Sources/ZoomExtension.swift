@@ -16,7 +16,7 @@ final class ZoomExtension: DashExtension {
     let name = "Zoom"
     let systemImage = "video"
     let metadata = ExtensionMetadata(
-        version: "1.3.0", author: .dash, summary: "On-device Zoom transcripts, participants, summaries and recordings.",
+        version: "1.10.1", author: .dash, summary: "On-device Zoom transcripts, participants, summaries and recordings.",
         category: .communication, tags: ["zoom", "meetings", "transcription"], homepage: "https://github.com/sessaidi/dash-extensions",
         minimumDashKit: "2.0.0")
 
