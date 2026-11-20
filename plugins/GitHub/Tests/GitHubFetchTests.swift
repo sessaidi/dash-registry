@@ -301,5 +301,24 @@ struct GitHubFetchTests {
         let rows = try await #require(github.datasets.first { $0.name == "github_pulls" }).rows(nil)
         #expect(rows == github.storedRows(["pulls", "pull"]) { "\($0["number"]?.int ?? 0)" })
         #expect(rows.first?["comments"] == 2 && rows.first?["stale"] == false)
+        // In memory (tests): nothing for features to open.
+        #expect(github.exports["database"] == nil)
+    }
+
+    @Test func theDatabaseFileIsPublishedForFeatures() async throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "gh-db-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let defaults = UserDefaults(suiteName: "gh-db-\(UUID())")!
+        defaults.set("https://\(stub)", forKey: "github.api")
+        let github = GitHubIntegration(defaults: defaults, token: { "t0ken" }, session: StubHTTP.session, databaseFolder: folder)
+        let dash = try TestHost([github])
+        dash.start([github])
+        serve([Self.repo + "/pulls": "[\(Self.pr)]"])
+        _ = try await dash.fetch("github.pulls", ["repo": "acme/billing-api"])
+
+        let export = try #require(github.exports["database"])
+        #expect(export["name"] == "github" && export["schema"] == .number(Double(GitHubSchema.version)))
+        let reader = try #require(IngestDatabase.reading(name: "github", models: GitHubSchema.models, folder: URL(filePath: export["folder"]?.string ?? "")))
+        #expect(try reader.context.fetch(FetchDescriptor<GitHubPull>()).map(\.rowKey) == ["acme/billing-api#7"])
     }
 }

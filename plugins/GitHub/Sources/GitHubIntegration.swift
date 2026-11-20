@@ -197,12 +197,14 @@ final class GitHubIntegration: Integration {
     }
 
     var exports: JSONValue {
-        [
+        var exports: JSONValue = [
             "login": .string(viewer),
             "repos": .array(repos.map { .string($0) }),
             "apiURL": .string(apiURL),
             "webURL": .string(webURL),
         ]
+        if let databaseExport { exports = exports.merging(["database": databaseExport]) }
+        return exports
     }
 
     private var api: GitHubAPI {
