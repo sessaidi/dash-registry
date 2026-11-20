@@ -192,14 +192,14 @@
       "id": "github",
       "name": "GitHub",
       "kind": "integration",
-      "version": "1.11.0",
+      "version": "1.12.0",
       "plugin": {
-        "download": "dist/github-1.11.0.dashplugin.zip",
+        "download": "dist/github-1.12.0.dashplugin.zip",
         "minimumDashKit": "2.4.0",
         "provides": [
           "github"
         ],
-        "sha256": "cfe00e25f73b0547876fd2e3f31a54a860d48f2ed4baac6dc1f1ac29eb46126c"
+        "sha256": "418dd8302616bc271d0dbb9650dc2ec306fc6a4435a64dcc16d62187f1dc9800"
       },
       "description": "GitHub account, API URL and the repositories you watch.",
       "icon": "chevron.left.forwardslash.chevron.right",
