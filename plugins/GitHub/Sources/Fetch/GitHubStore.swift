@@ -16,6 +16,8 @@ extension GitHubIntegration {
         ingestor.clock = { [weak self] in self?.now() ?? .now }
         ingestor.transform = { field, value in field == "repo" ? value.lowercased() : value }
         ingestor.validate = { input in if input["repo"] != nil { _ = try Self.repoPath(input) } }
+        ingestor.database = database
+        ingestor.tables = ingestTables
         return ingestor
     }
 

@@ -1,6 +1,8 @@
 import DashKit
 import DashKitTesting
 import Foundation
+import Ingestor
+import SwiftData
 import Testing
 
 /// Fetch, then read: each fetcher calls GitHub and stores a sanitized answer with a receipt; each
@@ -277,5 +279,27 @@ struct GitHubFetchTests {
         #expect(rows.first?["repo"] == "acme/billing-api" && rows.first?["number"] == 7 && rows.first?["stale"] == false && rows.first?["synced_at"]?.string != nil)
         let runs = try await #require(github.datasets.first { $0.name == "github_runs" }).rows(nil)
         #expect(runs.map { $0["conclusion"] } == ["failure"])
+    }
+
+    @Test func fetchedPullsAndRunsFillGitHubsTables() async throws {
+        serve([Self.repo + "/pulls": "[\(Self.pr)]", Self.repo + "/pulls/7": Self.pr,
+               Self.repo + "/actions/runs": #"{"workflow_runs":[{"id":11,"name":"CI","head_branch":"main","status":"completed","conclusion":"failure","run_started_at":"2026-11-17T08:00:00Z"}]}"#])
+        _ = try await dash.fetch("github.pulls", ["repo": "Acme/Billing-API"])
+        _ = try await dash.fetch("github.workflow_runs", ["repo": "acme/billing-api"])
+        let database = try #require(github.database)
+
+        let pulls = try database.context.fetch(FetchDescriptor<GitHubPull>())
+        #expect(pulls.map(\.rowKey) == ["acme/billing-api#7"])
+        #expect(pulls.first.map { $0.repo == "acme/billing-api" && $0.number == 7 && $0.author == "ada" && $0.state == "open" && $0.labels == ["backend"] } == true)
+        #expect(pulls.first?.updated == DashDate.parse("2026-11-17T09:00:00Z"))
+        let runs = try database.context.fetch(FetchDescriptor<GitHubRun>(predicate: #Predicate { $0.conclusion == "failure" }))
+        #expect(runs.map(\.runID) == [11] && runs.first?.workflow == "CI" && runs.first?.started != nil)
+
+        // One pull request fetched later updates its row; DashQL reads the tables, same rows as the cache.
+        _ = try await dash.fetch("github.pull", ["repo": "acme/billing-api", "number": 7])
+        #expect(try database.context.fetchCount(FetchDescriptor<GitHubPull>()) == 1)
+        let rows = try await #require(github.datasets.first { $0.name == "github_pulls" }).rows(nil)
+        #expect(rows == github.storedRows(["pulls", "pull"]) { "\($0["number"]?.int ?? 0)" })
+        #expect(rows.first?["comments"] == 2 && rows.first?["stale"] == false)
     }
 }
