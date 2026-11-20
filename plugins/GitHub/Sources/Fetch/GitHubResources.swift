@@ -55,12 +55,13 @@ extension GitHubIntegration {
                 let author = input["author"]?.string?.lowercased()
                 return .array((try await get(github, path).array ?? []).filter { author == nil || $0["user"]?["login"]?.string?.lowercased() == author }.map(Self.pullSummary))
             },
-            GitHubResource(what: "pull", summary: "One pull request: description, branches, mergeability, reviewers, labels, size.",
+            GitHubResource(what: "pull", summary: "One pull request: description, branches, mergeability, reviewers, labels, size, comment counts.",
                            properties: ["repo": repo, "number": number], required: ["repo", "number"]) { github, input in
                 let pr = try await get(github, try Self.repoPath(input) + "/pulls/\(input["number"]?.int ?? 0)")
                 return Self.pullSummary(pr).merging(["body": pr["body"] ?? .null, "mergeable": pr["mergeable_state"] ?? .null,
                                                      "additions": pr["additions"] ?? .null, "deletions": pr["deletions"] ?? .null,
-                                                     "changed_files": pr["changed_files"] ?? .null, "commits": pr["commits"] ?? .null])
+                                                     "changed_files": pr["changed_files"] ?? .null, "commits": pr["commits"] ?? .null,
+                                                     "comments": pr["comments"] ?? .null, "review_comments": pr["review_comments"] ?? .null])
             },
             GitHubResource(what: "pull_files", summary: "Files a pull request changes, with status and line counts (and patches when small).",
                            properties: ["repo": repo, "number": number, "patches": JSONSchema.boolean("Include each file's patch (default false).")],
