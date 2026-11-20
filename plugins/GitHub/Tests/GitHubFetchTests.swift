@@ -161,6 +161,24 @@ struct GitHubFetchTests {
         #expect(stored.map { $0.value["input"]?["state"] } == ["closed"])
     }
 
+    @Test func listsAreKeptForTheChosenDaysAndCanBeCleared() async throws {
+        serve([Self.repo + "/pulls": "[\(Self.pr)]", Self.repo + "/actions/runs": #"{"workflow_runs":[{"id":11,"name":"CI","status":"completed"}]}"#])
+        github.keepDays = 3
+        _ = try await dash.fetch("github.pulls", ["repo": "acme/billing-api"])
+        _ = try await dash.fetch("github.workflow_runs", ["repo": "acme/billing-api"])
+        github.now = { .now.addingTimeInterval(2 * 86_400) }
+        _ = try await dash.fetch("github.pulls", ["repo": "acme/billing-api", "state": "closed"])
+        #expect(dash.testSynced.records(kind: "github.pulls", scope: github.storeScope).count == 2)
+
+        let stored = github.storedSummary
+        #expect(stored.answers == 3 && stored.pulls == 1 && stored.runs == 1 && stored.newest != nil)
+        try github.clearFetchedData()
+        let cleared = github.storedSummary
+        #expect(cleared.answers == 0 && cleared.pulls == 0 && cleared.runs == 0 && cleared.newest == nil)
+        #expect(try await dash.runTool("github_pulls", ["repo": "acme/billing-api"])?["fetched"] == false)
+        #expect(GitHubIntegration(defaults: UserDefaults(suiteName: "gh-keep-\(UUID())")!).keepDays == 1)
+    }
+
     @Test func bigAnswersAreCapped() async throws {
         serve([Self.repo + "/actions/runs": "{\"blob\":\"\(String(repeating: "a", count: 300_000))\"}"])
         _ = try await dash.fetch("github.api", ["path": .string(Self.repo + "/actions/runs")])

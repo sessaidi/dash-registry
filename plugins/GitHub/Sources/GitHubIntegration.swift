@@ -14,6 +14,7 @@ final class GitHubIntegration: Integration {
     static let apiKey = "github.api"
     static let reposKey = "github.repos"
     static let freshKey = "github.freshMinutes"
+    static let keepKey = "github.keepDays"
     let id = "github"
     let name = "GitHub"
     let systemImage = "chevron.left.forwardslash.chevron.right"
@@ -41,6 +42,8 @@ final class GitHubIntegration: Integration {
     var reposText: String { didSet { defaults.set(reposText, forKey: Self.reposKey); publishRepos() } }
     /// Fetched data older than this is stale: readers say so and Dashii may fetch it again.
     var freshMinutes: Int { didSet { defaults.set(freshMinutes, forKey: Self.freshKey) } }
+    /// Answers to lists and searches older than this are dropped when their kind is fetched again.
+    var keepDays: Int { didSet { defaults.set(keepDays, forKey: Self.keepKey) } }
     /// What's fetched in the background, and how often.
     let schedule: IngestSchedule
     /// The clock for freshness (tests move it).
@@ -61,6 +64,7 @@ final class GitHubIntegration: Integration {
         apiURL = defaults.string(forKey: Self.apiKey) ?? Self.defaultAPI
         reposText = defaults.string(forKey: Self.reposKey) ?? ""
         freshMinutes = defaults.object(forKey: Self.freshKey) as? Int ?? 15
+        keepDays = defaults.object(forKey: Self.keepKey) as? Int ?? 1
         schedule = IngestSchedule(prefix: "github", defaults: defaults)
         hasToken = !(readToken() ?? "").isEmpty
         schedule.items = syncItems

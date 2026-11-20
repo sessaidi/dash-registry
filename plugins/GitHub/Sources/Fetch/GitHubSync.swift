@@ -2,7 +2,7 @@ import DashKit
 import Foundation
 import Ingestor
 
-/// What GitHub keeps fetched in the background (Settings › GitHub).
+/// What GitHub keeps fetched in the background, and how much it keeps (Settings › GitHub).
 extension GitHubIntegration {
     var syncItems: [IngestSyncItem] {
         let perRepo: @MainActor () -> [JSONValue] = { [weak self] in (self?.repos ?? []).map { ["repo": .string($0)] } }
@@ -27,5 +27,16 @@ extension GitHubIntegration {
             return "GitHub's rate limit is used up until \(until.formatted(date: .omitted, time: .shortened))."
         }
         return nil
+    }
+
+    /// What's stored: answers in Dash's database and rows in GitHub's tables.
+    var storedSummary: (answers: Int, newest: Date?, pulls: Int, runs: Int) {
+        let summary = ingestor.summary(ingestResources)
+        return (summary.answers, summary.newest, database?.count(GitHubPull.self) ?? 0, database?.count(GitHubRun.self) ?? 0)
+    }
+
+    /// Deletes what GitHub fetched (answers, ETags, table rows); the schedule fetches it again.
+    func clearFetchedData() throws {
+        try ingestor.clear(ingestResources)
     }
 }
