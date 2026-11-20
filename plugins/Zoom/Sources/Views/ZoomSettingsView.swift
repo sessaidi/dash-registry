@@ -7,6 +7,7 @@ struct ZoomSettingsView: View {
     @Bindable var zoom: ZoomExtension
     @State private var captured: URL?
     @State private var captureError: String?
+    @State private var voiceCount = 0
 
     var body: some View {
         Form {
@@ -18,6 +19,26 @@ struct ZoomSettingsView: View {
                 Toggle("Open Zoom's transcript when recording starts", isOn: $zoom.openTranscript)
                     .help("Zoom's transcript names every speaker; Dash reads it (needs Accessibility, and the host may have to allow captions).")
                 Toggle("Summarise with Dashii when the meeting ends", isOn: $zoom.summarizeOnStop)
+            }
+            Section {
+                Toggle("Transcribe again when the meeting ends, each voice apart", isOn: $zoom.improveAfterMeeting)
+                LabeledContent("Speech models") {
+                    Text(zoom.speechEngine.isReady ? "Downloaded" : "Not downloaded (\(ZoomExtension.speechModelsSize))").foregroundStyle(.secondary)
+                }
+                LabeledContent("Voices you named") {
+                    HStack {
+                        Text(voiceCount == 0 ? "None yet" : "\(voiceCount)").foregroundStyle(.secondary)
+                        Button("Forget All") {
+                            zoom.forgetVoices()
+                            voiceCount = 0
+                        }
+                        .disabled(voiceCount == 0)
+                    }
+                }
+            } header: {
+                Text("Final transcript")
+            } footer: {
+                Text("Once a meeting ends, its recording is transcribed again on this Mac with stronger models (your microphone included, French and English mixed), Zoom's audio is split into voices, and each voice is named: voices you named before are recognised, Dashii guesses others from what was said, and you can rename any voice in the meeting. The models download once from Hugging Face; audio and voices never leave this Mac.")
             }
             Section {
                 Toggle("Save the meeting's audio", isOn: $zoom.saveAudio)
@@ -36,7 +57,7 @@ struct ZoomSettingsView: View {
             } header: {
                 Text("Recording")
             } footer: {
-                Text("Audio is saved as an .m4a with two tracks, Zoom and your microphone. With video it is a .mov of Zoom's windows on the screen showing the meeting (other apps are left out), at up to 1920 pixels and 15 frames a second. Files stay on this Mac.")
+                Text("Audio is saved as an .m4a with two tracks, Zoom and your microphone. With video it is a .mov of Zoom's windows on the screen showing the meeting (other apps are left out), at up to 1920 pixels and 15 frames a second. Files stay on this Mac. When the audio isn't saved, a temporary copy is made for the final transcript and deleted right after.")
             }
             Section {
                 if zoom.calendarAccess == .denied {
@@ -83,6 +104,7 @@ struct ZoomSettingsView: View {
                 Text("Accessibility reads Zoom's meeting window and Participants panel. Screen recording permission lets Dash capture Zoom's audio and windows. Speech is transcribed on this Mac; the transcript goes to Dashii only when summarising or when you ask about it.")
             }
         }
+        .onAppear { voiceCount = zoom.savedVoices.count }
     }
 
     private func capture() {
