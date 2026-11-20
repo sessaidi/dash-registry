@@ -19,6 +19,7 @@ extension GitHubIntegration {
         ingestor.validate = { input in if input["repo"] != nil { _ = try Self.repoPath(input) } }
         ingestor.database = database
         ingestor.tables = ingestTables
+        do { ingestor.client = try ingestClient } catch { ingestor.notConnected = error.localizedDescription }
         return ingestor
     }
 
@@ -34,10 +35,19 @@ extension GitHubIntegration {
 
     var ingestResources: [IngestResource] {
         resources.map { resource in
-            IngestResource(kind: resource.kind, fetcher: resource.fetcherName, reader: resource.readerName, summary: resource.summary,
-                           properties: resource.properties, required: resource.required, queryShaped: resource.queryShaped) { [weak self] input in
-                guard let self else { throw ToolError("GitHub isn't started.") }
-                return try await resource.load(self, input)
+            switch resource.source {
+            case .route(let route):
+                IngestResource(kind: resource.kind, fetcher: resource.fetcherName, reader: resource.readerName, summary: resource.summary,
+                               properties: resource.properties, required: resource.required, queryShaped: resource.queryShaped, route: route)
+            case .parts(let parts):
+                IngestResource(kind: resource.kind, fetcher: resource.fetcherName, reader: resource.readerName, summary: resource.summary,
+                               properties: resource.properties, required: resource.required, queryShaped: resource.queryShaped, parts: parts)
+            case .load(let load):
+                IngestResource(kind: resource.kind, fetcher: resource.fetcherName, reader: resource.readerName, summary: resource.summary,
+                               properties: resource.properties, required: resource.required, queryShaped: resource.queryShaped) { [weak self] input in
+                    guard let self else { throw ToolError("GitHub isn't started.") }
+                    return try await load(self, input)
+                }
             }
         }
     }
