@@ -18,7 +18,7 @@ reminder event before each meeting.
 | | |
 |---|---|
 | Plugin id | `zoom` |
-| Version | 1.10.1 |
+| Version | 1.11.0 |
 | Minimum DashKit | 2.2.0 |
 | Layer | feature (provides `zoom`) |
 | Requires | nothing |
@@ -145,6 +145,6 @@ TEST=1 scripts/build-plugins.sh Zoom   # generate the project, run ZoomPluginTes
 scripts/build-plugins.sh Zoom          # build and zip without the tests
 ```
 
-The script writes `dist/zoom-1.10.1.dashplugin.zip` and regenerates `registry.json`. To try a
+The script writes `dist/zoom-1.11.0.dashplugin.zip` and regenerates `registry.json`. To try a
 build in a running Dash, copy `build/Zoom/Build/Products/Release/ZoomPlugin.dashplugin` into
 `~/Library/Application Support/Dash/Plugins`.
