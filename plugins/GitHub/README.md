@@ -63,9 +63,13 @@ Answers to queries (filtered lists, search, raw paths) are kept for a day, or th
 in Fetched data.
 
 Fetchers send the ETag of GitHub's last answer, so fetching something that didn't change costs no
-rate limit. When GitHub says the rate limit is used up, fetches stop until it resets and Dash
-keeps showing what it stored. The plugin is built on the
-[Ingestor package](https://github.com/sessaidi/dash/tree/main/Packages/Ingestor).
+rate limit. A request that fails for a passing reason (a 502, a timeout, a dropped network) is
+tried again up to three times, waiting longer each time. When GitHub says the rate limit is used
+up, fetches stop until it resets and Dash keeps showing what it stored. The plugin is built on the
+[Ingestor package](https://github.com/sessaidi/dash/tree/main/Packages/Ingestor): each fetcher
+is a route (path, query, paging) with a mapper that keeps the fields worth storing
+(`Sources/Fetch/GitHubResources.swift`); only the job log, files, search and raw paths keep code
+of their own.
 
 | Fetcher (`data_fetch`) | Reader (Dashii tool) | What |
 |---|---|---|
@@ -96,7 +100,8 @@ fetched rows, one per repository and number, id or tag, each with `repo`, `synce
 
 Fetched pull requests and Actions runs are also kept as typed tables (`GitHubPull`, `GitHubRun`)
 in the plugin's own database, `github.store` in Dash's Ingest folder; `github_pulls` and
-`github_runs` read them. The stored answers stay the source of truth: the tables follow them
+`github_runs` read them. The models only declare their fields; the table config
+(`Sources/Tables/GitHubTables.swift`) says which fetchers fill each table and how an item fills a row. The stored answers stay the source of truth: the tables follow them
 after every fetch, and if the file can't be opened after an update it's made again from them.
 
 Features built on GitHub can read these tables directly. The models are in `Schema/GitHubSchema.swift`
