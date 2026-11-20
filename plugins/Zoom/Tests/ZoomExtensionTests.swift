@@ -11,7 +11,7 @@ import Testing
 struct ZoomExtensionTests {
     @Test func contract() {
         let (zoom, _) = makeZoom()
-        #expect(zoom.id == "zoom")
+        #expect(zoom.id == "zoom" && zoom.name == "Meetings")
         #expect(zoom.layer == .feature)
         #expect(zoom.requires.isEmpty)
         #expect(zoom.widgets.map(\.kind) == ["zoom.meeting", "zoom.upcoming"])

@@ -18,7 +18,7 @@ extension ZoomExtension {
     var tools: [DashiiTool] {
         [
             DashiiTool(name: "zoom_upcoming_meetings",
-                       description: "The user's Zoom meetings in the next 24 hours, from the Mac's calendars: title, start, end, calendar and join link. Empty when the calendar isn't turned on (Settings › Zoom).") { [weak self] _ in
+                       description: "The user's Zoom meetings in the next 24 hours, from the Mac's calendars: title, start, end, calendar and join link. Empty when the calendar isn't turned on (Settings › Meetings).") { [weak self] _ in
                 guard let self else { return [] }
                 return ["calendar": .bool(useCalendar), "meetings": .array(upcoming.map(\.json))]
             },

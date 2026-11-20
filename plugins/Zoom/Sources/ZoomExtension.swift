@@ -8,17 +8,17 @@ import Observation
 import SwiftData
 import SwiftUI
 
-/// Local Zoom meeting transcription: Zoom's audio and your microphone are transcribed on this Mac
-/// live, then again from the recording with each voice apart; participants are read from Zoom's
-/// window through Accessibility, and Claude summarises the result.
+/// Meetings (Zoom): Zoom's audio and your microphone are transcribed on this Mac live, then again
+/// from the recording with each voice apart; participants are read from Zoom's window through
+/// Accessibility, and Claude summarises the result.
 @MainActor
 @Observable
 final class ZoomExtension: DashExtension {
     let id = "zoom"
-    let name = "Zoom"
+    let name = "Meetings"
     let systemImage = "video"
     let metadata = ExtensionMetadata(
-        version: "1.10.1", author: .dash, summary: "On-device Zoom transcripts, participants, summaries and recordings.",
+        version: "1.10.1", author: .dash, summary: "On-device Zoom transcripts with each voice named, participants, summaries and recordings.",
         category: .communication, tags: ["zoom", "meetings", "transcription"], homepage: "https://github.com/sessaidi/dash-extensions",
         minimumDashKit: "2.0.0")
 
