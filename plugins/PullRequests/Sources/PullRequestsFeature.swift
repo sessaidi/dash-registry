@@ -1,6 +1,7 @@
 import DashKit
 import DashKitUI
 import Foundation
+import Ingestor
 import Observation
 import SwiftData
 import SwiftUI
@@ -77,6 +78,9 @@ final class PullRequestsFeature: DashExtension {
     }
 
     func settingsView() -> AnyView { AnyView(PullRequestsSettingsView(pulls: self)) }
+
+    /// GitHub's database once opened, and what it was opened from.
+    @ObservationIgnored var githubDatabaseCache: (key: String, database: IngestDatabase?)?
 
     /// The `github` integration this feature builds on (built in or a plugin), found by id.
     var github: (any Integration)? { host?.integration("github") }
