@@ -1,6 +1,7 @@
 import DashKit
 import DashKitUI
 import Foundation
+import Ingestor
 import Observation
 import SwiftUI
 
@@ -30,6 +31,10 @@ final class GitHubIntegration: Integration {
     @ObservationIgnored private let session: URLSession?
     /// Dash, once started: fetchers and the sync tools write into its synced store.
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
+    /// Where `github.store` (the pull request and run tables) lives; nil keeps it in memory (tests).
+    @ObservationIgnored let databaseFolder: URL?
+    /// The tables, once started.
+    @ObservationIgnored var database: IngestDatabase?
 
     /// https://api.github.com, or https://<host>/api/v3 for GitHub Enterprise Server.
     var apiURL: String { didSet { defaults.set(apiURL, forKey: Self.apiKey) } }
@@ -45,12 +50,13 @@ final class GitHubIntegration: Integration {
     private(set) var isChecking = false
 
     /// `token` and `session` exist for tests; the app uses the Keychain and the shared session.
-    init(defaults: UserDefaults = DashStorage.defaults, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil) {
+    init(defaults: UserDefaults = DashStorage.defaults, token: (@MainActor () -> String?)? = nil, session: URLSession? = nil, databaseFolder: URL? = nil) {
         let store = SecretStore(extensionID: "github", legacy: ["token": "github"])
         let readToken = token ?? { store.read("token") }
         self.defaults = defaults
         self.readToken = readToken
         self.session = session
+        self.databaseFolder = databaseFolder
         apiURL = defaults.string(forKey: Self.apiKey) ?? Self.defaultAPI
         reposText = defaults.string(forKey: Self.reposKey) ?? ""
         freshMinutes = defaults.object(forKey: Self.freshKey) as? Int ?? 15
@@ -217,6 +223,7 @@ final class GitHubIntegration: Integration {
 
     func start(host: any ExtensionContext) {
         self.host = host
+        openDatabase()
         publishRepos()
         Task { await verify() }
     }
