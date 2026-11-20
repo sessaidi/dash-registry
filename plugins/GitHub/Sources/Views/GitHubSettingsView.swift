@@ -10,6 +10,9 @@ struct GitHubSettingsView: View {
     @Bindable var github: GitHubIntegration
     @State private var search = ""
     @State private var manual = ""
+    @State private var confirmClear = false
+    @State private var clearError: String?
+    @State private var storedRevision = 0
 
     var body: some View {
         Form {
@@ -112,13 +115,32 @@ struct GitHubSettingsView: View {
                                   + "Anything else is fetched when something needs it. A used-up rate limit pauses fetching until it resets.")
             Section {
                 Stepper("Fresh for \(github.freshMinutes) minutes", value: $github.freshMinutes, in: 5...240, step: 5)
+                Stepper("Keep lists and searches \(github.keepDays) day\(github.keepDays == 1 ? "" : "s")", value: $github.keepDays, in: 1...30)
+                LabeledContent("Stored") {
+                    let stored = storedSummary
+                    Text("\(stored.answers) answers, \(stored.pulls) pull requests, \(stored.runs) runs" + (stored.newest.map { " · newest \($0.relative)" } ?? ""))
+                }
+                Button("Clear Fetched Data…", role: .destructive) { confirmClear = true }
+                    .disabled(storedSummary.answers == 0)
+                if let clearError { Text(clearError).font(.caption).foregroundStyle(.red) }
             } header: {
                 Text("Fetched data")
             } footer: {
-                Text("Dashii and agents read what Dash fetched from GitHub. Past this age it's marked stale and they may fetch it again.")
+                Text("Dashii and agents read what Dash fetched from GitHub. Past the fresh time it's marked stale and they may fetch it again. "
+                     + "Clearing deletes what was fetched and GitHub's tables; nothing on GitHub changes.")
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog("Clear what Dash fetched from GitHub?", isPresented: $confirmClear) {
+            Button("Clear Fetched Data", role: .destructive) {
+                do { try github.clearFetchedData(); clearError = nil } catch { clearError = error.localizedDescription }
+                storedRevision += 1
+            }
+        } message: {
+            Text("Widgets show nothing until it's fetched again, by the schedule or when something needs it.")
+        }
+        // Counts follow every fetch.
+        .onReceive(NotificationCenter.default.publisher(for: IngestNotification.name)) { _ in storedRevision += 1 }
         .task { if github.hasToken && github.availableRepos.isEmpty { await github.loadAvailableRepos() } }
         // Also ask GitHub's search, so repositories the list missed can still be found.
         .task(id: search) {
@@ -129,6 +151,11 @@ struct GitHubSettingsView: View {
     }
 
     static let rowHeight: CGFloat = 26
+
+    private var storedSummary: (answers: Int, newest: Date?, pulls: Int, runs: Int) {
+        _ = storedRevision
+        return github.storedSummary
+    }
 
     private var filtered: [GitHubIntegration.AvailableRepo] {
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()

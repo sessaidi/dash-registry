@@ -14,6 +14,7 @@ extension GitHubIntegration {
     var ingestor: Ingestor {
         var ingestor = Ingestor(source: id, scope: storeScope, store: host?.synced, maxAge: maxAge, notStarted: "GitHub isn't started.")
         ingestor.clock = { [weak self] in self?.now() ?? .now }
+        ingestor.retention = TimeInterval(keepDays) * 86_400
         ingestor.transform = { field, value in field == "repo" ? value.lowercased() : value }
         ingestor.validate = { input in if input["repo"] != nil { _ = try Self.repoPath(input) } }
         ingestor.database = database
