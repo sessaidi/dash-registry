@@ -1,5 +1,6 @@
 import DashKit
 import Foundation
+import Ingestor
 
 /// Mirrors what release timelines need from GitHub into Dash's synced store: a repository's tags
 /// (commit, date, whether the commit is on the default branch) and the commits between two
@@ -172,8 +173,10 @@ extension GitHubIntegration {
                 try await syncTags(repo, store: host.synced)
                 let after = host.synced.records(kind: Self.tagKind, scope: scope)
                 let changed = after.filter { before[$0.key] != $0.value }.map(\.key)
-                return Self.receipt(stored: changed.count, unchanged: after.count - changed.count, keys: changed.prefix(50).map { Self.tagKind + "/" + $0 },
-                                    syncedAt: host.synced.lastSynced(kind: Self.tagKind, scope: scope) ?? now(), readWith: "github_tags " + (["repo": .string(repo)] as JSONValue).jsonString())
+                IngestNotification.post(fetcher: "github.tags", kind: Self.tagKind, scope: scope, key: "")
+                return IngestReceipt(stored: changed.count, unchanged: after.count - changed.count, keys: changed.prefix(50).map { Self.tagKind + "/" + $0 },
+                                     syncedAt: host.synced.lastSynced(kind: Self.tagKind, scope: scope) ?? now(),
+                                     readWith: "github_tags " + (["repo": .string(repo)] as JSONValue).jsonString()).json
             },
             DataFetcher(name: "github.range", summary: "The commits between two commits or tags of a repository (merges left out). Read them with github_range.",
                         properties: Self.rangeProperties, required: ["repo", "base", "head"]) { [weak self] input in
@@ -183,8 +186,9 @@ extension GitHubIntegration {
                 let had = host.synced.record(kind: Self.rangeKind, scope: Self.scope(repo), key: key) != nil
                 _ = try await syncRange(repo, base: base, head: head, store: host.synced)
                 let syncedAt = host.synced.record(kind: Self.rangeKind, scope: Self.scope(repo), key: key)?.updatedAt ?? now()
-                return Self.receipt(stored: had ? 0 : 1, unchanged: had ? 1 : 0, keys: [Self.rangeKind + "/" + key], syncedAt: syncedAt,
-                                    readWith: "github_range " + (["repo": .string(repo), "base": .string(base), "head": .string(head)] as JSONValue).jsonString())
+                IngestNotification.post(fetcher: "github.range", kind: Self.rangeKind, scope: Self.scope(repo), key: key)
+                return IngestReceipt(stored: had ? 0 : 1, unchanged: had ? 1 : 0, keys: [Self.rangeKind + "/" + key], syncedAt: syncedAt,
+                                     readWith: "github_range " + (["repo": .string(repo), "base": .string(base), "head": .string(head)] as JSONValue).jsonString()).json
             },
         ]
     }
@@ -201,7 +205,7 @@ extension GitHubIntegration {
                 let freshness = Freshness(syncedAt: synced, maxAge: maxAge, refresh: ["fetcher": "github.tags", "input": ["repo": .string(repo)]], now: now())
                 let tags = host.synced.records(kind: Self.tagKind, scope: scope).map { $0.value.merging(["tag": .string($0.key)]) }
                     .sorted { ($0["date"]?.string ?? "") > ($1["date"]?.string ?? "") }
-                return Self.answer(.array(Array(tags.prefix(200))), freshness).merging(["total": .number(Double(tags.count))])
+                return Ingestor.answer(.array(Array(tags.prefix(200))), freshness).merging(["total": .number(Double(tags.count))])
             },
             DashiiTool(name: "github_range",
                        description: "The commits between two commits or tags (merges left out) as Dash mirrored them. Fetch with data_fetch github.range.",
@@ -213,7 +217,7 @@ extension GitHubIntegration {
                     return notFetched("github.range", input: refresh["input"] ?? [:])
                 }
                 // The commits between two commits never change.
-                return Self.answer(record.value, Freshness(syncedAt: record.updatedAt, maxAge: .seconds(10 * 365 * 86_400), refresh: refresh, now: now()))
+                return Ingestor.answer(record.value, Freshness(syncedAt: record.updatedAt, maxAge: .seconds(10 * 365 * 86_400), refresh: refresh, now: now()))
             },
         ]
     }

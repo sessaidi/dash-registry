@@ -27,7 +27,7 @@ extension GitHubIntegration {
     var resources: [GitHubResource] {
         let repo = JSONSchema.string("owner/name")
         let number = JSONSchema.integer("Pull request or issue number.")
-        func get(_ github: GitHubIntegration, _ path: String) async throws -> JSONValue { try await github.toolAPI.get(path) }
+        func get(_ github: GitHubIntegration, _ path: String) async throws -> JSONValue { try await github.ingestClient.json(path) }
         return [
             GitHubResource(what: "whoami", summary: "The signed-in GitHub user and their organizations.", properties: [:], required: []) { github, _ in
                 let me = try await get(github, "/user")
@@ -183,7 +183,7 @@ extension GitHubIntegration {
             GitHubResource(what: "api", summary: "Any GitHub REST endpoint (GET only), when no other GitHub fetcher fits, e.g. /repos/owner/name/actions/runs?per_page=10. The answer is stored cut to 200 KB.",
                            properties: ["path": JSONSchema.string("Path and query after the API root, starting with /.")], required: ["path"],
                            queryShaped: true, reader: "github_api_read") { github, input in
-                try await github.toolAPI.get(try GitHubAPI.validatedPath(input["path"]?.string ?? ""))
+                try await github.ingestClient.json(try GitHubAPI.validatedPath(input["path"]?.string ?? ""))
             },
         ]
     }

@@ -1,5 +1,6 @@
 import DashKit
 import Foundation
+import Ingestor
 
 /// What DashQL reads from GitHub: the pull requests, issues, runs and releases Dash fetched, one
 /// row each (the newest copy when several fetches saw it), with the repository and freshness.
@@ -31,26 +32,10 @@ extension GitHubIntegration {
         ]
     }
 
-    /// Rows from the stored answers of these kinds (lists and single objects), each with `repo`,
-    /// `synced_at` and `stale`; one per repository and `id`, the most recently fetched.
+    /// Rows from the stored answers of these resources (lists and single objects), each with
+    /// `repo`, `synced_at` and `stale`; one per repository and `id`, the most recently fetched.
     func storedRows(_ whats: [String], id: (JSONValue) -> String) -> [JSONValue] {
-        guard let host else { return [] }
-        var newest: [String: (row: JSONValue, at: Date)] = [:]
-        for what in whats {
-            let kind = "github." + what
-            let rows = host.synced.rows(kind: kind, scope: storeScope, maxAge: maxAge) { ["fetcher": .string(kind), "input": $0.value["input"] ?? [:]] }
-            for (value, freshness) in rows {
-                let data = value["data"] ?? .null
-                let items = data.array ?? data["items"]?.array ?? (data.object != nil ? [data] : [])
-                let stamp: JSONValue = ["repo": value["input"]?["repo"] ?? .null, "synced_at": freshness.json["synced_at"] ?? .null, "stale": .bool(freshness.stale)]
-                let at = freshness.syncedAt ?? .distantPast
-                for item in items {
-                    let key = (value["input"]?["repo"]?.string ?? "") + "#" + id(item)
-                    if let seen = newest[key], seen.at > at { continue }
-                    newest[key] = (item.merging(stamp), at)
-                }
-            }
-        }
-        return newest.keys.sorted().compactMap { newest[$0]?.row }
+        let resources = ingestResources.filter { whats.contains(String($0.kind.dropFirst("github.".count))) }
+        return ingestor.rows(resources, stamp: ["repo"], id: id)
     }
 }

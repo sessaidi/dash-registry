@@ -197,6 +197,37 @@ struct GitHubFetchTests {
         #expect(commits["items"] == [["sha": "c1", "author": "Ann", "date": "2026-10-02T00:00:00Z", "subject": "Fix"]])
     }
 
+    // MARK: Conditional requests and rate limits
+
+    @Test func fetchingAgainSendsTheETagAndKeepsTheAnswerOn304() async throws {
+        StubHTTP.serve(stub) { request in
+            if request.value(forHTTPHeaderField: "If-None-Match") == #""v1""# { return (304, Data(), ["ETag": #""v1""#]) }
+            return (200, Data(Self.pr.utf8), ["ETag": #""v1""#, "Content-Type": "application/json"])
+        }
+        let input: JSONValue = ["repo": "acme/billing-api", "number": 7]
+        _ = try await dash.fetch("github.pull", input)
+        #expect(try await dash.fetch("github.pull", input)["unchanged"] == 1)
+        #expect(pullRequests().map { $0.value(forHTTPHeaderField: "If-None-Match") } == [nil, #""v1""#])
+        #expect(try await dash.runTool("github_pull", input)?["title"] == "Retries")
+    }
+
+    func pullRequests() -> [URLRequest] { StubHTTP.requests(stub).filter { $0.url?.path() == Self.repo + "/pulls/7" } }
+
+    @Test func aUsedUpRateLimitStopsFetchesUntilItResets() async throws {
+        let reset = String(Int(Date.now.addingTimeInterval(600).timeIntervalSince1970))
+        StubHTTP.serve(stub) { _ in (200, Data(Self.pr.utf8), ["X-RateLimit-Remaining": "0", "X-RateLimit-Reset": reset]) }
+        let input: JSONValue = ["repo": "acme/billing-api", "number": 7]
+        _ = try await dash.fetch("github.pull", input)
+        do {
+            _ = try await dash.fetch("github.pull", input)
+            Issue.record("fetched past a used-up rate limit")
+        } catch {
+            #expect(error.localizedDescription.contains("rate limit is used up"))
+        }
+        #expect(pullRequests().count == 1)
+        #expect(try await dash.runTool("github_pull", input)?["title"] == "Retries")
+    }
+
     // MARK: No network for Dashii and agents
 
     @Test func noToolDashiiGetsCallsGitHub() async throws {
