@@ -19,6 +19,7 @@ targets:
     platform: macOS
     sources:
       - Sources
+      - path: ../GitHub/Schema           # GitHub's tables, read from its database
       - path: plugin.json               # the bundle describes itself (Contents/Resources/plugin.json)
         buildPhase: resources
       - path: Rules                     # default rules for Claude, as Markdown (Contents/Resources/Rules/<id>.md)
@@ -48,6 +49,7 @@ targets:
     platform: macOS
     sources:
       - Sources
+      - path: ../GitHub/Schema           # GitHub's tables, read from its database
       - Tests
       - path: Rules                   # the rules load from the bundle the code runs in
         type: folder

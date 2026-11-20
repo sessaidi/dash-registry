@@ -25,6 +25,8 @@ struct PullRequestSheet: View {
     @State private var pull: IngestFeed
     @State private var checks: IngestFeed
     @State private var changedFiles: IngestFeed
+    /// From GitHub's table, when its database can be read here.
+    @State private var runs: IngestRows<GitHubRun>?
 
     init(pr: PullRequest, host: any ExtensionContext) {
         self.pr = pr
@@ -37,6 +39,10 @@ struct PullRequestSheet: View {
                                                  input: ["repo": .string(pr.repo), "ref": .string(pr.headSHA)]))
         _changedFiles = State(initialValue: IngestFeed(host: host, fetcher: "github.pull_files", reader: "github_pull_files",
                                                        input: input.merging(["patches": true])))
+        if let database = host.ext(PullRequestsFeature.self)?.githubDatabase {
+            _runs = State(initialValue: IngestRows(database, PullRequestsFeature.branchRuns(repo: pr.repo, branch: pr.headRef), host: host,
+                                                   fetcher: "github.workflow_runs", input: ["repo": .string(pr.repo), "branch": .string(pr.headRef)]))
+        }
     }
 
     private var stats: PRStats? { PRStats(storedPull: pull.data, checks: checks.data) }
@@ -82,6 +88,7 @@ struct PullRequestSheet: View {
         .task { await pull.load() }
         .task { if !pr.headSHA.isEmpty { await checks.load() } }
         .task { await changedFiles.load() }
+        .task { await runs?.load() }
         .confirmationDialog("Merge \(pr.repo)#\(pr.number)?", isPresented: $confirmMerge) {
             Button("Squash and Merge") { merge("squash") }
             Button("Merge Commit") { merge("merge") }
@@ -155,6 +162,9 @@ struct PullRequestSheet: View {
                 Panel(title: "Dashii's review", systemImage: "sparkles", tint: .secondary) {
                     Text("No Dashii review yet.").foregroundStyle(.secondary)
                 }
+            }
+            if let runs {
+                Panel(title: "Runs on \(pr.headRef)", systemImage: "play.circle", tint: .teal) { BranchRunsView(runs: runs) }
             }
             if let files, !files.isEmpty {
                 Panel(title: "Changes by file", systemImage: "chart.bar.xaxis", tint: .purple) { ChangesChart(files: files) }

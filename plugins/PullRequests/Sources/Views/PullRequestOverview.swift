@@ -1,6 +1,7 @@
 import Charts
 import DashKit
 import DashKitUI
+import Ingestor
 import SwiftUI
 
 /// The numbers at the top of the Overview tab, from GitHub's pull request and its check runs.
@@ -160,5 +161,47 @@ struct ChangesChart: View {
     /// The last two path components: enough to tell files apart.
     static func short(_ path: String) -> String {
         path.split(separator: "/").suffix(2).joined(separator: "/")
+    }
+}
+
+/// The latest Actions runs of the pull request's branch, from GitHub's table.
+struct BranchRunsView: View {
+    let runs: IngestRows<GitHubRun>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if runs.rows.isEmpty {
+                Text(runs.isFetching ? "Looking for runs…" : runs.error ?? "No runs on this branch.").font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(runs.rows) { run in
+                HStack(spacing: 8) {
+                    Badge(Self.label(run), tone: Self.tone(run))
+                    Text(run.workflow).font(.callout.weight(.medium)).lineLimit(1)
+                    Text(run.sha).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    Spacer()
+                    if let started = run.started {
+                        Text(started.formatted(.relative(presentation: .named))).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let url = URL(string: run.url), !run.url.isEmpty {
+                        Link(destination: url) { Image(systemName: "arrow.up.right.square") }.help("Open the run on GitHub")
+                    }
+                }
+            }
+            if let error = runs.error, !runs.rows.isEmpty { Text(error).font(.caption).foregroundStyle(.orange) }
+        }
+    }
+
+    static func label(_ run: GitHubRun) -> String {
+        guard run.status == "completed" else { return run.status.replacingOccurrences(of: "_", with: " ") }
+        return run.conclusion.isEmpty ? "done" : run.conclusion.replacingOccurrences(of: "_", with: " ")
+    }
+
+    static func tone(_ run: GitHubRun) -> Tone {
+        switch run.status == "completed" ? run.conclusion : "pending" {
+        case "success": .success
+        case "pending": .warning
+        case "skipped", "neutral", "cancelled": .neutral
+        default: .danger
+        }
     }
 }
