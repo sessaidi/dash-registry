@@ -30,24 +30,25 @@ extension ZoomExtension {
             },
             DashiiTool(
                 name: "meeting_transcript",
-                description: "Read a meeting's transcript. With Zoom's captions on, each line has the participant's name; otherwise lines are the user (microphone) or \"Others\" (everyone else).",
+                description: "Read a meeting's transcript. Once the meeting has ended, its recording is transcribed again with each voice apart: lines name the participant (a name marked (guessed) is Dashii's guess) or \"Speaker N\" for a voice not named yet. During the meeting, lines are the user (microphone), \"Others\" (everyone else), or names from Zoom's captions.",
                 properties: ["meeting_id": JSONSchema.string("Meeting id, or \"current\". Defaults to the current or latest meeting.")]
             ) { [weak self] input in
                 guard let self else { return nil }
                 let meeting = try resolve(try input.toolInput(MeetingInput.self).meeting_id)
-                return meeting.json.merging(["transcript": .string(Self.transcriptText(namedSegments(meeting.id), since: meeting.startedAt))])
+                return meeting.json.merging(["transcript": .string(Self.transcriptText(namedSegments(meeting.id), since: meeting.startedAt, guessed: guessedLabels(meeting.id)))])
             },
             DashiiTool(
                 name: "meeting_speakers",
-                description: "Who spoke in a meeting, in the order they first spoke, with when, how many lines and words, and who is speaking now. Names come from Zoom's captions (turn on captions or the live transcript in Zoom); without them only the user is named.",
+                description: "Who spoke in a meeting, in the order they first spoke, with when, how many lines and words, and who is speaking now. After the meeting, from the final transcript (each voice apart); during it, from Zoom's captions (without them only the user is named).",
                 properties: ["meeting_id": JSONSchema.string("Meeting id, or \"current\". Defaults to the current or latest meeting.")]
             ) { [weak self] input in
                 guard let self else { return nil }
                 let meeting = try resolve(try input.toolInput(MeetingInput.self).meeting_id)
                 let speakers = speakers(meeting.id)
-                let latest = segments(meeting.id).last { $0.source == "captions" || $0.speaker == myName }
+                let lines = namedSegments(meeting.id)
+                let latest = lines.last { $0.source == "captions" || $0.speaker == myName }
                 return ["meeting_id": .string(meeting.id.uuidString), "participants": .array(meeting.participants.map { .string($0) }),
-                        "named": .bool(segments(meeting.id).contains { $0.source == "captions" }),
+                        "named": .bool(lines.contains { $0.source == "captions" || $0.source == "final" }),
                         "speaking_now": latest.flatMap { Date.now.timeIntervalSince($0.createdAt) < 15 ? .string($0.speaker) : nil } ?? .null,
                         "speakers": .array(speakers.map { speaker in
                             ["name": .string(speaker.name), "first": .string(speaker.first.formatted(.iso8601)), "last": .string(speaker.last.formatted(.iso8601)),

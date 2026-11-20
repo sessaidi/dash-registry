@@ -5,6 +5,7 @@ options:
   createIntermediateGroups: true
 packages:
   DashKit: { path: "${DASH_ROOT}/Packages/DashKit" }
+  MeetingSpeech: { path: Packages/MeetingSpeech }   # on-device transcription and speaker separation (FluidAudio)
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -26,6 +27,7 @@ targets:
       - package: DashKit
         product: DashKit
         embed: false
+      - package: MeetingSpeech
     info:
       path: Info.plist
       properties:
@@ -53,6 +55,7 @@ targets:
     dependencies:
       - package: DashKit
         product: DashKit
+      - package: MeetingSpeech
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

@@ -41,7 +41,7 @@ final class FakeHost: ExtensionContext, @unchecked Sendable {
 
     init(_ extensions: [any DashExtension] = []) {
         let container = try! ModelContainer(
-            for: Schema([MeetingRecord.self, TranscriptSegment.self]), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            for: Schema([MeetingRecord.self, TranscriptSegment.self, MeetingSpeaker.self, VoiceProfile.self]), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         context = ModelContext(container)
         self.extensions = extensions
     }

@@ -8,7 +8,7 @@ import Foundation
 enum MeetingReportBuilder {
     static let schema: JSONValue = [
         "type": "object", "additionalProperties": false,
-        "required": ["title", "summary", "people", "topics", "decisions", "risks", "action_items", "speakers"],
+        "required": ["title", "summary", "people", "topics", "decisions", "risks", "action_items", "speakers", "voices"],
         "properties": [
             "title": ["type": "string", "description": "Short meeting title from its content."],
             "summary": ["type": "string", "description": "Two or three sentences: what the meeting was and what came out of it."],
@@ -36,6 +36,12 @@ enum MeetingReportBuilder {
                 "description": "For transcript lines marked Others (by their [n] number): who most likely said it, only when the content makes it clear (a name addressed, a self-introduction, an update matching a person). Leave a line out when unsure.",
                 "items": ["type": "object", "additionalProperties": false, "required": ["line", "name"],
                           "properties": ["line": ["type": "integer"], "name": ["type": "string"]]],
+            ],
+            "voices": [
+                "type": "array",
+                "description": "For voices labelled Speaker N: the participant it most likely is, only when the content makes it clear (a name addressed, a self-introduction, an update matching a person). Leave a voice out when unsure; one participant per voice.",
+                "items": ["type": "object", "additionalProperties": false, "required": ["speaker", "name"],
+                          "properties": ["speaker": ["type": "string", "description": "As written in the transcript, e.g. Speaker 2."], "name": ["type": "string"]]],
             ],
         ],
     ]

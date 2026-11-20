@@ -3,12 +3,14 @@ import AVFoundation
 import CoreGraphics
 import DashKit
 import Foundation
+import MeetingSpeech
 import Observation
 import SwiftData
 import SwiftUI
 
-/// Local Zoom meeting transcription: Zoom's audio and your microphone are transcribed on this Mac,
-/// participants are read from Zoom's window through Accessibility, and Claude summarises the result.
+/// Local Zoom meeting transcription: Zoom's audio and your microphone are transcribed on this Mac
+/// live, then again from the recording with each voice apart; participants are read from Zoom's
+/// window through Accessibility, and Claude summarises the result.
 @MainActor
 @Observable
 final class ZoomExtension: DashExtension {
@@ -31,6 +33,8 @@ final class ZoomExtension: DashExtension {
     var summarizeOnStop: Bool { didSet { defaults.set(summarizeOnStop, forKey: "zoom.summarize") } }
     /// Save the meeting's audio (Zoom and your microphone) to a file.
     var saveAudio: Bool { didSet { defaults.set(saveAudio, forKey: "zoom.saveAudio") } }
+    /// Transcribe the recording again when the meeting ends, each voice apart (`improveTranscript`).
+    var improveAfterMeeting: Bool { didSet { defaults.set(improveAfterMeeting, forKey: "zoom.improve") } }
     /// Also record Zoom's windows as video (the file becomes a .mov). Needs `saveAudio`.
     var recordVideo: Bool { didSet { defaults.set(recordVideo, forKey: "zoom.recordVideo") } }
     var recordingsFolder: URL { didSet { defaults.set(recordingsFolder.path, forKey: "zoom.recordingsFolder") } }
@@ -42,7 +46,8 @@ final class ZoomExtension: DashExtension {
     static var defaultRecordingsFolder: URL { FileManager.default.homeDirectoryForCurrentUser.appending(path: "Movies/Dash Meetings") }
     /// What the next meeting saves to disk, if anything.
     var recordingOptions: MeetingRecorder.Recording? {
-        saveAudio ? MeetingRecorder.Recording(folder: recordingsFolder, startedAt: .now, video: recordVideo) : nil
+        if saveAudio { return MeetingRecorder.Recording(folder: recordingsFolder, startedAt: .now, video: recordVideo) }
+        return improveAfterMeeting ? MeetingRecorder.Recording(folder: Self.temporaryRecordings, startedAt: .now, video: false) : nil
     }
 
     private(set) var isZoomRunning = false
@@ -54,12 +59,16 @@ final class ZoomExtension: DashExtension {
     private(set) var participants: [String] = []
     private(set) var lastError: String?
     private(set) var isSummarizing = false
+    /// The final transcript being made, and how far it got.
+    var improving: ImproveProgress?
+    @ObservationIgnored var speechEngine: any SpeechEngine = FluidSpeechEngine()
+    @ObservationIgnored var readTracks: @Sendable (URL) async throws -> [[Float]] = { try await MeetingAudio.tracks(of: $0) }
     /// The next 24 hours of calendar events with a Zoom link (empty without the calendar).
     var upcoming: [CalendarMeeting] = []
     private(set) var calendarAccess: ZoomCalendar.Access = .notAsked
 
     @ObservationIgnored private(set) weak var host: (any ExtensionContext)?
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let defaults: UserDefaults
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var recorder: MeetingRecorder?
     @ObservationIgnored private var missedMeetingChecks = 0
@@ -97,13 +106,14 @@ final class ZoomExtension: DashExtension {
         openTranscript = defaults.object(forKey: "zoom.openTranscript") as? Bool ?? true
         summarizeOnStop = defaults.object(forKey: "zoom.summarize") as? Bool ?? true
         saveAudio = defaults.object(forKey: "zoom.saveAudio") as? Bool ?? true
+        improveAfterMeeting = defaults.object(forKey: "zoom.improve") as? Bool ?? true
         recordVideo = defaults.bool(forKey: "zoom.recordVideo")
         recordingsFolder = defaults.string(forKey: "zoom.recordingsFolder").map { URL(filePath: $0) } ?? Self.defaultRecordingsFolder
         useCalendar = defaults.bool(forKey: "zoom.calendar")
         reminderMinutes = defaults.object(forKey: "zoom.reminderMinutes") as? Int ?? 2
     }
 
-    var models: [any PersistentModel.Type] { [MeetingRecord.self, TranscriptSegment.self] }
+    var models: [any PersistentModel.Type] { [MeetingRecord.self, TranscriptSegment.self, MeetingSpeaker.self, VoiceProfile.self] }
     var widgets: [WidgetType] { [WidgetType(MeetingWidget.self), WidgetType(UpcomingMeetingsWidget.self)] }
     func settingsView() -> AnyView { AnyView(ZoomSettingsView(zoom: self)) }
 
@@ -347,11 +357,20 @@ final class ZoomExtension: DashExtension {
         guard let meeting = currentMeeting else { return }
         currentMeetingID = nil
         meeting.endedAt = .now
-        meeting.recordingPath = file?.path
+        let temporary = file?.deletingLastPathComponent().standardizedFileURL == Self.temporaryRecordings.standardizedFileURL
+        meeting.recordingPath = temporary ? nil : file?.path
         host?.emit("meeting.ended", from: self, title: "Meeting ended: \(meeting.title)",
-                   detail: "\(reason) \(meeting.participants.count) participants" + (file.map { ", saved to \($0.lastPathComponent)" } ?? ""), importance: .notable)
+                   detail: "\(reason) \(meeting.participants.count) participants" + (meeting.recordingPath.map { ", saved to \(URL(filePath: $0).lastPathComponent)" } ?? ""),
+                   importance: .notable)
         try? host?.context.save()
-        if segments(meeting.id).isEmpty, file == nil {
+        if let file, improveAfterMeeting {
+            do { try await improveTranscript(meeting, audio: file, automatically: true) } catch {
+                lastError = "The final transcript failed: \(error.localizedDescription)"
+                DashLog.error("Final transcript failed: \(error.localizedDescription)", category: "zoom")
+            }
+        }
+        if temporary, let file { try? FileManager.default.removeItem(at: file) }
+        if segments(meeting.id).isEmpty, meeting.recordingPath == nil {
             host?.context.delete(meeting)
             try? host?.context.save()
         } else if summarizeOnStop {
@@ -372,19 +391,29 @@ final class ZoomExtension: DashExtension {
         if added { try? host.context.save() }
     }
 
-    /// The transcript with names: the user's own lines plus Zoom's captions, when captions were
-    /// on (they replace the anonymous "Others" audio); otherwise everything.
+    /// The transcript to read: the final one when the recording was transcribed again; otherwise
+    /// the user's own lines plus Zoom's captions, when captions were on (they replace the
+    /// anonymous "Others" audio); otherwise every live line.
     func namedSegments(_ meetingID: UUID) -> [TranscriptSegment] {
-        let all = segments(meetingID)
-        guard all.contains(where: { $0.source == "captions" }) else { return all }
-        return all.filter { $0.source == "captions" || $0.speaker != MeetingRecorder.othersSpeaker }
+        Self.readable(segments(meetingID))
     }
 
-    /// Who spoke, in order of first words, with how much they said (from named captions).
+    static func readable(_ all: [TranscriptSegment]) -> [TranscriptSegment] {
+        if all.contains(where: { $0.source == "final" }) { return all.filter { $0.source == "final" } }
+        let live = all.filter { $0.source != "live" }
+        guard live.contains(where: { $0.source == "captions" }) else { return live }
+        return live.filter { $0.source == "captions" || $0.speaker != MeetingRecorder.othersSpeaker }
+    }
+
+    /// Who spoke, in order of first words, with how much they said (from the final transcript,
+    /// else named captions and your microphone).
     func speakers(_ meetingID: UUID) -> [(name: String, first: Date, last: Date, lines: Int, words: Int)] {
         var result: [String: (first: Date, last: Date, lines: Int, words: Int)] = [:]
         var order: [String] = []
-        for segment in segments(meetingID) where segment.source == "captions" || segment.speaker == myName {
+        let all = segments(meetingID)
+        let final = all.contains { $0.source == "final" }
+        for segment in all where final ? segment.source == "final" && segment.speaker != MeetingRecorder.othersSpeaker
+            : segment.source == "captions" || (segment.source == "audio" && segment.speaker == myName) {
             if result[segment.speaker] == nil { order.append(segment.speaker) }
             let words = segment.text.split(separator: " ").count
             let current = result[segment.speaker]
@@ -399,11 +428,12 @@ final class ZoomExtension: DashExtension {
     }
 
     /// "[03:15] Ada: …" per line; `numbered` adds "[n] " (Dashii refers to lines by it). A name
-    /// Dashii guessed is marked "(guessed)".
-    static func transcriptText(_ segments: [TranscriptSegment], since start: Date, numbered: Bool = false) -> String {
+    /// Dashii guessed (an inferred line, or a voice in `guessed`) is marked "(guessed)".
+    static func transcriptText(_ segments: [TranscriptSegment], since start: Date, numbered: Bool = false, guessed: Set<String> = []) -> String {
         segments.enumerated().map { index, segment in
             let offset = Int(segment.createdAt.timeIntervalSince(start))
-            let speaker = segment.source == "inferred" ? "\(segment.speaker) (guessed)" : segment.speaker
+            let isGuess = segment.source == "inferred" || (segment.source == "final" && guessed.contains(segment.speakerLabel))
+            let speaker = isGuess ? "\(segment.speaker) (guessed)" : segment.speaker
             return (numbered ? "[\(index)] " : "") + String(format: "[%02d:%02d] %@: %@", offset / 60, offset % 60, speaker, segment.text)
         }.joined(separator: "\n")
     }
@@ -412,12 +442,17 @@ final class ZoomExtension: DashExtension {
         guard let host else { return }
         isSummarizing = true
         defer { isSummarizing = false }
-        let lines = segments(meeting.id)
-        let transcript = Self.transcriptText(lines, since: meeting.startedAt, numbered: true)
+        let lines = namedSegments(meeting.id)
+        let final = lines.contains { $0.source == "final" }
+        let transcript = Self.transcriptText(lines, since: meeting.startedAt, numbered: true, guessed: guessedLabels(meeting.id))
+        let voices = final
+            ? "Lines from \"\(myName)\" are the user's microphone; the other voices were told apart in Zoom's audio: \"Speaker 1\", \"Speaker 2\"… are voices not named yet. "
+                + "Say which participant a Speaker N most likely is (voices) only when what they say or how others address them makes it clear."
+            : "Lines from \"\(myName)\" are the user's microphone; \"\(MeetingRecorder.othersSpeaker)\" is everyone else's audio mixed together. "
+                + "Name who said an Others line (speakers) only when the content makes it clear."
         let prompt = """
             Participants seen in Zoom: \(meeting.participants.joined(separator: ", "))
-            Lines from "\(myName)" are the user's microphone; "\(MeetingRecorder.othersSpeaker)" is everyone else's audio mixed together. \
-            Name who said an Others line (speakers) only when the content makes it clear; in the report, name people only from what they said.
+            \(voices) In the report, name people only from what they said.
 
             <transcript>
             \(transcript)
@@ -432,10 +467,11 @@ final class ZoomExtension: DashExtension {
         // The "Others" lines Dashii could attribute: named, marked as a guess.
         for guess in result["speakers"]?.array ?? [] {
             guard let index = guess["line"]?.int, index >= 0, index < lines.count, let name = guess["name"]?.string, !name.isEmpty,
-                  lines[index].speaker == MeetingRecorder.othersSpeaker else { continue }
+                  lines[index].speaker == MeetingRecorder.othersSpeaker, lines[index].source == "audio" else { continue }
             lines[index].speaker = name
             lines[index].source = "inferred"
         }
+        applyVoiceGuesses(result["voices"]?.array ?? [], to: meeting.id)
         meeting.report = MeetingReportBuilder.markdown(result, meeting: meeting)
         meeting.decisions = result["decisions"]?.array?.compactMap(\.string) ?? []
         meeting.actionItems = (try? result["action_items"]?.decode([MeetingRecord.ActionItem].self)) ?? []
