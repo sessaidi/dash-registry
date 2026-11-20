@@ -80,6 +80,11 @@ background when they're missing or stale; "Synced … ago" and its refresh butto
 they are. A very large pull request shows the files that fit in the stored copy, and says how
 many there are in all.
 
+The Overview also lists the latest Actions runs on the pull request's branch, read straight
+from the GitHub integration's own tables (`GitHubRun` in `github.store`, read-only) and fetched
+through `github.workflow_runs` when there are none or they're stale. It shows when GitHub
+publishes its database with the schema this plugin was built with (GitHub 1.10.0 or later).
+
 ## Answering reviewers (you only)
 
 The sheet's **Reviews** tab shows the PR's conversation from GitHub: threads on the code (open
