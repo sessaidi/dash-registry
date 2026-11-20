@@ -30,8 +30,26 @@ Settings › GitHub:
 - **Check**: calls `GET /user`. The status shows your login.
 - **Watched repositories**: `owner/name` entries, one per line (commas also work). Every
   GitHub feature uses this list.
-- **Fetched data**: how long fetched data stays fresh (15 minutes by default). Older data is
-  marked stale and Dashii may fetch it again.
+- **Background fetching**: what Dash keeps fetched from GitHub while it runs, and how often.
+  Each item has a switch, an interval (1 minute to a day), when it last ran or what failed, and
+  a Fetch Now button:
+
+  | Item | Default |
+  |---|---|
+  | Open pull requests of each watched repository | on, every 5 minutes |
+  | Actions runs of each watched repository | on, every 10 minutes |
+  | Open issues of each watched repository | off, every 30 minutes |
+  | Releases of each watched repository | off, every hour |
+  | Your unread notifications (none are marked read) | off, every 10 minutes |
+
+  Turn background fetching off and data is only fetched when a widget, Dashii or an agent
+  needs it. Without a token, or while the rate limit is used up, nothing is fetched and the
+  section says why.
+- **Fetched data**: how long fetched data stays fresh (15 minutes by default; older data is
+  marked stale and Dashii may fetch it again), how many days answers to lists and searches are
+  kept (1 by default), how much is stored (answers, pull requests and runs in the tables), and
+  Clear Fetched Data, which deletes what Dash fetched and GitHub's tables (nothing on GitHub
+  changes).
 
 ## Fetch, then read
 
@@ -41,7 +59,8 @@ GitHub and stores a compact, sanitized answer (at most 200 KB) in Dash's databas
 receipt: `{stored, unchanged, keys, synced_at, read_with}`. Each reader has the old tool's name and
 input. It returns the stored answer with `synced_at`, `stale` and `refresh` (the `data_fetch` call
 that refreshes it). If nothing is stored yet, it returns `{"fetched": false, "hint", "refresh"}`.
-Answers to queries (filtered lists, search, raw paths) are kept for a day.
+Answers to queries (filtered lists, search, raw paths) are kept for a day, or the days chosen
+in Fetched data.
 
 Fetchers send the ETag of GitHub's last answer, so fetching something that didn't change costs no
 rate limit. When GitHub says the rate limit is used up, fetches stop until it resets and Dash
