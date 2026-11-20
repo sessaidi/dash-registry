@@ -230,6 +230,48 @@ struct GitHubFetchTests {
         #expect(try await dash.runTool("github_pull", input)?["title"] == "Retries")
     }
 
+    // MARK: Background fetching
+
+    @Test func theScheduleFetchesTheWatchedRepositoriesOnTheirCycle() async throws {
+        let ledger = "/repos/acme/ledger"
+        serve([Self.repo + "/pulls": "[\(Self.pr)]", ledger + "/pulls": "[]",
+               Self.repo + "/actions/runs": #"{"workflow_runs":[]}"#, ledger + "/actions/runs": #"{"workflow_runs":[]}"#])
+        let schedule = github.schedule
+        schedule.stop()
+        #expect(schedule.items.filter { schedule.isOn($0) }.map(\.fetcher) == ["github.pulls", "github.workflow_runs"])
+        await schedule.runDue()
+        #expect(StubHTTP.requests(stub).allSatisfy { $0.url?.path() == "/user" })
+
+        github.reposText = "acme/billing-api\nAcme/Ledger"
+        await schedule.runDue()
+        let paths = Set(StubHTTP.requests(stub).compactMap { $0.url?.path() }).subtracting(["/user"])
+        #expect(paths == [Self.repo + "/pulls", ledger + "/pulls", Self.repo + "/actions/runs", ledger + "/actions/runs"])
+        #expect(schedule.status["pulls"]?.fetched == 2 && schedule.status["runs"]?.fetched == 2 && schedule.status["runs"]?.error == nil)
+        #expect(try await dash.runTool("github_pulls", ["repo": "acme/billing-api"])?["items"]?[0]?["number"] == 7)
+        #expect(try github.database?.context.fetchCount(FetchDescriptor<GitHubPull>()) == 1)
+
+        #expect(schedule.due.isEmpty)
+        github.now = { .now.addingTimeInterval(5 * 60 + 1) }
+        #expect(schedule.due.map(\.id) == ["pulls"])
+    }
+
+    @Test func theScheduleWaitsForATokenAndARateLimitReset() async throws {
+        let defaults = UserDefaults(suiteName: "gh-schedule-\(UUID())")!
+        defaults.set("https://\(stub)", forKey: "github.api")
+        defaults.set("acme/billing-api", forKey: "github.repos")
+        let github = GitHubIntegration(defaults: defaults, token: { "" }, session: StubHTTP.session)
+        let dash = try TestHost([github])
+        dash.start([github])
+        github.schedule.stop()
+        await github.schedule.runNow()
+        #expect(github.schedule.status["pulls"]?.error == "Add a token first." && StubHTTP.requests(stub).isEmpty)
+
+        let limited = GitHubIntegration(defaults: defaults, token: { "t0ken" }, session: StubHTTP.session)
+        IngestRateLimit.pause(service: GitHubAPI.service, scope: limited.storeScope, until: .now.addingTimeInterval(600))
+        defer { IngestRateLimit.resume(service: GitHubAPI.service, scope: limited.storeScope) }
+        #expect(limited.syncBlocked?.contains("rate limit is used up") == true)
+    }
+
     // MARK: No network for Dashii and agents
 
     @Test func noToolDashiiGetsCallsGitHub() async throws {
