@@ -34,6 +34,13 @@ struct PRStats: Equatable {
         }
     }
 
+    /// From what Dash stored: the `github.pull` and `github.checks` answers. nil until the pull
+    /// request is stored.
+    init?(storedPull pull: JSONValue?, checks: JSONValue?) {
+        guard let pull, pull.object != nil else { return nil }
+        self.init(pull: pull.merging(["mergeable_state": pull["mergeable"] ?? .null]), checkRuns: checks?["checks"]?.array ?? [])
+    }
+
     var checksTone: Tone { checksFailed > 0 ? .danger : checksPending > 0 ? .warning : checksPassed > 0 ? .success : .neutral }
 
     var mergeLabel: (text: String, tone: Tone) {
@@ -118,7 +125,13 @@ struct PRStatTiles: View {
 
 /// Lines added and removed in the biggest files, as stacked bars.
 struct ChangesChart: View {
+    /// As Dash stores them (`github.pull_files`): file, status, additions, deletions, patch.
     let files: [JSONValue]
+
+    /// The files in a stored `github.pull_files` answer: a list, or `items` when it was cut to fit.
+    static func files(from data: JSONValue?) -> [JSONValue]? {
+        data.map { $0.array ?? $0["items"]?.array ?? [] }
+    }
 
     private struct Bar: Identifiable {
         let file: String
@@ -128,9 +141,9 @@ struct ChangesChart: View {
     }
 
     var body: some View {
-        let top = files.sorted { ($0["changes"]?.int ?? 0) > ($1["changes"]?.int ?? 0) }.prefix(8)
+        let top = files.sorted { Self.lines($0) > Self.lines($1) }.prefix(8)
         let bars = top.flatMap { file -> [Bar] in
-            let name = Self.short(file["filename"]?.string ?? "?")
+            let name = Self.short(file["file"]?.string ?? "?")
             return [Bar(file: name, kind: "Added", lines: file["additions"]?.int ?? 0), Bar(file: name, kind: "Removed", lines: file["deletions"]?.int ?? 0)]
         }
         Chart(bars) { bar in
@@ -141,6 +154,8 @@ struct ChangesChart: View {
         .chartLegend(position: .top, alignment: .trailing)
         .frame(height: CGFloat(max(top.count, 1)) * 26 + 30)
     }
+
+    static func lines(_ file: JSONValue) -> Int { (file["additions"]?.int ?? 0) + (file["deletions"]?.int ?? 0) }
 
     /// The last two path components: enough to tell files apart.
     static func short(_ path: String) -> String {
