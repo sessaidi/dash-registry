@@ -14,7 +14,6 @@ final class GitHubIntegration: Integration {
     static let apiKey = "github.api"
     static let reposKey = "github.repos"
     static let freshKey = "github.freshMinutes"
-
     let id = "github"
     let name = "GitHub"
     let systemImage = "chevron.left.forwardslash.chevron.right"
@@ -42,6 +41,8 @@ final class GitHubIntegration: Integration {
     var reposText: String { didSet { defaults.set(reposText, forKey: Self.reposKey); publishRepos() } }
     /// Fetched data older than this is stale: readers say so and Dashii may fetch it again.
     var freshMinutes: Int { didSet { defaults.set(freshMinutes, forKey: Self.freshKey) } }
+    /// What's fetched in the background, and how often.
+    let schedule: IngestSchedule
     /// The clock for freshness (tests move it).
     @ObservationIgnored var now: @MainActor () -> Date = { .now }
     private(set) var hasToken: Bool
@@ -60,7 +61,11 @@ final class GitHubIntegration: Integration {
         apiURL = defaults.string(forKey: Self.apiKey) ?? Self.defaultAPI
         reposText = defaults.string(forKey: Self.reposKey) ?? ""
         freshMinutes = defaults.object(forKey: Self.freshKey) as? Int ?? 15
+        schedule = IngestSchedule(prefix: "github", defaults: defaults)
         hasToken = !(readToken() ?? "").isEmpty
+        schedule.items = syncItems
+        schedule.blocked = { [weak self] in self?.syncBlocked }
+        schedule.clock = { [weak self] in self?.now() ?? .now }
     }
 
     private var token: String? { readToken().flatMap { $0.isEmpty ? nil : $0 } }
@@ -227,7 +232,12 @@ final class GitHubIntegration: Integration {
         self.host = host
         openDatabase()
         publishRepos()
+        schedule.start(host: host)
         Task { await verify() }
+    }
+
+    func stop() {
+        schedule.stop()
     }
 
     /// The watched repositories, in Dash's database for other extensions (Knowledge indexes them).

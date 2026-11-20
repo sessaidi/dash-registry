@@ -1,6 +1,7 @@
 import AppKit
 import DashKit
 import DashKitUI
+import Ingestor
 import SwiftUI
 
 /// The GitHub pane in Settings: token (with a link to create one, permissions pre-filled), API
@@ -107,6 +108,8 @@ struct GitHubSettingsView: View {
             } footer: {
                 Text("Every GitHub feature (pull requests, reviews, CI) uses this list.")
             }
+            IngestScheduleSection(github.schedule, footer: "While Dash runs, it fetches these from GitHub on their cycle, so widgets, Dashii and agents find them stored. "
+                                  + "Anything else is fetched when something needs it. A used-up rate limit pauses fetching until it resets.")
             Section {
                 Stepper("Fresh for \(github.freshMinutes) minutes", value: $github.freshMinutes, in: 5...240, step: 5)
             } header: {
