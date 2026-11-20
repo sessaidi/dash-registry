@@ -2,11 +2,13 @@ import AppKit
 import DashKit
 import DashKitUI
 import Foundation
+import Ingestor
 import SwiftData
 import SwiftUI
 
 /// A pull request in full: what it is and where it runs, its changes, the reviews, and your
-/// own review worked through with Dashii.
+/// own review worked through with Dashii. Its numbers and files are what the GitHub integration
+/// stored, fetched again in the background when missing or stale.
 struct PullRequestSheet: View {
     enum Tab: String, CaseIterable { case overview = "Overview", changes = "Changes", reviews = "Reviews", discuss = "Review with Dashii" }
 
@@ -20,15 +22,25 @@ struct PullRequestSheet: View {
     @State private var confirmMerge = false
     @State private var workspaces: [JSONValue]?
     @State private var workspaceNote: String?
-    @State private var files: [JSONValue]?
-    @State private var stats: PRStats?
+    @State private var pull: IngestFeed
+    @State private var checks: IngestFeed
+    @State private var changedFiles: IngestFeed
 
     init(pr: PullRequest, host: any ExtensionContext) {
         self.pr = pr
         self.host = host
         let uid = pr.uid
         _reviews = Query(filter: #Predicate<PRReview> { $0.prUID == uid }, sort: \.createdAt, order: .reverse)
+        let input: JSONValue = ["repo": .string(pr.repo), "number": .number(Double(pr.number))]
+        _pull = State(initialValue: IngestFeed(host: host, fetcher: "github.pull", reader: "github_pull", input: input))
+        _checks = State(initialValue: IngestFeed(host: host, fetcher: "github.checks", reader: "github_checks",
+                                                 input: ["repo": .string(pr.repo), "ref": .string(pr.headSHA)]))
+        _changedFiles = State(initialValue: IngestFeed(host: host, fetcher: "github.pull_files", reader: "github_pull_files",
+                                                       input: input.merging(["patches": true])))
     }
+
+    private var stats: PRStats? { PRStats(storedPull: pull.data, checks: checks.data) }
+    private var files: [JSONValue]? { ChangesChart.files(from: changedFiles.data) }
 
     private var github: PullRequestsFeature? { host.ext(PullRequestsFeature.self) }
     /// "owner/users-api" → "users-api": the service the PR changes.
@@ -67,11 +79,13 @@ struct PullRequestSheet: View {
         .padding(20)
         .frame(minWidth: 860, idealWidth: 980, minHeight: 640, idealHeight: 760)
         .task { await loadWorkspaces() }
-        .task { await loadStats() }
+        .task { await pull.load() }
+        .task { if !pr.headSHA.isEmpty { await checks.load() } }
+        .task { await changedFiles.load() }
         .confirmationDialog("Merge \(pr.repo)#\(pr.number)?", isPresented: $confirmMerge) {
-            Button("Squash and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "squash"); await github?.sync() } }
-            Button("Merge Commit") { run { try await github?.client.merge(pr.repo, pr.number, method: "merge"); await github?.sync() } }
-            Button("Rebase and Merge") { run { try await github?.client.merge(pr.repo, pr.number, method: "rebase"); await github?.sync() } }
+            Button("Squash and Merge") { merge("squash") }
+            Button("Merge Commit") { merge("merge") }
+            Button("Rebase and Merge") { merge("rebase") }
         }
     }
 
@@ -133,6 +147,7 @@ struct PullRequestSheet: View {
     @ViewBuilder
     private var overview: some View {
         VStack(alignment: .leading, spacing: 14) {
+            HStack { Spacer(); IngestStatus(pull) }
             PRStatTiles(stats: stats, pr: pr)
             if let review = reviews.first {
                 Panel(title: "Dashii's review", systemImage: "sparkles", tint: Self.riskColor(review.risk)) { ReviewView(review: review) }
@@ -148,7 +163,6 @@ struct PullRequestSheet: View {
                 if pr.body.isEmpty { Text("No description.").foregroundStyle(.secondary) } else { host.markdown(pr.body) }
             }
         }
-        .task { if files == nil { files = (try? await github?.client.files(pr.repo, pr.number)) ?? [] } }
     }
 
     static func riskColor(_ risk: String) -> Color {
@@ -161,11 +175,18 @@ struct PullRequestSheet: View {
     }
 
     private var changes: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                if changedFiles.data?["truncated"]?.bool == true {
+                    Text("Showing \(files?.count ?? 0) of \(changedFiles.data?["total"]?.int ?? 0) files.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                IngestStatus(changedFiles)
+            }
             if let files {
                 List(Array(files.enumerated()), id: \.offset) { _, file in
                     DisclosureGroup {
-                        if let patch = file["patch"]?.string {
+                        if let patch = file["patch"]?.string, !patch.isEmpty {
                             DiffView(patch: patch)
                         } else {
                             Text("No textual diff (binary or too large).").font(.callout).foregroundStyle(.secondary)
@@ -173,7 +194,7 @@ struct PullRequestSheet: View {
                     } label: {
                         HStack(spacing: 8) {
                             FileStatusBadge(status: file["status"]?.string ?? "modified")
-                            Text(file["filename"]?.string ?? "?").font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                            Text(file["file"]?.string ?? "?").font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
                             Spacer()
                             Text("+\(file["additions"]?.int ?? 0)").foregroundStyle(.green).font(.caption.monospacedDigit())
                             Text("−\(file["deletions"]?.int ?? 0)").foregroundStyle(.red).font(.caption.monospacedDigit())
@@ -181,9 +202,10 @@ struct PullRequestSheet: View {
                         }
                     }
                 }
+            } else if changedFiles.isFetching {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ProgressView().frame(maxWidth: .infinity)
-                    .task { files = (try? await github?.client.files(pr.repo, pr.number)) ?? [] }
+                Text("The files aren't stored yet.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -204,13 +226,13 @@ struct PullRequestSheet: View {
         }
     }
 
-    /// GitHub's numbers for the tiles: the pull request, and the check runs of its head commit.
-    private func loadStats() async {
-        guard let github else { return }
-        let repo = pr.repo, number = pr.number, sha = pr.headSHA
-        let pull = (try? await github.client.pull(repo, number)) ?? .null
-        let runs = (try? await github.client.get("/repos/\(repo)/commits/\(sha)/check-runs?per_page=100"))?.json["check_runs"]?.array ?? []
-        stats = PRStats(pull: pull, checkRuns: runs)
+    /// Merging is yours, so it goes to GitHub directly; then the list and the stored PR catch up.
+    private func merge(_ method: String) {
+        run {
+            try await github?.client.merge(pr.repo, pr.number, method: method)
+            await github?.sync()
+            await pull.refresh()
+        }
     }
 
     private func loadWorkspaces() async {

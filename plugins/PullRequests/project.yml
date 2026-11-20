@@ -6,6 +6,7 @@ options:
   createIntermediateGroups: true
 packages:
   DashKit: { path: "${DASH_ROOT}/Packages/DashKit" }
+  Ingestor: { path: "${DASH_ROOT}/Packages/Ingestor" }   # linked statically: Dash.app provides DashKit, not Ingestor
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -27,6 +28,8 @@ targets:
       - package: DashKit
         product: DashKit
         embed: false
+      - package: Ingestor
+        product: Ingestor
     info:
       path: Info.plist
       properties:
@@ -52,6 +55,8 @@ targets:
     dependencies:
       - package: DashKit
         product: DashKit
+      - package: Ingestor
+        product: Ingestor
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

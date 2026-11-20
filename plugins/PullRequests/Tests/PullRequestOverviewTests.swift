@@ -21,4 +21,20 @@ struct PullRequestOverviewTests {
         #expect(stats.checksPassed == 2 && stats.checksFailed == 1 && stats.checksPending == 1 && stats.checksTone == .danger)
         #expect(stats.mergeLabel.text == "Conflicts")
     }
+
+    @Test @MainActor func statsAndFilesComeFromWhatDashStored() throws {
+        // github.pull and github.checks as the GitHub integration stores them.
+        let pull: JSONValue = ["number": 7, "changed_files": 2, "additions": 5, "deletions": 1, "commits": 1, "comments": 1, "review_comments": 2, "mergeable": "clean"]
+        let checks: JSONValue = ["state": "pending", "checks": [["name": "test", "status": "completed", "conclusion": "success"], ["name": "lint", "status": "queued"]]]
+        let stats = try #require(PRStats(storedPull: pull, checks: checks))
+        #expect(stats.files == 2 && stats.comments == 3 && stats.mergeLabel.text == "Ready")
+        #expect(stats.checksPassed == 1 && stats.checksPending == 1 && stats.checksTone == .warning)
+        #expect(PRStats(storedPull: pull, checks: nil)?.checksTone == .neutral)
+        #expect(PRStats(storedPull: nil, checks: checks) == nil)
+
+        let files: JSONValue = [["file": "a.swift", "additions": 1, "deletions": 0], ["file": "b.swift", "additions": 4, "deletions": 4]]
+        #expect(ChangesChart.files(from: files)?.count == 2 && ChangesChart.files(from: nil) == nil)
+        #expect(ChangesChart.files(from: ["items": files, "truncated": true, "total": 9])?.count == 2)
+        #expect(ChangesChart.lines(files[1]!) == 8)
+    }
 }
