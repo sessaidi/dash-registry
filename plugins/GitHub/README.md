@@ -8,7 +8,7 @@ PRs. It works with github.com and with GitHub Enterprise Server.
 | | |
 |---|---|
 | Plugin id | `github` |
-| Version | 1.11.0 |
+| Version | 1.12.0 |
 | Minimum DashKit | 2.4.0 |
 | Layer | integration (provides `github`) |
 | Requires | nothing |
@@ -136,6 +136,6 @@ TEST=1 scripts/build-plugins.sh GitHub   # generate the project, run GitHubPlugi
 scripts/build-plugins.sh GitHub          # build and zip without the tests
 ```
 
-The script writes `dist/github-1.11.0.dashplugin.zip` and regenerates `registry.json`. To try a
+The script writes `dist/github-1.12.0.dashplugin.zip` and regenerates `registry.json`. To try a
 build in a running Dash, copy `build/GitHub/Build/Products/Release/GitHubPlugin.dashplugin`
 into `~/Library/Application Support/Dash/Plugins`.
