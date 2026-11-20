@@ -18,7 +18,7 @@ final class GitHubIntegration: Integration {
     let name = "GitHub"
     let systemImage = "chevron.left.forwardslash.chevron.right"
     let metadata = ExtensionMetadata(
-        version: "1.7.0", author: .dash, summary: "GitHub account, API URL and the repositories you watch.",
+        version: "1.8.0", author: .dash, summary: "GitHub account, API URL and the repositories you watch.",
         category: .sourceControl, tags: ["github", "git", "pull requests"], homepage: "https://github.com/sessaidi/dash",
         minimumDashKit: "2.4.0")
     let secretKeys = [SecretKey("token", "Personal access token")]

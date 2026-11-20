@@ -30,7 +30,7 @@ struct GitHubIntegrationTests {
         let github = make()
         #expect(github.id == "github")
         #expect(github.layer == .integration)
-        #expect(github.metadata.version == "1.7.0")
+        #expect(github.metadata.version == "1.8.0")
         #expect(github.metadata.minimumDashKit == "2.4.0")
         #expect(github.metadata.category == .sourceControl)
         #expect(github.metadata.author == .dash)

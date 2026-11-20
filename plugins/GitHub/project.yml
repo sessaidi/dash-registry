@@ -35,7 +35,7 @@ targets:
       properties:
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         DashPluginID: github
-        DashPluginVersion: "1.7.0"
+        DashPluginVersion: "1.8.0"
         DashKitMinimumVersion: "2.4.0"
     settings:
       base:
