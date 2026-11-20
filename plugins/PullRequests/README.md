@@ -73,6 +73,13 @@ the next launch. Diffs over 600,000 characters are reviewed partially, and the r
 |---|---|---|
 | `github.pulls` (Pull Requests) | Open PRs with Claude's verdict and risk. Opening one shows the review. From there you can comment, approve, request changes, post Claude's review as a comment, re-review, ask Claude, or merge (squash, merge commit or rebase). Default size: large. | **Repository** (`repo`, empty for all watched). **Show**: All open (`all`, default), Review requested (`review_requested`), Mine (`mine`). |
 
+The sheet's **Overview** numbers (files, lines, commits, checks, merge state, comments) and its
+**Changes** tab come from what the GitHub integration stored (`github.pull`, `github.checks` and
+`github.pull_files`). Opening the sheet shows them straight away and fetches them again in the
+background when they're missing or stale; "Synced … ago" and its refresh button say how recent
+they are. A very large pull request shows the files that fit in the stored copy, and says how
+many there are in all.
+
 ## Answering reviewers (you only)
 
 The sheet's **Reviews** tab shows the PR's conversation from GitHub: threads on the code (open
