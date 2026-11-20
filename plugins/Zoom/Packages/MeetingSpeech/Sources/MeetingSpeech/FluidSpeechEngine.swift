@@ -9,7 +9,7 @@ public actor FluidSpeechEngine: SpeechEngine {
     static let version: AsrModelVersion = .ultra
 
     private var asr: AsrManager?
-    private var diarizer: OfflineDiarizerManager?
+    private var diarizerReady = false
 
     public init() {}
 
@@ -27,10 +27,9 @@ public actor FluidSpeechEngine: SpeechEngine {
             try await manager.loadModels(models)
             asr = manager
         }
-        if diarizer == nil {
-            let manager = OfflineDiarizerManager(config: OfflineDiarizerConfig())
-            try await manager.prepareModels()
-            diarizer = manager
+        if !diarizerReady {
+            try await OfflineDiarizerManager(config: OfflineDiarizerConfig()).prepareModels()
+            diarizerReady = true
         }
         progress(1)
     }
@@ -45,8 +44,12 @@ public actor FluidSpeechEngine: SpeechEngine {
     }
 
     public func diarize(_ samples: [Float]) async throws -> Diarization {
-        guard let diarizer else { throw SpeechEngineError.notPrepared }
+        guard diarizerReady else { throw SpeechEngineError.notPrepared }
         guard samples.count >= 16_000 * 5 else { return Diarization(turns: [], voiceprints: [:]) }
+        // One per recording (the models load from disk in well under a second): the manager isn't
+        // Sendable, so the actor doesn't keep one.
+        let diarizer = OfflineDiarizerManager(config: OfflineDiarizerConfig())
+        try await diarizer.prepareModels()
         let result = try await diarizer.process(audio: samples)
         let turns = result.segments.map { SpeakerTurn(speaker: $0.speakerId, start: TimeInterval($0.startTimeSeconds), end: TimeInterval($0.endTimeSeconds)) }
         var voiceprints = result.speakerDatabase ?? [:]
