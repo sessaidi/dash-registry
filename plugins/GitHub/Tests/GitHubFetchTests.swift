@@ -22,7 +22,7 @@ struct GitHubFetchTests {
     nonisolated static let pr = #"""
         {"number":7,"title":"Retries","user":{"login":"ada"},"state":"open","draft":false,"merged_at":null,"head":{"ref":"feature/x"},
          "base":{"ref":"main"},"labels":[{"name":"backend"}],"requested_reviewers":[],"updated_at":"2026-11-17T09:00:00Z",
-         "html_url":"https://github.com/acme/billing-api/pull/7","body":"Set GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 locally"}
+         "comments":2,"review_comments":3,"html_url":"https://github.com/acme/billing-api/pull/7","body":"Set GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789 locally"}
         """#
 
     nonisolated static let cases: [Case] = [
@@ -35,7 +35,7 @@ struct GitHubFetchTests {
         Case(fetcher: "github.pulls", input: ["repo": "acme/billing-api"], routes: [repo + "/pulls": "[\(pr)]"],
              path: repo + "/pulls") { $0["items"]?[0]?["number"] == 7 && $0["items"]?[0]?["author"] == "ada" },
         Case(fetcher: "github.pull", input: ["repo": "acme/billing-api", "number": 7], routes: [repo + "/pulls/7": pr],
-             path: repo + "/pulls/7") { $0["title"] == "Retries" && $0["body"]?.string?.contains("ghp_") == false },
+             path: repo + "/pulls/7") { $0["title"] == "Retries" && $0["body"]?.string?.contains("ghp_") == false && $0["comments"] == 2 && $0["review_comments"] == 3 },
         Case(fetcher: "github.pull_files", input: ["repo": "acme/billing-api", "number": 7],
              routes: [repo + "/pulls/7/files": #"[{"filename":"retry.go","status":"modified","additions":3,"deletions":1}]"#],
              path: repo + "/pulls/7/files") { $0["items"]?[0]?["file"] == "retry.go" },
