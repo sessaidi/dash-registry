@@ -43,13 +43,18 @@ input. It returns the stored answer with `synced_at`, `stale` and `refresh` (the
 that refreshes it). If nothing is stored yet, it returns `{"fetched": false, "hint", "refresh"}`.
 Answers to queries (filtered lists, search, raw paths) are kept for a day.
 
+Fetchers send the ETag of GitHub's last answer, so fetching something that didn't change costs no
+rate limit. When GitHub says the rate limit is used up, fetches stop until it resets and Dash
+keeps showing what it stored. The plugin is built on the
+[Ingestor package](https://github.com/sessaidi/dash/tree/main/Packages/Ingestor).
+
 | Fetcher (`data_fetch`) | Reader (Dashii tool) | What |
 |---|---|---|
 | `github.whoami` | `github_whoami` | The signed-in user and their organizations |
 | `github.repo` | `github_repo` | Default branch, visibility, language, topics, open issues, last push |
 | `github.branches` | `github_branches` | Branches with their last commit and protection |
 | `github.pulls` | `github_pulls` | Pull requests: open, closed or all; by author or base |
-| `github.pull` | `github_pull` | One pull request with its description, mergeability and size |
+| `github.pull` | `github_pull` | One pull request with its description, mergeability, size and comment counts |
 | `github.pull_files` | `github_pull_files` | Files a pull request changes (patches on request) |
 | `github.pull_reviews` | `github_pull_reviews` | Reviews and line comments |
 | `github.checks` | `github_checks` | Check runs and the combined status of a ref |

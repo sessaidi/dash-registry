@@ -36,7 +36,7 @@ finishes at the next launch.
 
 Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen), and a checkout of the
 [Dash repository](https://github.com/sessaidi/dash): plugins compile against its
-`Packages/DashKit`. The scripts find it through `DASH_ROOT` (see `scripts/dash-root.sh`):
+`Packages/DashKit`, and some link its `Packages/Ingestor` (fetch into Dash, read from Dash). The scripts find it through `DASH_ROOT` (see `scripts/dash-root.sh`):
 a `dash` checkout next to this repository works as is; anywhere else, set `DASH_ROOT` or write
 its path in a `.dash-root` file here (not committed). Running `xcodegen` yourself needs
 `DASH_ROOT` set too.
