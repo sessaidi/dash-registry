@@ -27,38 +27,7 @@ extension GitHubIntegration {
         ] + syncTools
     }
 
-    // MARK: Compact shapes (tested)
-
-    nonisolated static func user(_ json: JSONValue?) -> JSONValue { json?["login"] ?? .null }
-
-    nonisolated static func pullSummary(_ pr: JSONValue) -> JSONValue {
-        ["number": pr["number"] ?? .null, "title": pr["title"] ?? .null, "author": user(pr["user"]),
-         "state": pr["state"] ?? .null, "draft": pr["draft"] ?? false, "merged": .bool(pr["merged_at"]?.string != nil),
-         "head": pr["head"]?["ref"] ?? .null, "base": pr["base"]?["ref"] ?? .null,
-         "updated": pr["updated_at"] ?? .null, "url": pr["html_url"] ?? .null,
-         "labels": .array((pr["labels"]?.array ?? []).compactMap { $0["name"] }),
-         "requested_reviewers": .array((pr["requested_reviewers"]?.array ?? []).map { user($0) })]
-    }
-
-    nonisolated static func runSummary(_ run: JSONValue) -> JSONValue {
-        ["id": run["id"] ?? .null, "workflow": run["name"] ?? .null, "branch": run["head_branch"] ?? .null,
-         "sha": .string(String((run["head_sha"]?.string ?? "").prefix(7))), "event": run["event"] ?? .null,
-         "status": run["status"] ?? .null, "conclusion": run["conclusion"] ?? .null,
-         "started": run["run_started_at"] ?? run["created_at"] ?? .null, "url": run["html_url"] ?? .null]
-    }
-
-    nonisolated static func jobSummary(_ job: JSONValue) -> JSONValue {
-        ["id": job["id"] ?? .null, "name": job["name"] ?? .null, "status": job["status"] ?? .null, "conclusion": job["conclusion"] ?? .null,
-         "failed_steps": .array((job["steps"]?.array ?? []).filter { $0["conclusion"]?.string == "failure" }.compactMap { $0["name"] }),
-         "url": job["html_url"] ?? .null]
-    }
-
-    nonisolated static func commitSummary(_ commit: JSONValue) -> JSONValue {
-        ["sha": .string(String((commit["sha"]?.string ?? "").prefix(7))),
-         "author": commit["author"]?["login"] ?? commit["commit"]?["author"]?["name"] ?? .null,
-         "date": commit["commit"]?["author"]?["date"] ?? .null,
-         "message": .string(String((commit["commit"]?["message"]?.string ?? "").split(separator: "\n").first ?? ""))]
-    }
+    // MARK: Paths (tested)
 
     /// "owner/name", checked, for paths.
     nonisolated static func repoPath(_ input: JSONValue) throws -> String {
