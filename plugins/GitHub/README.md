@@ -80,6 +80,12 @@ in the plugin's own database, `github.store` in Dash's Ingest folder; `github_pu
 `github_runs` read them. The stored answers stay the source of truth: the tables follow them
 after every fetch, and if the file can't be opened after an update it's made again from them.
 
+Features built on GitHub can read these tables directly. The models are in `Schema/GitHubSchema.swift`
+with a schema version; a feature compiles that file and opens `github.store` read-only when the
+version GitHub publishes in its exports (`database`) is the one it was built with, and reads
+through the readers otherwise. Change a model, bump `GitHubSchema.version`. Pull Requests uses it
+for the branch's Actions runs in its sheet.
+
 Nothing here writes to GitHub, and no tool needs approval.
 
 ### For other extensions
