@@ -16,7 +16,7 @@ struct ZoomExtensionTests {
         #expect(zoom.requires.isEmpty)
         #expect(zoom.widgets.map(\.kind) == ["zoom.meeting", "zoom.upcoming"])
         #expect(zoom.tools.map(\.name) == ["zoom_upcoming_meetings", "meetings_list", "meeting_transcript", "meeting_speakers", "meeting_participants", "meeting_summarize"])
-        #expect(zoom.models.count == 2)
+        #expect(zoom.models.count == 4)
         #expect(ZoomPlugin.makeExtensions().map(\.id) == ["zoom"])
     }
 
@@ -47,8 +47,9 @@ struct ZoomExtensionTests {
         #expect(fresh.recordingOptions?.video == false)
         fresh.recordVideo = true
         #expect(fresh.recordingOptions?.video == true)
+        // Not kept: recorded to a temporary file for the final transcript.
         fresh.saveAudio = false
-        #expect(fresh.recordingOptions == nil)
+        #expect(fresh.improveAfterMeeting && fresh.recordingOptions?.folder == ZoomExtension.temporaryRecordings)
     }
 
     @Test func meetingsListNewestFirst() async throws {
