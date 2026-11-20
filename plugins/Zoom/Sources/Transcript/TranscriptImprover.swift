@@ -39,10 +39,10 @@ extension ZoomExtension {
         improving = ImproveProgress(meetingID: meetingID, step: "Loading the speech models")
         defer { improving = nil }
         let engine = speechEngine
-        try await engine.prepare { fraction in
-            Task { @MainActor [weak self] in
-                guard fraction < 1, self?.improving?.meetingID == meetingID else { return }
-                self?.improving = ImproveProgress(meetingID: meetingID, step: "Downloading the speech models", fraction: fraction)
+        try await engine.prepare { [weak self] fraction in
+            Task { @MainActor in
+                guard let self, fraction < 1, self.improving?.meetingID == meetingID else { return }
+                self.improving = ImproveProgress(meetingID: meetingID, step: "Downloading the speech models", fraction: fraction)
             }
         }
         improving = ImproveProgress(meetingID: meetingID, step: "Transcribing the recording")
