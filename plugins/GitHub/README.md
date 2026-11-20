@@ -75,6 +75,11 @@ keeps showing what it stored. The plugin is built on the
 DashQL datasets: `github_pulls`, `github_issues`, `github_runs`, `github_releases`. They contain the
 fetched rows, one per repository and number, id or tag, each with `repo`, `synced_at` and `stale`.
 
+Fetched pull requests and Actions runs are also kept as typed tables (`GitHubPull`, `GitHubRun`)
+in the plugin's own database, `github.store` in Dash's Ingest folder; `github_pulls` and
+`github_runs` read them. The stored answers stay the source of truth: the tables follow them
+after every fetch, and if the file can't be opened after an update it's made again from them.
+
 Nothing here writes to GitHub, and no tool needs approval.
 
 ### For other extensions
