@@ -347,18 +347,18 @@
     },
     {
       "id": "zoom",
-      "name": "Zoom",
+      "name": "Meetings",
       "kind": "feature",
-      "version": "1.10.1",
+      "version": "1.11.0",
       "plugin": {
-        "download": "dist/zoom-1.10.1.dashplugin.zip",
+        "download": "dist/zoom-1.11.0.dashplugin.zip",
         "minimumDashKit": "2.2.0",
         "provides": [
           "zoom"
         ],
-        "sha256": "0d9434cb80de950365727f4d9bf36062a2354c56333d294ec7de45a20e57006b"
+        "sha256": "7fb5a795d29abf7a8ef113e48c5aa3a432deca5883d4b5d36e39d35ded9e3048"
       },
-      "description": "On-device Zoom transcripts, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
+      "description": "On-device Zoom transcripts with each voice told apart and named, live participants, Claude summaries and audio or video recordings, with a Meeting widget.",
       "icon": "video",
       "author": {
         "name": "Dash",
